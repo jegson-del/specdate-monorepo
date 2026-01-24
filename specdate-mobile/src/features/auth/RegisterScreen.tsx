@@ -1,12 +1,46 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, ScrollView, Alert } from 'react-native';
-import { Text, TextInput, Button, useTheme, RadioButton, SegmentedButtons } from 'react-native-paper';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Text, TextInput, Button, IconButton, useTheme, RadioButton, SegmentedButtons } from 'react-native-paper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MotiView } from 'moti';
+import { z } from 'zod';
 import { AuthService } from '../../services/auth';
+import { registerSchema } from '../../utils/validation';
+import * as Location from 'expo-location';
+
+// Avoid re-prompting every time the user returns to this screen (per app run).
+let didTryAutoLocationPrefill = false;
+
+const CALLING_CODE_BY_ISO: Record<string, string> = {
+    NG: '234',
+    US: '1',
+    CA: '1',
+    GB: '44',
+    IE: '353',
+    ZA: '27',
+    GH: '233',
+    KE: '254',
+    UG: '256',
+    IN: '91',
+    PK: '92',
+    BD: '880',
+    FR: '33',
+    DE: '49',
+    IT: '39',
+    ES: '34',
+    NL: '31',
+    BE: '32',
+    PT: '351',
+    SE: '46',
+    NO: '47',
+    DK: '45',
+    AU: '61',
+    NZ: '64',
+};
 
 export default function RegisterScreen({ navigation }: any) {
     const theme = useTheme();
+    const insets = useSafeAreaInsets();
 
     const [step, setStep] = useState(1); // 1: Details, 2: OTP Channel
     const [loading, setLoading] = useState(false);
@@ -17,21 +51,106 @@ export default function RegisterScreen({ navigation }: any) {
         email: '',
         mobile: '',
         password: '',
-        name: ''
+        // Optional location fields (sent to backend; stored in user_profiles)
+        latitude: undefined as undefined | number,
+        longitude: undefined as undefined | number,
+        city: '',
+        state: '',
+        country: '',
+        continent: '',
     });
 
     const [otpChannel, setOtpChannel] = useState('email');
+    const [locLoading, setLocLoading] = useState(false);
+    const [locHint, setLocHint] = useState<string | null>(null);
+
+    const prefillFromLocation = async () => {
+        setLocLoading(true);
+        setLocHint(null);
+        try {
+            const perm = await Location.requestForegroundPermissionsAsync();
+            if (perm.status !== 'granted') {
+                // Don't block registration; just skip prefilling.
+                setLocHint('Location permission not granted (fill manually).');
+                return;
+            }
+
+            const servicesEnabled = await Location.hasServicesEnabledAsync();
+            if (!servicesEnabled) {
+                setLocHint('Location services are off (fill manually).');
+                return;
+            }
+
+            // Try last known first (avoids "current location unavailable" on emulators)
+            let pos = await Location.getLastKnownPositionAsync();
+            if (!pos) {
+                pos = await Location.getCurrentPositionAsync({
+                    accuracy: Location.Accuracy.Balanced,
+                });
+            }
+            if (!pos) {
+                setLocHint('Could not detect location (fill manually).');
+                return;
+            }
+
+            const { latitude, longitude } = pos.coords;
+            const places = await Location.reverseGeocodeAsync({ latitude, longitude });
+            const place = places?.[0];
+
+            const iso = (place?.isoCountryCode || '').toUpperCase();
+            const calling = iso ? CALLING_CODE_BY_ISO[iso] : undefined;
+
+            setForm((prev) => {
+                const nextMobile =
+                    calling && prev.mobile.trim().length === 0
+                        ? `+${calling} `
+                        : calling && !prev.mobile.trim().startsWith('+')
+                            ? `+${calling} ${prev.mobile.trim()}`.trimEnd()
+                            : prev.mobile;
+
+                return {
+                    ...prev,
+                    latitude,
+                    longitude,
+                    city: place?.city ?? prev.city,
+                    state: place?.region ?? prev.state,
+                    country: place?.country ?? prev.country,
+                    // expo-location doesn't reliably provide continent; leave as-is.
+                    continent: prev.continent,
+                    mobile: nextMobile,
+                };
+            });
+        } catch (e) {
+            // Don't console.error here (it can trigger a red screen). Best-effort only.
+            setLocHint('Could not detect location (fill manually).');
+        } finally {
+            setLocLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        // Auto-prefill once, and only if we don't already have a location/country.
+        if (didTryAutoLocationPrefill) return;
+        didTryAutoLocationPrefill = true;
+        if (form.country || form.city || form.state) return;
+        void prefillFromLocation();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const handleNext = async () => {
         if (step === 1) {
-            // Basic validation
-            if (!form.username || !form.email || !form.password || !form.mobile) {
-                Alert.alert("Missing Fields", "Please fill all fields.");
-                return;
+            try {
+                // Validate form using Zod
+                registerSchema.parse(form);
+                setStep(2);
+            } catch (error: any) {
+                if (error instanceof z.ZodError) {
+                    // Show first error message
+                    Alert.alert("Validation Error", error.issues?.[0]?.message ?? "Invalid form data.");
+                }
             }
-            setStep(2);
         } else {
-            // Submit & Request OTP
+            // Submit: for now we bypass OTP sending and just move to OTP screen
             handleSubmit();
         }
     };
@@ -39,13 +158,10 @@ export default function RegisterScreen({ navigation }: any) {
     const handleSubmit = async () => {
         setLoading(true);
         try {
-            // In real flow: 1. Register (or Pre-register) -> 2. Send OTP
-            // For now we mock the flow to move to OTP screen
-            await AuthService.requestOtp(otpChannel as 'email' | 'mobile', otpChannel === 'email' ? form.email : form.mobile);
-
             // Navigate to OTP Screen, passing the form data to finalize there or just the next step
             navigation.navigate('OtpVerification', {
-                formData: form,
+                // Backend `users.name` is required; we default it to the username for now.
+                formData: { ...form, name: form.username },
                 channel: otpChannel,
                 target: otpChannel === 'email' ? form.email : form.mobile
             });
@@ -57,8 +173,27 @@ export default function RegisterScreen({ navigation }: any) {
     };
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-            <ScrollView contentContainerStyle={styles.content}>
+        <View
+            style={[
+                styles.container,
+                {
+                    backgroundColor: theme.colors.background,
+                    paddingTop: insets.top,
+                    paddingRight: insets.right,
+                    paddingBottom: insets.bottom,
+                    paddingLeft: insets.left,
+                },
+            ]}
+        >
+            <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+                <View style={styles.topBar}>
+                    <IconButton
+                        icon="arrow-left"
+                        size={24}
+                        onPress={() => (step === 2 ? setStep(1) : navigation.goBack())}
+                        iconColor={theme.colors.onBackground}
+                    />
+                </View>
 
                 <MotiView
                     from={{ opacity: 0, translateY: 20 }}
@@ -81,18 +216,17 @@ export default function RegisterScreen({ navigation }: any) {
                         <>
                             <TextInput
                                 mode="outlined"
-                                label="Full Name"
-                                value={form.name}
-                                onChangeText={(t) => setForm({ ...form, name: t })}
-                                style={styles.input}
-                            />
-                            <TextInput
-                                mode="outlined"
                                 label="Username"
                                 value={form.username}
                                 onChangeText={(t) => setForm({ ...form, username: t })}
                                 style={styles.input}
                                 left={<TextInput.Icon icon="account" />}
+                                textColor={theme.colors.onBackground}
+                                cursorColor={theme.colors.primary}
+                                selectionColor={theme.colors.primary}
+                                outlineColor={theme.colors.outline}
+                                activeOutlineColor={theme.colors.primary}
+                                placeholderTextColor={theme.colors.outline}
                             />
                             <TextInput
                                 mode="outlined"
@@ -103,6 +237,12 @@ export default function RegisterScreen({ navigation }: any) {
                                 keyboardType="email-address"
                                 autoCapitalize="none"
                                 left={<TextInput.Icon icon="email" />}
+                                textColor={theme.colors.onBackground}
+                                cursorColor={theme.colors.primary}
+                                selectionColor={theme.colors.primary}
+                                outlineColor={theme.colors.outline}
+                                activeOutlineColor={theme.colors.primary}
+                                placeholderTextColor={theme.colors.outline}
                             />
                             <TextInput
                                 mode="outlined"
@@ -112,7 +252,27 @@ export default function RegisterScreen({ navigation }: any) {
                                 style={styles.input}
                                 keyboardType="phone-pad"
                                 left={<TextInput.Icon icon="phone" />}
+                                textColor={theme.colors.onBackground}
+                                cursorColor={theme.colors.primary}
+                                selectionColor={theme.colors.primary}
+                                outlineColor={theme.colors.outline}
+                                activeOutlineColor={theme.colors.primary}
+                                placeholderTextColor={theme.colors.outline}
                             />
+                            {locLoading ? (
+                                <Text style={{ color: theme.colors.outline, marginTop: -6 }}>
+                                    Detecting your location…
+                                </Text>
+                            ) : locHint ? (
+                                <Text style={{ color: theme.colors.outline, marginTop: -6 }}>
+                                    {locHint}
+                                </Text>
+                            ) : (form.city || form.country) ? (
+                                <Text style={{ color: theme.colors.outline, marginTop: -6 }}>
+                                    Detected location: {[form.city, form.state, form.country].filter(Boolean).join(', ')}
+                                </Text>
+                            ) : null}
+
                             <TextInput
                                 mode="outlined"
                                 label="Password"
@@ -121,6 +281,12 @@ export default function RegisterScreen({ navigation }: any) {
                                 secureTextEntry
                                 style={styles.input}
                                 left={<TextInput.Icon icon="lock" />}
+                                textColor={theme.colors.onBackground}
+                                cursorColor={theme.colors.primary}
+                                selectionColor={theme.colors.primary}
+                                outlineColor={theme.colors.outline}
+                                activeOutlineColor={theme.colors.primary}
+                                placeholderTextColor={theme.colors.outline}
                             />
                         </>
                     )}
@@ -180,7 +346,7 @@ export default function RegisterScreen({ navigation }: any) {
                 </MotiView>
 
             </ScrollView>
-        </SafeAreaView>
+        </View>
     );
 }
 
@@ -189,7 +355,16 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     content: {
-        padding: 24,
+        paddingHorizontal: 24,
+        paddingBottom: 24,
+        // Leave room for the absolute-positioned back arrow.
+        paddingTop: 60,
+    },
+    topBar: {
+        position: 'absolute',
+        left: 8,
+        top: 8,
+        zIndex: 10,
     },
     header: {
         marginBottom: 30,

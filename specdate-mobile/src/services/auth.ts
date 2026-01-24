@@ -1,20 +1,33 @@
-import { api } from './api';
+import { api, getAuthToken, setAuthToken } from './api';
 
 export const AuthService = {
     register: async (data: any) => {
-        return api.post('/register', data);
+        const resp = await api.post('/register', data);
+        const token = resp?.data?.data?.token ?? resp?.data?.token;
+        if (typeof token === 'string' && token.length > 0) {
+            await setAuthToken(token);
+        }
+        return resp;
     },
 
-    // Placeholder for OTP - assuming backend will have this endpoint
-    requestOtp: async (channel: 'email' | 'mobile', contact: string) => {
-        // return api.post('/request-otp', { channel, contact });
-        console.log('Requesting OTP via', channel, 'for', contact);
-        return Promise.resolve({ success: true }); // Mock for now
+    login: async (data: any) => {
+        const resp = await api.post('/login', data);
+        const token = resp?.data?.data?.token ?? resp?.data?.token;
+        if (typeof token === 'string' && token.length > 0) {
+            await setAuthToken(token);
+        }
+        return resp;
     },
 
-    verifyOtp: async (code: string) => {
-        // return api.post('/verify-otp', { code });
-        console.log('Verifying OTP', code);
-        return Promise.resolve({ success: true }); // Mock for now
+    setToken: async (token: string) => {
+        await setAuthToken(token);
+    },
+
+    getToken: async () => {
+        return getAuthToken();
+    },
+
+    logout: async () => {
+        await setAuthToken(null);
     }
 };

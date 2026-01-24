@@ -1,34 +1,50 @@
-import { MD3LightTheme as DefaultTheme, MD3DarkTheme, configureFonts } from 'react-native-paper';
+import { MD3LightTheme } from 'react-native-paper';
 
-// "Electric Night" Palette - High Contrast, Modern, Premium
-const premiumColors = {
-    primary: '#7F5AF0',   // Electric Indigo: Captivating, magical
+// "SpecDate Pop" (Electric Violet): premium + unique (keep everything else neutral)
+const snapPopColors = {
+    // Brand
+    primary: '#7C3AED', // electric violet
     onPrimary: '#FFFFFF',
-    secondary: '#2CB67D', // Neon Mint: For Success/Join
-    onSecondary: '#000000',
-    tertiary: '#FF0054',  // Radical Red: For Elimination/Passion
-    onTertiary: '#FFFFFF',
 
-    // Backgrounds - Deep Gunmetal
-    background: '#16161A',
-    onBackground: '#FFFFFE',
-    surface: '#242629',    // Slightly lighter than bg
-    onSurface: '#FFFFFE',
+    // Accent (optional)
+    secondary: '#A78BFA', // light violet
+    onSecondary: '#FFFFFF',
 
-    error: '#FF4545',
-    outline: '#94A1B2',
+    // Base surfaces (light + lively)
+    background: '#F7F2FF',
+    onBackground: '#0B0B0B',
+    surface: '#FFFFFF',
+    onSurface: '#0B0B0B',
+
+    // System
+    error: '#E11D48',
+    outline: '#E7DDFB',
+
+    // IMPORTANT:
+    // react-native-paper animates Surface backgroundColor by interpolating
+    // theme.colors.elevation.level0..level5. If any are missing/invalid, RN
+    // can throw: "outputRange must contain color or value with numeric component".
+    // Keep this map COMPLETE and use parseable RGB(A) strings.
     elevation: {
-        level0: 'transparent',
-        level1: '#242629',
-        level5: '#7F5AF0',
-    }
+        level0: 'rgba(0,0,0,0)',
+        // Neutral "light shadow" grays (blend better than pink tints)
+        level1: 'rgb(250, 250, 250)',
+        level2: 'rgb(245, 245, 245)',
+        level3: 'rgb(240, 240, 240)',
+        level4: 'rgb(235, 235, 235)',
+        level5: 'rgb(230, 230, 230)',
+    },
 };
 
 export const theme = {
-    ...MD3DarkTheme, // Default to Dark
+    ...MD3LightTheme,
     colors: {
-        ...MD3DarkTheme.colors,
-        ...premiumColors,
+        ...MD3LightTheme.colors,
+        ...snapPopColors,
+        elevation: {
+            ...MD3LightTheme.colors.elevation,
+            ...snapPopColors.elevation,
+        },
     },
     roundness: 16,
     animation: {
@@ -36,9 +52,4 @@ export const theme = {
     },
 };
 
-export const lightTheme = {
-    ...DefaultTheme,
-    colors: {
-        ...DefaultTheme.colors,
-    }
-};
+export const lightTheme = theme;

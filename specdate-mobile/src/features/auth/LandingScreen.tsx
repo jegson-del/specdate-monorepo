@@ -1,12 +1,70 @@
 import React from 'react';
-import { View, StyleSheet, Dimensions } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { Text, Button, useTheme } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MotiView } from 'moti';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+const HEART_EMOJI_RED = '#FF2D55';
+
+function HeartLetter({
+    letter,
+    size,
+    heartColor,
+    letterColor,
+}: {
+    letter: string;
+    size: number;
+    heartColor: string;
+    letterColor: string;
+}) {
+    const circle = Math.round(size * 0.56);
+    const square = Math.round(size * 0.56);
+    const inset = Math.round(size * 0.08);
+    const top = Math.round(size * 0.18);
+    const squareTop = Math.round(size * 0.32);
+
+    return (
+        <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+            {/* Heart shape (two circles + rotated square) */}
+            <View
+                style={[
+                    styles.heartCircle,
+                    { width: circle, height: circle, borderRadius: circle / 2, left: inset, top, backgroundColor: heartColor },
+                ]}
+            />
+            <View
+                style={[
+                    styles.heartCircle,
+                    { width: circle, height: circle, borderRadius: circle / 2, right: inset, top, backgroundColor: heartColor },
+                ]}
+            />
+            <View
+                style={[
+                    styles.heartSquare,
+                    { width: square, height: square, top: squareTop, backgroundColor: heartColor },
+                ]}
+            />
+
+            {/* Letter inside the heart */}
+            <Text
+                style={{
+                    color: letterColor,
+                    fontWeight: '900',
+                    fontSize: Math.round(size * 0.52),
+                    lineHeight: Math.round(size * 0.52),
+                    letterSpacing: -0.5,
+                }}
+            >
+                {letter}
+            </Text>
+        </View>
+    );
+}
 
 export default function LandingScreen({ navigation }: any) {
     const theme = useTheme();
+    const insets = useSafeAreaInsets();
 
     return (
         <View style={styles.container}>
@@ -16,7 +74,17 @@ export default function LandingScreen({ navigation }: any) {
                 style={StyleSheet.absoluteFillObject}
             />
 
-            <SafeAreaView style={styles.safeArea}>
+            <View
+                style={[
+                    styles.safeArea,
+                    {
+                        paddingTop: insets.top,
+                        paddingRight: insets.right,
+                        paddingBottom: insets.bottom,
+                        paddingLeft: insets.left,
+                    },
+                ]}
+            >
                 {/* CENTER CONTENT: Logo / App Name */}
                 <View style={styles.centerContent}>
                     <MotiView
@@ -27,11 +95,15 @@ export default function LandingScreen({ navigation }: any) {
                     >
                         {/* Placeholder for actual Logo Image */}
                         <View style={[styles.logoCircle, { backgroundColor: theme.colors.primary }]}>
-                            <Text style={{ fontSize: 40 }}>⚡</Text>
+                            <HeartLetter letter="A" size={56} heartColor={HEART_EMOJI_RED} letterColor="#FFFFFF" />
                         </View>
-                        <Text style={[styles.appName, { color: theme.colors.onBackground }]}>
-                            SpecDate
-                        </Text>
+                        <View style={styles.appNameRow}>
+                            <Text style={[styles.appName, { color: theme.colors.onBackground }]}>Spec</Text>
+                            <View style={styles.appNameHeart}>
+                                <HeartLetter letter="A" size={36} heartColor={HEART_EMOJI_RED} letterColor="#FFFFFF" />
+                            </View>
+                            <Text style={[styles.appName, { color: theme.colors.onBackground }]}>Date</Text>
+                        </View>
                         <Text style={[styles.tagline, { color: theme.colors.outline }]}>
                             Quest for Love. Pop the Balloon.
                         </Text>
@@ -65,7 +137,7 @@ export default function LandingScreen({ navigation }: any) {
                         Login
                     </Button>
                 </MotiView>
-            </SafeAreaView>
+            </View>
         </View>
     );
 }
@@ -98,6 +170,24 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.5,
         shadowRadius: 20,
+    },
+    heartCircle: {
+        position: 'absolute',
+    },
+    heartSquare: {
+        position: 'absolute',
+        transform: [{ rotate: '45deg' }],
+        borderRadius: 8,
+    },
+    appNameRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+    },
+    appNameHeart: {
+        // visually align the heart with the text baseline
+        marginTop: 6,
     },
     appName: {
         fontSize: 42,
