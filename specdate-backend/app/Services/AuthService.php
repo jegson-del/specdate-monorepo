@@ -23,9 +23,11 @@ class AuthService
      */
     public function register(array $data): array
     {
+        $name = $data['name'] ?? $data['username'];
+
         // 1. Create User
         $user = User::create([
-            'name' => $data['name'],
+            'name' => $name,
             'username' => $data['username'],
             'email' => $data['email'],
             'mobile' => $data['mobile'],

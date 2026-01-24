@@ -14,19 +14,19 @@ return new class extends Migration
         Schema::create('user_profiles', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
-            $table->date('dob');
-            $table->string('full_name');
+            $table->date('dob')->nullable();
+            $table->string('full_name')->nullable();
             $table->decimal('latitude', 10, 8)->nullable();
             $table->decimal('longitude', 11, 8)->nullable();
-            $table->string('city');
+            $table->string('city')->nullable();
             $table->string('state')->nullable();
             $table->string('country')->nullable();
             $table->string('continent')->nullable();
             $table->text('hobbies')->nullable(); // JSON or CSV
-            $table->string('sex');
-            $table->string('occupation');
-            $table->string('qualification');
-            $table->string('sexual_orientation');
+            $table->string('sex')->nullable();
+            $table->string('occupation')->nullable();
+            $table->string('qualification')->nullable();
+            $table->string('sexual_orientation')->nullable();
             $table->boolean('is_smoker')->default(false);
             $table->boolean('is_drug_user')->default(false);
             $table->timestamps();

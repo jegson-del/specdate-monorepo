@@ -6,6 +6,13 @@ use Illuminate\Http\JsonResponse;
 
 trait ApiResponse
 {
+    private function jsonOptions(): int
+    {
+        // Prevent 500s when DB contains invalid UTF-8 bytes.
+        // NOTE: JSON_INVALID_UTF8_SUBSTITUTE requires PHP 7.2+ (we're on PHP 8.2+).
+        return JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE;
+    }
+
     /**
      * success response method.
      *
@@ -22,7 +29,7 @@ trait ApiResponse
             'message' => $message,
         ];
 
-        return response()->json($response, $code);
+        return response()->json($response, $code, [], $this->jsonOptions());
     }
 
     /**
@@ -44,6 +51,6 @@ trait ApiResponse
             $response['data'] = $errorMessages;
         }
 
-        return response()->json($response, $code);
+        return response()->json($response, $code, [], $this->jsonOptions());
     }
 }

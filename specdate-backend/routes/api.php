@@ -9,6 +9,9 @@ Route::post('/login', [AuthController::class, 'login']);
 
 Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/user', function (Request $request) {
-        return $request->user()->load(['balance', 'profile', 'balloonSkin']);
+        $user = $request->user()->load(['balance', 'profile', 'balloonSkin']);
+        // Use safe JSON options to avoid 500 "Syntax error" from invalid UTF-8.
+        return response()->json($user->toArray(), 200, [], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
     });
+    Route::put('/profile', [\App\Http\Controllers\ProfileController::class, 'update']);
 });
