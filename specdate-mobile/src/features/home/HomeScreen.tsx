@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { View, StyleSheet, FlatList, Pressable, ImageBackground, ScrollView } from 'react-native';
-import { Text, useTheme, IconButton, Surface, Searchbar, SegmentedButtons, Avatar } from 'react-native-paper';
+import { Text, useTheme, IconButton, Surface, Searchbar, Avatar, Portal, Modal, SegmentedButtons } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -21,6 +21,102 @@ type FeedKey = SpecCardItem['tag'];
 
 type HomeTab = 'Specs' | 'People';
 
+function BalloonsIcon({ size = 24, color = '#EF4444' }: { size?: number; color?: string }) {
+  const s = size;
+  const balloon = Math.round(s * 0.42);
+  const stringW = Math.max(1, Math.round(s * 0.06));
+  const stringColor = 'rgba(0,0,0,0.35)';
+
+  return (
+    <View style={{ width: s, height: s }}>
+      {/* Balloons */}
+      <View
+        style={{
+          position: 'absolute',
+          left: Math.round(s * 0.05),
+          top: Math.round(s * 0.05),
+          width: balloon,
+          height: balloon,
+          borderRadius: 999,
+          backgroundColor: color,
+          opacity: 0.95,
+        }}
+      />
+      <View
+        style={{
+          position: 'absolute',
+          left: Math.round(s * 0.32),
+          top: 0,
+          width: balloon,
+          height: balloon,
+          borderRadius: 999,
+          backgroundColor: color,
+          opacity: 0.85,
+        }}
+      />
+      <View
+        style={{
+          position: 'absolute',
+          left: Math.round(s * 0.55),
+          top: Math.round(s * 0.1),
+          width: balloon,
+          height: balloon,
+          borderRadius: 999,
+          backgroundColor: color,
+          opacity: 0.75,
+        }}
+      />
+
+      {/* Strings (tied together) */}
+      <View
+        style={{
+          position: 'absolute',
+          left: Math.round(s * 0.26),
+          top: Math.round(s * 0.46),
+          width: stringW,
+          height: Math.round(s * 0.46),
+          backgroundColor: stringColor,
+          transform: [{ rotate: '-10deg' }],
+        }}
+      />
+      <View
+        style={{
+          position: 'absolute',
+          left: Math.round(s * 0.46),
+          top: Math.round(s * 0.46),
+          width: stringW,
+          height: Math.round(s * 0.46),
+          backgroundColor: stringColor,
+        }}
+      />
+      <View
+        style={{
+          position: 'absolute',
+          left: Math.round(s * 0.66),
+          top: Math.round(s * 0.46),
+          width: stringW,
+          height: Math.round(s * 0.46),
+          backgroundColor: stringColor,
+          transform: [{ rotate: '10deg' }],
+        }}
+      />
+
+      {/* Knot */}
+      <View
+        style={{
+          position: 'absolute',
+          left: Math.round(s * 0.47),
+          top: Math.round(s * 0.78),
+          width: Math.round(s * 0.12),
+          height: Math.round(s * 0.12),
+          borderRadius: 4,
+          backgroundColor: stringColor,
+        }}
+      />
+    </View>
+  );
+}
+
 function withAlpha(color: string, alpha: number) {
   if (typeof color !== 'string') return color as any;
   if (!color.startsWith('#')) return color;
@@ -39,6 +135,9 @@ export default function HomeScreen({ navigation }: any) {
   const [tab, setTab] = useState<HomeTab>('Specs');
   const [feed, setFeed] = useState<FeedKey>('LIVE');
   const [query, setQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const bottomNavHeight = 64;
+  const [bottomTab, setBottomTab] = useState<'Home' | 'Dates' | 'Balloons' | 'Requests'>('Home');
 
   const tagColor = (tag: FeedKey) => {
     // Different shades for tags (violet family)
@@ -162,7 +261,7 @@ export default function HomeScreen({ navigation }: any) {
         <IconButton
           icon="account-circle"
           size={28}
-          iconColor={theme.colors.primary}
+          iconColor={homeColors.text}
           onPress={() => navigation.navigate('Profile')}
         />
 
@@ -175,7 +274,7 @@ export default function HomeScreen({ navigation }: any) {
             <IconButton
               icon="message-outline"
               size={26}
-              iconColor={theme.colors.primary}
+              iconColor={homeColors.text}
               containerColor={theme.colors.elevation.level2}
               style={styles.topIconButton}
               onPress={() => navigation.navigate('Messages')}
@@ -183,7 +282,7 @@ export default function HomeScreen({ navigation }: any) {
             <View
               style={[
                 styles.countBadge,
-                { borderColor: theme.colors.elevation.level2, backgroundColor: theme.colors.primary },
+                { borderColor: theme.colors.elevation.level2, backgroundColor: '#EF4444' },
               ]}
             >
               <Text style={styles.countBadgeText}>2</Text>
@@ -194,7 +293,7 @@ export default function HomeScreen({ navigation }: any) {
             <IconButton
               icon="bell-outline"
               size={26}
-              iconColor={theme.colors.primary}
+              iconColor={homeColors.text}
               containerColor={theme.colors.elevation.level2}
               style={styles.topIconButton}
               onPress={() => navigation.navigate('Notifications')}
@@ -202,7 +301,7 @@ export default function HomeScreen({ navigation }: any) {
             <View
               style={[
                 styles.countBadge,
-                { borderColor: theme.colors.elevation.level2, backgroundColor: theme.colors.primary },
+                { borderColor: theme.colors.elevation.level2, backgroundColor: '#EF4444' },
               ]}
             >
               <Text style={styles.countBadgeText}>5</Text>
@@ -211,56 +310,94 @@ export default function HomeScreen({ navigation }: any) {
         </View>
       </View>
 
-      {/* Search */}
+      {/* Controls row: search icon + tabs + providers */}
       <View
         style={[
-          styles.searchWrap,
+          styles.controlsWrap,
           { paddingLeft: insets.left + 16, paddingRight: insets.right + 16 },
         ]}
       >
-        <View style={styles.searchRow}>
+        <View
+          style={[
+            styles.controlsBar,
+            {
+              backgroundColor: theme.colors.elevation.level2,
+            },
+          ]}
+        >
+          {/* Search icon (opens modal) */}
+          <IconButton
+            icon="magnify"
+            size={22}
+            iconColor={theme.colors.primary}
+            onPress={() => setSearchOpen(true)}
+            style={styles.controlsIcon}
+          />
+
+          {/* Specs/People segmented control (original design) */}
+          <View style={{ flex: 1 }}>
+            <SegmentedButtons
+              value={tab}
+              onValueChange={(v) => setTab(v as HomeTab)}
+              buttons={[
+                { value: 'Specs', label: 'Specs', icon: 'view-grid' },
+                { value: 'People', label: 'People', icon: 'account-multiple' },
+              ]}
+              style={styles.segmentedTabs}
+            />
+          </View>
+
+          {/* Provider icon last */}
+          <IconButton
+            icon="silverware-fork-knife"
+            size={22}
+            iconColor={theme.colors.primary}
+            onPress={() => navigation.navigate('Providers', { source: 'home' })}
+            style={styles.controlsIcon}
+          />
+        </View>
+      </View>
+
+      {/* Search modal */}
+      <Portal>
+        <Modal
+          visible={searchOpen}
+          onDismiss={() => setSearchOpen(false)}
+          contentContainerStyle={[
+            styles.searchModal,
+            {
+              // Pin to top (react-native-paper Modal centers by default)
+              position: 'absolute',
+              top: insets.top + 12,
+              left: insets.left + 16,
+              right: insets.right + 16,
+              backgroundColor: theme.colors.surface,
+              borderColor: theme.colors.outline,
+            },
+          ]}
+        >
           <Searchbar
+            // Make it a clean "box only" input (no magnify / clear icons)
+            icon={() => null}
+            clearIcon={() => null}
             placeholder={tab === 'People' ? 'Search people…' : 'Search specs…'}
             value={query}
             onChangeText={setQuery}
             autoCapitalize="none"
+            autoFocus
             style={[
               styles.searchBar,
               {
                 backgroundColor: theme.colors.elevation.level2,
                 borderWidth: 1,
                 borderColor: theme.colors.primary,
-                flex: 1,
               },
             ]}
             inputStyle={{ color: homeColors.text }}
-            iconColor={theme.colors.primary}
             placeholderTextColor={homeColors.subtext}
           />
-
-          {/* Quick access: Providers */}
-          <IconButton
-            icon="silverware-fork-knife"
-            size={22}
-            iconColor={theme.colors.primary}
-            containerColor={theme.colors.elevation.level2}
-            onPress={() => navigation.navigate('Providers', { source: 'home' })}
-            style={styles.providersBtn}
-          />
-        </View>
-      </View>
-
-      {/* Tabs */}
-      <View style={[styles.tabsRow, { paddingLeft: insets.left + 16, paddingRight: insets.right + 16 }]}>
-        <SegmentedButtons
-          value={tab}
-          onValueChange={(v) => setTab(v as HomeTab)}
-          buttons={[
-            { value: 'Specs', label: 'Specs', icon: 'view-grid' },
-            { value: 'People', label: 'People', icon: 'account-multiple' },
-          ]}
-        />
-      </View>
+        </Modal>
+      </Portal>
 
       {/* Feed selector */}
       {tab === 'Specs' ? (
@@ -305,7 +442,11 @@ export default function HomeScreen({ navigation }: any) {
           columnWrapperStyle={styles.gridRow}
           contentContainerStyle={[
             styles.listContent,
-            { paddingLeft: insets.left + 16, paddingRight: insets.right + 16, paddingBottom: insets.bottom + 24 },
+            {
+              paddingLeft: insets.left + 16,
+              paddingRight: insets.right + 16,
+              paddingBottom: insets.bottom + bottomNavHeight + 24,
+            },
           ]}
           onEndReachedThreshold={0.6}
           onEndReached={() => {
@@ -327,40 +468,49 @@ export default function HomeScreen({ navigation }: any) {
           renderItem={({ item }) => (
             <View style={styles.cardWrap}>
               <Pressable onPress={() => navigation.navigate('SpecDetails', { specId: item.id })}>
-                <Surface style={[styles.card, { backgroundColor: homeColors.cardBg }]}>
-                {/* Top ~40% cover image */}
-                <View style={styles.cardMedia}>
-                  <ImageBackground
-                    source={{ uri: `https://picsum.photos/seed/specdate-${item.id}/600/800` }}
-                    style={StyleSheet.absoluteFillObject}
-                    imageStyle={styles.cardMediaImage}
-                    resizeMode="cover"
-                  >
-                  </ImageBackground>
-
-                  <View style={[styles.tagPill, { backgroundColor: tagColor(item.tag) }]}>
-                    <Text style={[styles.tagText, { color: theme.colors.onPrimary }]}>{item.tag}</Text>
-                  </View>
-                </View>
-
-                {/* Creator name base strip (handles long names cleanly) */}
-                <LinearGradient
-                  // Lighter "shadow" gradient using theme colors
-                  colors={[withAlpha(theme.colors.primary, 0.35), withAlpha(theme.colors.secondary, 0.35)]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.ownerBase}
+                <Surface
+                  style={[
+                    styles.card,
+                    {
+                      backgroundColor: homeColors.cardBg,
+                      borderWidth: 1,
+                      borderColor: theme.colors.outline,
+                    },
+                  ]}
+                  elevation={1}
                 >
-                  <Text style={styles.ownerBaseText} numberOfLines={1} ellipsizeMode="tail">
-                    {item.owner}
-                  </Text>
-                </LinearGradient>
+                  {/* Top ~40% cover image */}
+                  <View style={styles.cardMedia}>
+                    <ImageBackground
+                      source={{ uri: `https://picsum.photos/seed/specdate-${item.id}/600/800` }}
+                      style={StyleSheet.absoluteFillObject}
+                      imageStyle={styles.cardMediaImage}
+                      resizeMode="cover"
+                    />
 
-                {/* Body 70% */}
-                <View style={styles.cardBody}>
-                  <Text style={[styles.cardTitle, { color: homeColors.cardText }]} numberOfLines={2}>
-                    {item.title}
-                  </Text>
+                    <View style={[styles.tagPill, { backgroundColor: tagColor(item.tag) }]}>
+                      <Text style={[styles.tagText, { color: theme.colors.onPrimary }]}>{item.tag}</Text>
+                    </View>
+                  </View>
+
+                  {/* Creator name base strip (handles long names cleanly) */}
+                  <LinearGradient
+                    // Lighter "shadow" gradient using theme colors
+                    colors={[withAlpha(theme.colors.primary, 0.35), withAlpha(theme.colors.secondary, 0.35)]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.ownerBase}
+                  >
+                    <Text style={styles.ownerBaseText} numberOfLines={1} ellipsizeMode="tail">
+                      {item.owner}
+                    </Text>
+                  </LinearGradient>
+
+                  {/* Body ~60% */}
+                  <View style={styles.cardBody}>
+                    <Text style={[styles.cardTitle, { color: homeColors.cardText }]} numberOfLines={2}>
+                      {item.title}
+                    </Text>
 
                   <View style={styles.metaRow}>
                     <MaterialCommunityIcons name="map-marker" size={16} color={theme.colors.primary} />
@@ -407,7 +557,7 @@ export default function HomeScreen({ navigation }: any) {
                       {item.expiresIn}
                     </Text>
                   </View>
-                </View>
+                  </View>
                 </Surface>
               </Pressable>
             </View>
@@ -419,10 +569,17 @@ export default function HomeScreen({ navigation }: any) {
           keyExtractor={(item) => item.id}
           contentContainerStyle={[
             styles.listContent,
-            { paddingLeft: insets.left + 16, paddingRight: insets.right + 16, paddingBottom: insets.bottom + 24 },
+            {
+              paddingLeft: insets.left + 16,
+              paddingRight: insets.right + 16,
+              paddingBottom: insets.bottom + bottomNavHeight + 24,
+            },
           ]}
           renderItem={({ item }) => (
-            <Surface style={styles.personCard}>
+            <Surface
+              style={[styles.personCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outline }]}
+              elevation={1}
+            >
               <Avatar.Text
                 size={44}
                 label={(item.name || '?').slice(0, 1).toUpperCase()}
@@ -447,6 +604,94 @@ export default function HomeScreen({ navigation }: any) {
           }
         />
       )}
+
+      {/* Bottom nav (UI only for now) */}
+      <Surface
+        style={[
+          styles.bottomNav,
+          {
+            paddingBottom: insets.bottom + 10,
+            paddingLeft: insets.left + 16,
+            paddingRight: insets.right + 16,
+            backgroundColor: theme.colors.surface,
+            borderTopColor: theme.colors.outline,
+          },
+        ]}
+        elevation={2}
+      >
+        <View style={styles.bottomNavRow}>
+          <Pressable onPress={() => setBottomTab('Home')} style={styles.bottomNavItem}>
+            <MaterialCommunityIcons
+              name="home-variant"
+              size={24}
+              color={bottomTab === 'Home' ? theme.colors.primary : homeColors.subtext}
+            />
+            <Text
+              style={[
+                styles.bottomNavLabel,
+                { color: bottomTab === 'Home' ? theme.colors.primary : homeColors.subtext },
+              ]}
+            >
+              Home
+            </Text>
+          </Pressable>
+
+          <Pressable onPress={() => setBottomTab('Dates')} style={styles.bottomNavItem}>
+            <MaterialCommunityIcons
+              name="heart-multiple"
+              size={24}
+              color={bottomTab === 'Dates' ? theme.colors.primary : homeColors.subtext}
+            />
+            <Text
+              style={[
+                styles.bottomNavLabel,
+                { color: bottomTab === 'Dates' ? theme.colors.primary : homeColors.subtext },
+              ]}
+            >
+              Dates
+            </Text>
+          </Pressable>
+
+          {/* Center create spec action */}
+          <Pressable onPress={() => {}} style={styles.bottomNavCenterWrap}>
+            <View style={[styles.bottomNavCenterBtn, { backgroundColor: theme.colors.primary }]}>
+              <MaterialCommunityIcons name="plus" size={28} color={theme.colors.onPrimary} />
+            </View>
+            <Text style={[styles.bottomNavLabel, { color: homeColors.subtext, marginTop: 6 }]}>Create</Text>
+          </Pressable>
+
+          <Pressable onPress={() => setBottomTab('Balloons')} style={styles.bottomNavItem}>
+            <BalloonsIcon
+              size={24}
+              color={bottomTab === 'Balloons' ? theme.colors.primary : homeColors.subtext}
+            />
+            <Text
+              style={[
+                styles.bottomNavLabel,
+                { color: bottomTab === 'Balloons' ? theme.colors.primary : homeColors.subtext },
+              ]}
+            >
+              Balloons
+            </Text>
+          </Pressable>
+
+          <Pressable onPress={() => setBottomTab('Requests')} style={styles.bottomNavItem}>
+            <MaterialCommunityIcons
+              name="account-check"
+              size={24}
+              color={bottomTab === 'Requests' ? theme.colors.primary : homeColors.subtext}
+            />
+            <Text
+              style={[
+                styles.bottomNavLabel,
+                { color: bottomTab === 'Requests' ? theme.colors.primary : homeColors.subtext },
+              ]}
+            >
+              Requests
+            </Text>
+          </Pressable>
+        </View>
+      </Surface>
     </View>
   );
 }
@@ -496,22 +741,32 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     lineHeight: 12,
   },
-  searchWrap: {
+  controlsWrap: {
     paddingTop: 10,
   },
-  searchRow: {
+  controlsBar: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-  },
-  searchBar: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
     borderRadius: 14,
+    // Keep the background, but remove the "box" border
+    borderWidth: 0,
   },
-  providersBtn: {
+  controlsIcon: {
     margin: 0,
   },
-  tabsRow: {
-    paddingTop: 10,
+  segmentedTabs: {
+    flex: 1,
+  },
+  searchBar: {
+    borderRadius: 50,
+  },
+  searchModal: {
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
   },
   feedWrap: {
     paddingTop: 10,
@@ -619,7 +874,49 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     marginBottom: 12,
-    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+  },
+  bottomNav: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderTopWidth: 1,
+    paddingTop: 10,
+  },
+  bottomNavRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+  },
+  bottomNavItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 62,
+    gap: 4,
+  },
+  bottomNavCenterWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 84,
+  },
+  bottomNavCenterBtn: {
+    width: 56,
+    height: 56,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -28,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+  },
+  bottomNavLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.2,
   },
 });
 

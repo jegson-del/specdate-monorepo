@@ -236,3 +236,111 @@ Implementation:
 - **Provider marketplace**: v1+, keep as stub list initially
 - **Push notifications**: start with in-app notifications table, add Expo push later
 
+## Execution checklist (tiny steps)
+Use this section as a **living checklist** to work through the roadmap gradually.
+
+### Phase 0 — Foundations (stabilize)
+- [ ] **Backend auth**
+  - [ ] Ensure Sanctum is installed + migrations run
+  - [ ] Confirm `App\Models\User` uses `HasApiTokens`
+  - [ ] `POST /api/register` returns token
+  - [ ] `POST /api/login` returns token
+  - [ ] `GET /api/user` works under `auth:sanctum`
+- [ ] **Backend validation + responses**
+  - [ ] All endpoints use FormRequests (no inline `validate()` in controllers)
+  - [ ] Validation failures return consistent JSON (422)
+  - [ ] All endpoints return responses via `ApiResponse`
+- [ ] **Backend profile**
+  - [ ] `PUT /api/profile` protected by `auth:sanctum`
+  - [ ] Updates profile fields correctly
+  - [ ] Response returns user with loaded `profile`
+- [ ] **Mobile auth**
+  - [ ] Persist token (SecureStore)
+  - [ ] Restore token at boot and route to Home/Profile
+  - [ ] Display backend validation/auth errors (401/422)
+- [ ] **Dev environment**
+  - [ ] Docker up/down documented
+  - [ ] `docker compose exec ... migrate` works
+  - [ ] Scribe docs generate and `/docs` loads
+
+### Phase 1 — Profile completion enforcement (hard gate)
+- [ ] **DB**
+  - [ ] Add `profile_completed_at` to `user_profiles` (migration)
+  - [ ] Optional: backfill existing users
+- [ ] **Backend logic**
+  - [ ] Add `ProfileService::isComplete(profile)` helper
+  - [ ] Add computed `profile_complete` to `GET /api/user`
+  - [ ] On `PUT /api/profile`: if complete → set `profile_completed_at`
+- [ ] **Backend middleware**
+  - [ ] Create `EnsureProfileComplete` middleware
+  - [ ] Apply to: create spec, join spec, start rounds, answer, eliminate
+- [ ] **Mobile routing**
+  - [ ] If token exists but profile incomplete → force `Profile`
+  - [ ] Block/hide spec actions until profile complete
+
+### Phase 2 — Specs MVP (create + list + details)
+- [ ] **DB migrations**
+  - [ ] `specs` table (creator_id, state, title/summary, expires_at, max_participants, timestamps)
+  - [ ] `spec_requirements` table (spec_id, field, operator, value, is_required)
+- [ ] **Backend endpoints**
+  - [ ] `POST /api/specs` (FormRequest + Service)
+  - [ ] `GET /api/specs?tab=live|ongoing|popular|hottest` (simple sorting)
+  - [ ] `GET /api/specs/{id}` details (creator + counts + requirements)
+- [ ] **Mobile**
+  - [ ] Replace placeholder feed with `/api/specs`
+  - [ ] Build `SpecDetails` screen
+  - [ ] Build `CreateSpec` multi-step flow (draft → publish)
+
+### Phase 3 — Join requests + approvals
+- [ ] **DB migrations**
+  - [ ] `spec_join_requests` (spec_id, user_id, status, reason, timestamps)
+  - [ ] `spec_participants` (spec_id, user_id, status, joined_at)
+- [ ] **Backend endpoints**
+  - [ ] `POST /api/specs/{id}/join` (eligibility + pending request)
+  - [ ] `POST /api/specs/{id}/requests/{requestId}/approve`
+  - [ ] `POST /api/specs/{id}/requests/{requestId}/decline`
+- [ ] **Eligibility engine**
+  - [ ] Evaluate compulsory requirements vs user profile
+  - [ ] Return 422 with clear reason when not eligible
+- [ ] **Mobile**
+  - [ ] Join button states: Join / Pending / Joined / Closed
+  - [ ] Creator requests list UI
+
+### Phase 4 — Notifications (in-app first)
+- [ ] **DB migration**
+  - [ ] `notifications` (user_id, type, payload_json, read_at, timestamps)
+- [ ] **Backend**
+  - [ ] Create notifications for join request + approve/decline
+  - [ ] `GET /api/notifications` paginated
+  - [ ] `POST /api/notifications/{id}/read`
+- [ ] **Mobile**
+  - [ ] Notifications screen
+  - [ ] Badge count (unread) in top bar
+
+### Phase 5 — Rounds + elimination
+- [ ] **DB migrations**
+  - [ ] `spec_rounds`
+  - [ ] `spec_questions`
+  - [ ] `spec_answers`
+  - [ ] `spec_eliminations`
+- [ ] **Backend**
+  - [ ] Start rounds (OPEN → ACTIVE)
+  - [ ] Create question (creator)
+  - [ ] Submit answer (participant)
+  - [ ] Scoring v0 (manual)
+  - [ ] Enforce 10% elimination rule
+- [ ] **Mobile**
+  - [ ] Participant: answer UI (only own answer visible)
+  - [ ] Creator: create question + view answers + eliminate UI
+
+### Phase 6 — Winner → date + providers + reviews
+- [ ] **DB**
+  - [ ] `date_providers`, `date_bookings`, `reviews`, `user_stats`
+- [ ] **Backend**
+  - [ ] Declare winner + mark spec completed
+  - [ ] Choose provider + create booking
+  - [ ] Submit review + compute stats
+- [ ] **Mobile**
+  - [ ] Providers list → select → booking flow
+  - [ ] Post-date review flow
+

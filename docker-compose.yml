@@ -1,0 +1,67 @@
+services:
+  specdate-backend:
+    build:
+      context: ./specdate-backend
+      dockerfile: Dockerfile
+    container_name: specdate-backend
+    working_dir: /var/www
+    ports:
+      - "8000:8000"
+    # Use your existing local .env, but override DB to point at the db container.
+    env_file:
+      - ./specdate-backend/.env
+    environment:
+      APP_URL: http://localhost:8000
+      DB_CONNECTION: mysql
+      DB_HOST: db
+      # IMPORTANT: inside Docker, MySQL listens on 3306.
+      # Host port 3307 is only for TablePlus on Windows.
+      DB_PORT: 3306
+      DB_DATABASE: specdate
+      DB_USERNAME: root
+      DB_PASSWORD: root
+    volumes:
+      - ./specdate-backend:/var/www
+      - specdate_backend_vendor:/var/www/vendor
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      sh -lc "composer install --no-interaction --prefer-dist
+      && php artisan migrate --force
+      && php artisan serve --host=0.0.0.0 --port=8000"
+
+  db:
+    image: mysql:8.0
+    container_name: specdate-mysql
+    ports:
+      # Host uses 3307 to avoid conflicts with local MySQL (XAMPP/MySQL80).
+      - "3307:3306"
+    environment:
+      MYSQL_DATABASE: specdate
+      MYSQL_ROOT_PASSWORD: root
+    volumes:
+      - specdate_mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-proot"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: specdate-phpmyadmin
+    ports:
+      - "8080:80"
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      MYSQL_ROOT_PASSWORD: root
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  specdate_mysql:
+  specdate_backend_vendor:
+
