@@ -19,5 +19,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/specs/{id}/join', [\App\Http\Controllers\SpecController::class, 'join']);
     Route::post('/specs/{id}/applications/{applicationId}/approve', [\App\Http\Controllers\SpecController::class, 'approveApplication']);
     Route::post('/specs/{id}/applications/{applicationId}/reject', [\App\Http\Controllers\SpecController::class, 'rejectApplication']);
+    Route::post('/specs/{id}/applications/{applicationId}/eliminate', [\App\Http\Controllers\SpecController::class, 'eliminateApplication']);
+    Route::post('/specs/{id}/like', [\App\Http\Controllers\SpecController::class, 'toggleLike']);
     Route::apiResource('specs', \App\Http\Controllers\SpecController::class);
 });

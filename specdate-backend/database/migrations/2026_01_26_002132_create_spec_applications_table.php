@@ -16,7 +16,7 @@ return new class extends Migration
             $table->foreignId('spec_id')->constrained()->cascadeOnDelete();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
             $table->enum('user_role', ['owner', 'participant'])->default('participant');
-            $table->enum('status', ['PENDING', 'ACCEPTED', 'REJECTED'])->default('PENDING');
+            $table->enum('status', ['PENDING', 'ACCEPTED', 'REJECTED', 'ELIMINATED', 'WINNER'])->default('PENDING');
             $table->timestamps();
 
             // Prevent duplicate applications

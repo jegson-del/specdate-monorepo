@@ -64,4 +64,14 @@ export const SpecService = {
         const response = await api.post(`/specs/${specId}/applications/${applicationId}/reject`);
         return response.data;
     },
+
+    async eliminateApplication(specId: string, applicationId: string) {
+        const response = await api.post(`/specs/${specId}/applications/${applicationId}/eliminate`);
+        return response.data;
+    },
+
+    async toggleLike(specId: string) {
+        const response = await api.post(`/specs/${specId}/like`);
+        return response.data;
+    },
 };

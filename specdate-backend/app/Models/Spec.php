@@ -36,4 +36,9 @@ class Spec extends Model
     {
         return $this->hasMany(SpecApplication::class);
     }
+
+    public function likes()
+    {
+        return $this->hasMany(SpecLike::class);
+    }
 }

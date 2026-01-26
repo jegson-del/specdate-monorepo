@@ -15,7 +15,7 @@ class SpecService
 
         $query = Spec::query()
             ->with(['owner.profile', 'requirements'])
-            ->withCount('applications')
+            ->withCount(['applications', 'likes'])
             ->where('status', 'OPEN')
             ->where('expires_at', '>', now());
 
@@ -75,11 +75,22 @@ class SpecService
             ->paginate(20);
     }
 
-    public function getOne($id)
+    public function getOne($id, $user = null)
     {
-        return Spec::with(['owner.profile', 'requirements'])
-            ->withCount('applications')
-            ->find($id);
+        $query = Spec::with(['owner.profile', 'requirements'])
+            ->withCount(['applications', 'likes'])
+            ->with(['applications' => function($q) {
+                // Return all applications so we can see statuses
+                $q->with('user.profile'); 
+            }]);
+
+        if ($user) {
+            $query->withExists(['likes as is_liked' => function ($q) use ($user) {
+                $q->where('user_id', $user->id);
+            }]);
+        }
+
+        return $query->find($id);
     }
 
     public function join($user, $id): void
@@ -132,6 +143,42 @@ class SpecService
         }
 
         $application->update(['status' => 'REJECTED']);
+    }
+
+    public function eliminateApplication($user, $specId, $applicationId): void
+    {
+        $spec = Spec::findOrFail($specId);
+
+        if ($spec->user_id !== $user->id) {
+            throw new HttpException(403, 'Unauthorized.');
+        }
+
+        $application = $spec->applications()->where('id', $applicationId)->first();
+        if (!$application) {
+            throw new HttpException(404, 'Application not found.');
+        }
+
+        $application->update(['status' => 'ELIMINATED']);
+    }
+
+    public function toggleLike($user, $specId): array
+    {
+        $spec = Spec::findOrFail($specId);
+        
+        $existing = $spec->likes()->where('user_id', $user->id)->first();
+        
+        if ($existing) {
+            $existing->delete();
+            $liked = false;
+        } else {
+            $spec->likes()->create(['user_id' => $user->id]);
+            $liked = true;
+        }
+
+        return [
+            'liked' => $liked,
+            'count' => $spec->likes()->count()
+        ];
     }
 
     /**

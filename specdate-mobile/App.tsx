@@ -15,6 +15,7 @@ import ProfileScreen from './src/features/profile/ProfileScreen';
 import HomeScreen from './src/features/home/HomeScreen';
 import ProvidersScreen from './src/features/providers/ProvidersScreen';
 import CreateSpecScreen from './src/features/specs/CreateSpecScreen';
+import SpecDetailsScreen from './src/features/specs/SpecDetailsScreen';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const queryClient = new QueryClient();
@@ -95,7 +96,7 @@ export default function App() {
               {/* Stubs to be implemented next */}
               <Stack.Screen name="Notifications" component={HomeScreen} />
               <Stack.Screen name="Messages" component={HomeScreen} />
-              <Stack.Screen name="SpecDetails" component={HomeScreen} />
+              <Stack.Screen name="SpecDetails" component={SpecDetailsScreen} />
               <Stack.Screen
                 name="CreateSpec"
                 component={CreateSpecScreen}

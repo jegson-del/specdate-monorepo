@@ -67,9 +67,13 @@ class SpecController extends Controller
     /**
      * Display the specified spec.
      */
-    public function show($id)
+    /**
+     * Display the specified spec.
+     */
+    public function show(Request $request, $id)
     {
-        $spec = $this->specService->getOne($id);
+        // Pass user to check 'is_liked'
+        $spec = $this->specService->getOne($id, $request->user('sanctum'));
 
         if (!$spec) {
             return $this->sendError('Spec not found.', [], 404);
@@ -129,6 +133,43 @@ class SpecController extends Controller
         try {
             $this->specService->rejectApplication($request->user(), $id, $applicationId);
             return $this->sendResponse([], 'Application rejected.');
+        } catch (HttpException $e) {
+            return $this->sendError($e->getMessage(), [], $e->getStatusCode());
+        }
+    }
+
+    /**
+     * Eliminate Application
+     * 
+     * Eliminate a participant from the spec (Owner only).
+     * 
+     * @group Applications
+     * @urlParam id string required The ID of the spec. Example: 1
+     * @urlParam applicationId string required The ID of the application to eliminate. Example: 5
+     */
+    public function eliminateApplication(Request $request, $id, $applicationId)
+    {
+        try {
+            $this->specService->eliminateApplication($request->user(), $id, $applicationId);
+            return $this->sendResponse([], 'Participant eliminated.');
+        } catch (HttpException $e) {
+            return $this->sendError($e->getMessage(), [], $e->getStatusCode());
+        }
+    }
+
+    /**
+     * Toggle Like
+     * 
+     * Toggle like on a spec.
+     * 
+     * @group Specs
+     * @urlParam id string required The ID of the spec to like. Example: 1
+     */
+    public function toggleLike(Request $request, $id)
+    {
+        try {
+            $result = $this->specService->toggleLike($request->user(), $id);
+            return $this->sendResponse($result, 'Like toggled.');
         } catch (HttpException $e) {
             return $this->sendError($e->getMessage(), [], $e->getStatusCode());
         }

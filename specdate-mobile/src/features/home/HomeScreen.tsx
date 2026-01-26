@@ -18,6 +18,7 @@ type SpecCardItem = {
   maxParticipants: number;
   eliminatedCount: number;
   firstDateProvider: string;
+  likesCount: number;
   tag: 'LIVE' | 'ONGOING' | 'POPULAR' | 'HOTTEST';
 };
 
@@ -169,6 +170,7 @@ export default function HomeScreen({ navigation }: any) {
           maxParticipants: s.max_participants,
           eliminatedCount: 0,
           firstDateProvider: '—',
+          likesCount: s.likes_count || 0,
           tag: s.tag || feed, // Use backend provided tag or current feed
         } as SpecCardItem;
       });
@@ -509,6 +511,7 @@ export default function HomeScreen({ navigation }: any) {
               homeColors={homeColors}
               tagColor={tagColor}
               withAlpha={withAlpha}
+              onPress={() => navigation.navigate('SpecDetails', { specId: item.id })}
             />
           )}
         />

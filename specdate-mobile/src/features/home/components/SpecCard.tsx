@@ -13,6 +13,7 @@ type SpecCardItem = {
     maxParticipants: number;
     eliminatedCount: number;
     firstDateProvider: string;
+    likesCount: number;
     tag: 'LIVE' | 'ONGOING' | 'POPULAR' | 'HOTTEST';
 };
 
@@ -22,9 +23,10 @@ type Props = {
     homeColors: any;
     tagColor: (tag: string) => string;
     withAlpha: (color: string, alpha: number) => string;
+    onPress?: () => void;
 };
 
-const SpecCard = memo(({ item, theme, homeColors, tagColor, withAlpha }: Props) => {
+const SpecCard = memo(({ item, theme, homeColors, tagColor, withAlpha, onPress }: Props) => {
     const navigation = useNavigation<any>();
 
     const handlePressProvider = (e: any) => {
@@ -32,9 +34,14 @@ const SpecCard = memo(({ item, theme, homeColors, tagColor, withAlpha }: Props) 
         navigation.navigate('Providers', { specId: item.id });
     };
 
+    const handlePress = () => {
+        if (onPress) onPress();
+        else navigation.navigate('SpecDetails', { specId: item.id });
+    };
+
     return (
         <View style={styles.cardWrap}>
-            <Pressable onPress={() => navigation.navigate('SpecDetails', { specId: item.id })}>
+            <Pressable onPress={handlePress}>
                 <Surface
                     style={[
                         styles.card,
@@ -111,9 +118,17 @@ const SpecCard = memo(({ item, theme, homeColors, tagColor, withAlpha }: Props) 
 
                         <View style={styles.metaRow}>
                             <MaterialCommunityIcons name="timer-sand" size={16} color={theme.colors.primary} />
-                            <Text style={[styles.metaText, { color: homeColors.cardSubtext }]} numberOfLines={2}>
+                            <Text style={[styles.metaText, { color: homeColors.cardSubtext }]} numberOfLines={1}>
                                 {item.expiresIn}
                             </Text>
+                            {typeof item.likesCount === 'number' && item.likesCount > 0 ? (
+                                <View style={styles.likesInline}>
+                                    <MaterialCommunityIcons name="heart" size={14} color="#EF4444" />
+                                    <Text style={[styles.likesText, { color: homeColors.cardSubtext }]}>
+                                        {item.likesCount}
+                                    </Text>
+                                </View>
+                            ) : null}
                         </View>
                     </View>
                 </Surface>
@@ -208,5 +223,20 @@ const styles = StyleSheet.create({
     metaText: {
         fontSize: 11,
         flex: 1,
+        minWidth: 0,
+    },
+    likesInline: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        marginLeft: 6,
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 999,
+        backgroundColor: 'rgba(0,0,0,0.04)',
+    },
+    likesText: {
+        fontSize: 11,
+        fontWeight: '900',
     }
 });

@@ -13,7 +13,7 @@ class SpecApplication extends Model
         'spec_id',
         'user_id',
         'user_role', // owner, participant
-        'status', // PENDING, ACCEPTED, REJECTED
+        'status', // PENDING, ACCEPTED, REJECTED, ELIMINATED, WINNER
     ];
 
     public function spec()
