@@ -1,9 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import { View, StyleSheet, FlatList, Pressable, ImageBackground, ScrollView } from 'react-native';
-import { Text, useTheme, IconButton, Surface, Searchbar, Avatar, Portal, Modal, SegmentedButtons } from 'react-native-paper';
+import { ActivityIndicator, Text, useTheme, IconButton, Surface, Searchbar, Avatar, Portal, Modal, SegmentedButtons } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { SpecService } from '../../services/specs';
+import { useQuery } from '@tanstack/react-query';
+import SpecCard from './components/SpecCard';
+import PersonCard from './components/PersonCard';
 
 type SpecCardItem = {
   id: string;
@@ -137,9 +141,69 @@ export default function HomeScreen({ navigation }: any) {
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const bottomNavHeight = 64;
-  const [bottomTab, setBottomTab] = useState<'Home' | 'Dates' | 'Balloons' | 'Requests'>('Home');
+  const [bottomTab, setBottomTab] = useState<'Home' | 'Dates' | 'Specs' | 'Requests'>('Home');
 
-  const tagColor = (tag: FeedKey) => {
+
+
+  const { data: specs = [], isLoading, error, isError, refetch, isRefetching } = useQuery({
+    queryKey: ['specs', feed], // Add feed to key to trigger refetch on change
+    retry: false,
+    queryFn: async () => {
+      const res = await SpecService.getAll(feed); // Pass filter
+      const paginator = res.data;
+      const fetched: any[] = Array.isArray(paginator) ? paginator : (paginator?.data || []);
+
+      return fetched.map((s: any) => {
+        const end = new Date(s.expires_at);
+        const now = new Date();
+        const diffMs = end.getTime() - now.getTime();
+        const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+        const expiresText = diffDays > 0 ? `Ends in ${diffDays}d` : 'Ending soon';
+
+        return {
+          id: String(s.id),
+          title: s.title,
+          owner: s.owner?.profile?.full_name || s.owner?.name || 'Unknown',
+          expiresIn: expiresText,
+          joinCount: s.applications_count || 0,
+          maxParticipants: s.max_participants,
+          eliminatedCount: 0,
+          firstDateProvider: '—',
+          tag: s.tag || feed, // Use backend provided tag or current feed
+        } as SpecCardItem;
+      });
+    },
+  });
+
+  const specsErrorText = useMemo(() => {
+    if (!isError) return '';
+    const anyErr: any = error;
+    const status = anyErr?.response?.status;
+    const msg =
+      anyErr?.response?.data?.message ||
+      anyErr?.message ||
+      'Failed to load specs.';
+
+    // Common gotcha: using 10.0.2.2 only works on Android emulator.
+    const hint =
+      status === 401
+        ? 'You are not authenticated. Please log in again.'
+        : status
+          ? `HTTP ${status}. If you are running on a physical device, update API_URL in src/services/api.ts to your PC IP.`
+          : 'If you are running on a physical device, update API_URL in src/services/api.ts to your PC IP.';
+
+    return `${msg}\n${hint}`;
+  }, [error, isError]);
+
+  console.log('HomeScreen rendering. Specs count:', specs.length);
+
+  /*
+  // Imported components to avoid inline renderItem causing VirtualizedList warnings
+  const SpecCard = require('./components/SpecCard').default;
+  const PersonCard = require('./components/PersonCard').default;
+  */
+
+  const tagColor = (tag: string) => {
     // Different shades for tags (violet family)
     switch (tag) {
       case 'LIVE':
@@ -169,56 +233,18 @@ export default function HomeScreen({ navigation }: any) {
     [theme.colors.background, theme.colors.onBackground]
   );
 
-  // Placeholder data until Specs APIs are implemented.
-  const baseSpecs = useMemo<SpecCardItem[]>(
-    () => [
-      {
-        id: '1',
-        title: 'Ages 24–30 • Lagos • Serious relationship',
-        owner: 'Ada',
-        expiresIn: 'Ends in 2d',
-        joinCount: 18,
-        maxParticipants: 50,
-        eliminatedCount: 2,
-        firstDateProvider: '—',
-        tag: 'LIVE',
-      },
-      {
-        id: '2',
-        title: 'Tech lover • Abuja • Tall guys preferred',
-        owner: 'Musa',
-        expiresIn: 'Ends in 8h',
-        joinCount: 41,
-        maxParticipants: 60,
-        eliminatedCount: 6,
-        firstDateProvider: '—',
-        tag: 'HOTTEST',
-      },
-      {
-        id: '3',
-        title: 'Ages 27–35 • Diaspora • Marriage-minded',
-        owner: 'Chi',
-        expiresIn: 'Ends in 4d',
-        joinCount: 9,
-        maxParticipants: 30,
-        eliminatedCount: 0,
-        firstDateProvider: '—',
-        tag: 'POPULAR',
-      },
-    ],
-    []
-  );
-
-  // Demo “infinite scroll” list: we append more placeholder items on scroll end.
-  const [items, setItems] = useState<SpecCardItem[]>(() => baseSpecs);
+  const onRefresh = async () => {
+    await refetch();
+  };
 
   const filteredItems = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const byFeed = items.filter((s) => s.tag === feed);
-    const source = byFeed.length > 0 ? byFeed : items;
+    // For now, ignore the 'feed' tag filter since backend doesn't support tags yet
+    // const byFeed = specs.filter((s) => s.tag === feed);
+    const source = specs;
     if (!q) return source;
     return source.filter((s) => (s.title + ' ' + s.owner).toLowerCase().includes(q));
-  }, [feed, items, query]);
+  }, [query, specs]);
 
   type PersonItem = {
     id: string;
@@ -448,119 +474,42 @@ export default function HomeScreen({ navigation }: any) {
               paddingBottom: insets.bottom + bottomNavHeight + 24,
             },
           ]}
+          onRefresh={onRefresh}
+          refreshing={isLoading || isRefetching}
+          // Pagination can be added later
           onEndReachedThreshold={0.6}
-          onEndReached={() => {
-            // Append another “page” of placeholder content for an infinite feel.
-            const suffix = String(Date.now());
-            setItems((prev) => [
-              ...prev,
-              ...baseSpecs.map((s, idx) => ({
-                ...s,
-                id: `${s.id}-${suffix}-${idx}`,
-              })),
-            ]);
-          }}
+          // Pagination can be added later
+
+
           ListEmptyComponent={
             <View style={{ paddingTop: 30 }}>
-              <Text style={{ color: theme.colors.outline, textAlign: 'center' }}>No specs found.</Text>
+              {isLoading || isRefetching ? (
+                <View style={{ alignItems: 'center', gap: 10 }}>
+                  <ActivityIndicator animating color={theme.colors.primary} />
+                  <Text style={{ color: theme.colors.outline, textAlign: 'center' }}>Loading specs…</Text>
+                </View>
+              ) : isError ? (
+                <View style={{ alignItems: 'center', gap: 10 }}>
+                  <Text style={{ color: theme.colors.error, textAlign: 'center', fontWeight: '800' }}>
+                    Couldn’t load specs
+                  </Text>
+                  <Text style={{ color: theme.colors.outline, textAlign: 'center' }}>{specsErrorText}</Text>
+                </View>
+              ) : (
+                <Text style={{ color: theme.colors.outline, textAlign: 'center' }}>
+                  No specs found.
+                </Text>
+              )}
             </View>
           }
           renderItem={({ item }) => (
-            <View style={styles.cardWrap}>
-              <Pressable onPress={() => navigation.navigate('SpecDetails', { specId: item.id })}>
-                <Surface
-                  style={[
-                    styles.card,
-                    {
-                      backgroundColor: homeColors.cardBg,
-                      borderWidth: 1,
-                      borderColor: theme.colors.outline,
-                    },
-                  ]}
-                  elevation={1}
-                >
-                  {/* Top ~40% cover image */}
-                  <View style={styles.cardMedia}>
-                    <ImageBackground
-                      source={{ uri: `https://picsum.photos/seed/specdate-${item.id}/600/800` }}
-                      style={StyleSheet.absoluteFillObject}
-                      imageStyle={styles.cardMediaImage}
-                      resizeMode="cover"
-                    />
-
-                    <View style={[styles.tagPill, { backgroundColor: tagColor(item.tag) }]}>
-                      <Text style={[styles.tagText, { color: theme.colors.onPrimary }]}>{item.tag}</Text>
-                    </View>
-                  </View>
-
-                  {/* Creator name base strip (handles long names cleanly) */}
-                  <LinearGradient
-                    // Lighter "shadow" gradient using theme colors
-                    colors={[withAlpha(theme.colors.primary, 0.35), withAlpha(theme.colors.secondary, 0.35)]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.ownerBase}
-                  >
-                    <Text style={styles.ownerBaseText} numberOfLines={1} ellipsizeMode="tail">
-                      {item.owner}
-                    </Text>
-                  </LinearGradient>
-
-                  {/* Body ~60% */}
-                  <View style={styles.cardBody}>
-                    <Text style={[styles.cardTitle, { color: homeColors.cardText }]} numberOfLines={2}>
-                      {item.title}
-                    </Text>
-
-                  <View style={styles.metaRow}>
-                    <MaterialCommunityIcons name="map-marker" size={16} color={theme.colors.primary} />
-                    <Text style={[styles.metaText, { color: homeColors.cardSubtext }]} numberOfLines={1}>
-                      {(item.title.split('•')[1] || 'Location').trim()}
-                    </Text>
-                  </View>
-
-                  <View style={styles.metaRow}>
-                    <MaterialCommunityIcons name="account-group" size={16} color={theme.colors.primary} />
-                    <Text style={[styles.metaText, { color: homeColors.cardSubtext }]} numberOfLines={1}>
-                      {item.joinCount}/{item.maxParticipants} participants
-                    </Text>
-                  </View>
-
-                  <View style={styles.metaRow}>
-                    <MaterialCommunityIcons name="balloon" size={16} color={theme.colors.primary} />
-                    <Text style={[styles.metaText, { color: homeColors.cardSubtext }]} numberOfLines={1}>
-                      {item.eliminatedCount} eliminated
-                    </Text>
-                  </View>
-
-                  <View style={styles.metaRow}>
-                    <MaterialCommunityIcons name="silverware-fork-knife" size={16} color={theme.colors.primary} />
-                    <Pressable
-                      onPress={(e) => {
-                        // Prevent the parent card Pressable (SpecDetails) from firing.
-                        // @ts-expect-error RN event supports stopPropagation at runtime
-                        e?.stopPropagation?.();
-                        navigation.navigate('Providers', { specId: item.id });
-                      }}
-                      style={{ flex: 1 }}
-                      hitSlop={8}
-                    >
-                      <Text style={[styles.metaText, { color: homeColors.cardSubtext }]} numberOfLines={1}>
-                        First date: {item.firstDateProvider === '—' ? 'Choose provider' : item.firstDateProvider}
-                      </Text>
-                    </Pressable>
-                  </View>
-
-                  <View style={styles.metaRow}>
-                    <MaterialCommunityIcons name="timer-sand" size={16} color={theme.colors.primary} />
-                    <Text style={[styles.metaText, { color: homeColors.cardSubtext }]} numberOfLines={2}>
-                      {item.expiresIn}
-                    </Text>
-                  </View>
-                  </View>
-                </Surface>
-              </Pressable>
-            </View>
+            <SpecCard
+              item={item}
+              theme={theme}
+              homeColors={homeColors}
+              tagColor={tagColor}
+              withAlpha={withAlpha}
+            />
           )}
         />
       ) : (
@@ -576,26 +525,7 @@ export default function HomeScreen({ navigation }: any) {
             },
           ]}
           renderItem={({ item }) => (
-            <Surface
-              style={[styles.personCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outline }]}
-              elevation={1}
-            >
-              <Avatar.Text
-                size={44}
-                label={(item.name || '?').slice(0, 1).toUpperCase()}
-                style={{ backgroundColor: theme.colors.primary }}
-                color={theme.colors.onPrimary}
-              />
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: theme.colors.onSurface, fontWeight: '900' }} numberOfLines={1}>
-                  {item.name} • {item.age}
-                </Text>
-                <Text style={{ color: theme.colors.outline, fontWeight: '700' }} numberOfLines={1}>
-                  {item.city} • {item.occupation}
-                </Text>
-              </View>
-              <IconButton icon="chevron-right" size={22} onPress={() => {}} iconColor={theme.colors.primary} />
-            </Surface>
+            <PersonCard item={item} theme={theme} />
           )}
           ListEmptyComponent={
             <View style={{ paddingTop: 30 }}>
@@ -652,26 +582,26 @@ export default function HomeScreen({ navigation }: any) {
             </Text>
           </Pressable>
 
-          {/* Center create spec action */}
-          <Pressable onPress={() => {}} style={styles.bottomNavCenterWrap}>
+          <Pressable onPress={() => navigation.navigate('CreateSpec')} style={styles.bottomNavCenterWrap}>
             <View style={[styles.bottomNavCenterBtn, { backgroundColor: theme.colors.primary }]}>
               <MaterialCommunityIcons name="plus" size={28} color={theme.colors.onPrimary} />
             </View>
             <Text style={[styles.bottomNavLabel, { color: homeColors.subtext, marginTop: 6 }]}>Create</Text>
           </Pressable>
 
-          <Pressable onPress={() => setBottomTab('Balloons')} style={styles.bottomNavItem}>
-            <BalloonsIcon
+          <Pressable onPress={() => setBottomTab('Specs')} style={styles.bottomNavItem}>
+            <MaterialCommunityIcons
+              name="clipboard-check-outline" // More "Spec" like (Requirements checked)
               size={24}
-              color={bottomTab === 'Balloons' ? theme.colors.primary : homeColors.subtext}
+              color={bottomTab === 'Specs' ? theme.colors.primary : homeColors.subtext}
             />
             <Text
               style={[
                 styles.bottomNavLabel,
-                { color: bottomTab === 'Balloons' ? theme.colors.primary : homeColors.subtext },
+                { color: bottomTab === 'Specs' ? theme.colors.primary : homeColors.subtext },
               ]}
             >
-              Balloons
+              Specs
             </Text>
           </Pressable>
 

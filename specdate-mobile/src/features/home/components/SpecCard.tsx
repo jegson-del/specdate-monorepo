@@ -1,0 +1,212 @@
+import React, { memo } from 'react';
+import { View, StyleSheet, Pressable, ImageBackground } from 'react-native';
+import { Text, Surface } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+
+type SpecCardItem = {
+    id: string;
+    title: string;
+    owner: string;
+    expiresIn: string;
+    joinCount: number;
+    maxParticipants: number;
+    eliminatedCount: number;
+    firstDateProvider: string;
+    tag: 'LIVE' | 'ONGOING' | 'POPULAR' | 'HOTTEST';
+};
+
+type Props = {
+    item: SpecCardItem;
+    theme: any;
+    homeColors: any;
+    tagColor: (tag: string) => string;
+    withAlpha: (color: string, alpha: number) => string;
+};
+
+const SpecCard = memo(({ item, theme, homeColors, tagColor, withAlpha }: Props) => {
+    const navigation = useNavigation<any>();
+
+    const handlePressProvider = (e: any) => {
+        e?.stopPropagation?.();
+        navigation.navigate('Providers', { specId: item.id });
+    };
+
+    return (
+        <View style={styles.cardWrap}>
+            <Pressable onPress={() => navigation.navigate('SpecDetails', { specId: item.id })}>
+                <Surface
+                    style={[
+                        styles.card,
+                        {
+                            backgroundColor: homeColors.cardBg,
+                            borderWidth: 1,
+                            borderColor: theme.colors.outline,
+                        },
+                    ]}
+                    elevation={1}
+                >
+                    {/* Media */}
+                    <View style={styles.cardMedia}>
+                        <ImageBackground
+                            source={{ uri: `https://picsum.photos/seed/specdate-${item.id}/600/800` }}
+                            style={StyleSheet.absoluteFillObject}
+                            imageStyle={styles.cardMediaImage}
+                            resizeMode="cover"
+                        />
+                        <View style={[styles.tagPill, { backgroundColor: tagColor(item.tag) }]}>
+                            <Text style={[styles.tagText, { color: theme.colors.onPrimary }]}>{item.tag}</Text>
+                        </View>
+                        {/* Owner tag (glass) – anchored to image */}
+                        <View style={styles.ownerOverlay}>
+                            <View style={styles.ownerGlass}>
+                                <MaterialCommunityIcons name="account" size={14} color="rgba(255,255,255,0.95)" />
+                                <Text style={styles.ownerGlassText} numberOfLines={1} ellipsizeMode="tail">
+                                    {item.owner}
+                                </Text>
+                            </View>
+                        </View>
+                    </View>
+
+                    {/* Body */}
+                    <View style={styles.cardBody}>
+                        <Text style={[styles.cardTitle, { color: homeColors.cardText }]} numberOfLines={2}>
+                            {item.title}
+                        </Text>
+
+                        {/* Meta Rows */}
+                        <View style={styles.metaRow}>
+                            <MaterialCommunityIcons name="map-marker" size={16} color={theme.colors.primary} />
+                            <Text style={[styles.metaText, { color: homeColors.cardSubtext }]} numberOfLines={1}>
+                                {(item.title.split('•')[1] || 'Location').trim()}
+                            </Text>
+                        </View>
+
+                        <View style={styles.metaRow}>
+                            <MaterialCommunityIcons name="account-group" size={16} color={theme.colors.primary} />
+                            <Text style={[styles.metaText, { color: homeColors.cardSubtext }]} numberOfLines={1}>
+                                {item.joinCount}/{item.maxParticipants} participants
+                            </Text>
+                        </View>
+
+                        <View style={styles.metaRow}>
+                            <MaterialCommunityIcons name="balloon" size={16} color={theme.colors.primary} />
+                            <Text style={[styles.metaText, { color: homeColors.cardSubtext }]} numberOfLines={1}>
+                                {item.eliminatedCount} eliminated
+                            </Text>
+                        </View>
+
+                        <View style={styles.metaRow}>
+                            <MaterialCommunityIcons name="silverware-fork-knife" size={16} color={theme.colors.primary} />
+                            <Pressable
+                                onPress={handlePressProvider}
+                                style={{ flex: 1 }}
+                                hitSlop={8}
+                            >
+                                <Text style={[styles.metaText, { color: homeColors.cardSubtext }]} numberOfLines={1}>
+                                    First date: {item.firstDateProvider === '—' ? 'Choose provider' : item.firstDateProvider}
+                                </Text>
+                            </Pressable>
+                        </View>
+
+                        <View style={styles.metaRow}>
+                            <MaterialCommunityIcons name="timer-sand" size={16} color={theme.colors.primary} />
+                            <Text style={[styles.metaText, { color: homeColors.cardSubtext }]} numberOfLines={2}>
+                                {item.expiresIn}
+                            </Text>
+                        </View>
+                    </View>
+                </Surface>
+            </Pressable>
+        </View>
+    );
+});
+
+export default SpecCard;
+
+// Shared styles extracted or passed in props?
+// For verified cleanliness, we'll keep styles here or assume HomeScreen style sheet global refactor?
+// To avoid messy prop drilling of styles, let's duplicate the local styles needed or export them.
+// Better: keep it self contained.
+
+const styles = StyleSheet.create({
+    cardWrap: {
+        flex: 1,
+        marginBottom: 16,
+        maxWidth: '48%',
+        marginHorizontal: '1%',
+    },
+    card: {
+        borderRadius: 16,
+        overflow: 'hidden',
+    },
+    cardMedia: {
+        height: 124,
+        backgroundColor: '#eee',
+        position: 'relative',
+    },
+    cardMediaImage: {
+        width: '100%',
+        height: '100%',
+    },
+    tagPill: {
+        position: 'absolute',
+        top: 8,
+        right: 8,
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 8,
+    },
+    tagText: {
+        fontSize: 10,
+        fontWeight: '900',
+        textTransform: 'uppercase',
+    },
+    ownerOverlay: {
+        position: 'absolute',
+        left: 8,
+        right: 8,
+        bottom: 8,
+    },
+    ownerGlass: {
+        alignSelf: 'flex-start',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 999,
+        backgroundColor: 'rgba(40,40,40,0.35)', // greyish glass
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.22)',
+        maxWidth: '92%',
+        shadowColor: '#000',
+        shadowOpacity: 0.18,
+        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 6 },
+        elevation: 3,
+    },
+    ownerGlassText: {
+        color: '#FFFFFF',
+        fontSize: 12,
+        fontWeight: '900',
+        letterSpacing: 0.2,
+    },
+    cardBody: { padding: 10, gap: 6 },
+    cardTitle: {
+        fontSize: 13,
+        fontWeight: '800',
+        lineHeight: 18,
+        marginBottom: 4,
+        height: 36, // Fixed height for 2 lines
+    },
+    metaRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    metaText: {
+        fontSize: 11,
+        flex: 1,
+    }
+});

@@ -19,15 +19,17 @@ export const profileSchema = z.object({
     sex: z.enum(['Male', 'Female', 'Other'], { message: "Please select a gender" }),
     occupation: z.string().min(2, "Occupation is required"),
     qualification: z.string().min(2, "Qualification is required"),
-    hobbies: z.string().optional(),
-    is_smoker: z.boolean().optional(),
-    is_drug_user: z.boolean().optional(),
-    sexual_orientation: z.string().optional(),
+    hobbies: z.string().min(2, "Hobbies is required"),
+    is_smoker: z.boolean(),
+    is_drug_user: z.boolean(),
+    sexual_orientation: z.string().min(2, "Sexual orientation is required"),
     latitude: z.coerce.number().min(-90).max(90).optional(),
     longitude: z.coerce.number().min(-180).max(180).optional(),
-    city: z.string().optional(),
-    state: z.string().optional(),
-    country: z.string().optional(),
+    city: z.string().min(1, "City is required"),
+    state: z.string().min(1, "State is required"),
+    country: z.string().min(1, "Country is required"),
+    height: z.coerce.number().min(50).max(300).optional(), // cm
+    ethnicity: z.string().optional(),
 });
 
 export type RegisterFormData = z.infer<typeof registerSchema>;

@@ -14,19 +14,13 @@ import LoginScreen from './src/features/auth/LoginScreen';
 import ProfileScreen from './src/features/profile/ProfileScreen';
 import HomeScreen from './src/features/home/HomeScreen';
 import ProvidersScreen from './src/features/providers/ProvidersScreen';
+import CreateSpecScreen from './src/features/specs/CreateSpecScreen';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+const queryClient = new QueryClient();
 
 const Stack = createNativeStackNavigator();
 
-function isProfileComplete(profile: any) {
-  if (!profile) return false;
-  const fullNameOk = typeof profile.full_name === 'string' && profile.full_name.trim().length >= 2;
-  const dobOk = typeof profile.dob === 'string' && !Number.isNaN(Date.parse(profile.dob));
-  const sexOk = typeof profile.sex === 'string' && profile.sex.trim().length > 0;
-  const occupationOk = typeof profile.occupation === 'string' && profile.occupation.trim().length >= 2;
-  const qualificationOk = typeof profile.qualification === 'string' && profile.qualification.trim().length >= 2;
-  const cityOk = typeof profile.city === 'string' && profile.city.trim().length > 0;
-  return fullNameOk && dobOk && sexOk && occupationOk && qualificationOk && cityOk;
-}
 
 export default function App() {
   const [booting, setBooting] = useState(true);
@@ -47,8 +41,9 @@ export default function App() {
           try {
             const me = await api.get('/user');
             const user = (me.data as any)?.data ?? me.data;
-            const profile = (user as any)?.profile;
-            if (mounted) setInitialRoute(isProfileComplete(profile) ? 'Home' : 'Profile');
+            // Use backend computed attribute
+            const isComplete = user.profile_complete === true;
+            if (mounted) setInitialRoute(isComplete ? 'Home' : 'Profile');
           } catch (err: any) {
             const status = err?.response?.status;
             // If token is invalid/expired, clear it and fall back to Landing.
@@ -86,22 +81,29 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <PaperProvider theme={theme}>
-        <NavigationContainer>
-          <StatusBar style="dark" />
-          <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={initialRoute}>
-            <Stack.Screen name="Landing" component={LandingScreen} />
-            <Stack.Screen name="Register" component={RegisterScreen} />
-            <Stack.Screen name="OtpVerification" component={OtpVerificationScreen} />
-            <Stack.Screen name="Login" component={LoginScreen} />
-            <Stack.Screen name="Profile" component={ProfileScreen} />
-            <Stack.Screen name="Home" component={HomeScreen} />
-            <Stack.Screen name="Providers" component={ProvidersScreen} />
-            {/* Stubs to be implemented next */}
-            <Stack.Screen name="Notifications" component={HomeScreen} />
-            <Stack.Screen name="Messages" component={HomeScreen} />
-            <Stack.Screen name="SpecDetails" component={HomeScreen} />
-          </Stack.Navigator>
-        </NavigationContainer>
+        <QueryClientProvider client={queryClient}>
+          <NavigationContainer>
+            <StatusBar style="dark" />
+            <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={initialRoute}>
+              <Stack.Screen name="Landing" component={LandingScreen} />
+              <Stack.Screen name="Register" component={RegisterScreen} />
+              <Stack.Screen name="OtpVerification" component={OtpVerificationScreen} />
+              <Stack.Screen name="Login" component={LoginScreen} />
+              <Stack.Screen name="Profile" component={ProfileScreen} />
+              <Stack.Screen name="Home" component={HomeScreen} />
+              <Stack.Screen name="Providers" component={ProvidersScreen} />
+              {/* Stubs to be implemented next */}
+              <Stack.Screen name="Notifications" component={HomeScreen} />
+              <Stack.Screen name="Messages" component={HomeScreen} />
+              <Stack.Screen name="SpecDetails" component={HomeScreen} />
+              <Stack.Screen
+                name="CreateSpec"
+                component={CreateSpecScreen}
+                options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+              />
+            </Stack.Navigator>
+          </NavigationContainer>
+        </QueryClientProvider>
       </PaperProvider>
     </SafeAreaProvider>
   );

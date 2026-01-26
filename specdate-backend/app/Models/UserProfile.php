@@ -9,16 +9,19 @@ class UserProfile extends Model
     protected $fillable = [
         'user_id',
         'latitude', 'longitude', 'city', 'state', 'country', 'continent',
-        'dob', 'full_name', 'city', 'hobbies',
+        'dob', 'full_name', 'hobbies',
         'sex', 'occupation', 'qualification', 'sexual_orientation',
+        'height', 'ethnicity',
         'is_smoker', 'is_drug_user',
+        'profile_completed_at',
     ];
 
     protected $casts = [
         'dob' => 'date',
-        'hobbies' => 'array',
-        'is_smoker' => 'boolean',
         'is_drug_user' => 'boolean',
+        'is_smoker' => 'boolean',
+        'height' => 'integer',
+        'profile_completed_at' => 'datetime',
     ];
 
     public function user()

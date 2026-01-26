@@ -324,7 +324,7 @@ endpoints:
         name: dob
         description: 'Must be a valid date.'
         required: false
-        example: '2026-01-24T15:35:10'
+        example: '2026-01-26T01:17:55'
         type: string
         enumValues: []
         exampleWasSpecified: false
@@ -401,7 +401,7 @@ endpoints:
         name: is_drug_user
         description: ''
         required: false
-        example: false
+        example: true
         type: boolean
         enumValues: []
         exampleWasSpecified: false
@@ -451,23 +451,287 @@ endpoints:
         exampleWasSpecified: false
         nullable: true
         deprecated: false
+      height:
+        custom: []
+        name: height
+        description: 'Must be at least 50. Must not be greater than 300.'
+        required: false
+        example: 24
+        type: integer
+        enumValues: []
+        exampleWasSpecified: false
+        nullable: true
+        deprecated: false
+      ethnicity:
+        custom: []
+        name: ethnicity
+        description: 'Must not be greater than 255 characters.'
+        required: false
+        example: ickznkygloigmkwxphlva
+        type: string
+        enumValues: []
+        exampleWasSpecified: false
+        nullable: true
+        deprecated: false
     cleanBodyParameters:
       latitude: -89
       longitude: -180
-      dob: '2026-01-24T15:35:10'
+      dob: '2026-01-26T01:17:55'
       full_name: qeopfuudtdsufvyvddqam
       sex: niihfqcoynlazghdtqtqx
       occupation: bajwbpilpmufinllwloau
       qualification: ydlsmsjuryvojcybzvrby
       hobbies: consequatur
       is_smoker: false
-      is_drug_user: false
+      is_drug_user: true
       sexual_orientation: mqeopfuudtdsufvyvddqa
       city: mniihfqcoynlazghdtqtq
       state: xbajwbpilpmufinllwloa
       country: uydlsmsjuryvojcybzvrb
+      height: 24
+      ethnicity: ickznkygloigmkwxphlva
     fileParameters: []
     responses: []
+    responseFields: []
+    auth:
+      - headers
+      - Authorization
+      - 'Bearer 3V5EgbkvZcDPa166h8fd4ae'
+    controller: null
+    method: null
+    route: null
+  -
+    custom: []
+    httpMethods:
+      - POST
+    uri: api/specs
+    metadata:
+      custom: []
+      groupName: Endpoints
+      groupDescription: ''
+      subgroup: ''
+      subgroupDescription: ''
+      title: 'Store a newly created spec in storage.'
+      description: ''
+      authenticated: true
+      deprecated: false
+    headers:
+      Authorization: 'Bearer Bearer {YOUR_TOKEN}'
+      Content-Type: application/json
+      Accept: application/json
+    urlParameters: []
+    cleanUrlParameters: []
+    queryParameters: []
+    cleanQueryParameters: []
+    bodyParameters:
+      title:
+        custom: []
+        name: title
+        description: 'Must not be greater than 255 characters.'
+        required: true
+        example: vmqeopfuudtdsufvyvddq
+        type: string
+        enumValues: []
+        exampleWasSpecified: false
+        nullable: false
+        deprecated: false
+      description:
+        custom: []
+        name: description
+        description: ''
+        required: false
+        example: 'Dolores dolorum amet iste laborum eius est dolor.'
+        type: string
+        enumValues: []
+        exampleWasSpecified: false
+        nullable: true
+        deprecated: false
+      location_city:
+        custom: []
+        name: location_city
+        description: ''
+        required: false
+        example: consequatur
+        type: string
+        enumValues: []
+        exampleWasSpecified: false
+        nullable: true
+        deprecated: false
+      location_lat:
+        custom: []
+        name: location_lat
+        description: ''
+        required: false
+        example: 11613.31890586
+        type: number
+        enumValues: []
+        exampleWasSpecified: false
+        nullable: true
+        deprecated: false
+      location_lng:
+        custom: []
+        name: location_lng
+        description: ''
+        required: false
+        example: 11613.31890586
+        type: number
+        enumValues: []
+        exampleWasSpecified: false
+        nullable: true
+        deprecated: false
+      duration:
+        custom: []
+        name: duration
+        description: 'Must be at least 1. Must not be greater than 14.'
+        required: true
+        example: 8
+        type: integer
+        enumValues: []
+        exampleWasSpecified: false
+        nullable: false
+        deprecated: false
+      max_participants:
+        custom: []
+        name: max_participants
+        description: 'Must be at least 1.'
+        required: true
+        example: 56
+        type: integer
+        enumValues: []
+        exampleWasSpecified: false
+        nullable: false
+        deprecated: false
+      requirements:
+        custom: []
+        name: requirements
+        description: ''
+        required: false
+        example: null
+        type: 'object[]'
+        enumValues: []
+        exampleWasSpecified: false
+        nullable: false
+        deprecated: false
+      'requirements[].field':
+        custom: []
+        name: 'requirements[].field'
+        description: ''
+        required: true
+        example: consequatur
+        type: string
+        enumValues: []
+        exampleWasSpecified: false
+        nullable: false
+        deprecated: false
+      'requirements[].operator':
+        custom: []
+        name: 'requirements[].operator'
+        description: ''
+        required: true
+        example: '<='
+        type: string
+        enumValues:
+          - '>='
+          - '<='
+          - '='
+          - in
+        exampleWasSpecified: false
+        nullable: false
+        deprecated: false
+      'requirements[].value':
+        custom: []
+        name: 'requirements[].value'
+        description: ''
+        required: true
+        example: consequatur
+        type: string
+        enumValues: []
+        exampleWasSpecified: false
+        nullable: false
+        deprecated: false
+      'requirements[].is_compulsory':
+        custom: []
+        name: 'requirements[].is_compulsory'
+        description: ''
+        required: false
+        example: false
+        type: boolean
+        enumValues: []
+        exampleWasSpecified: false
+        nullable: false
+        deprecated: false
+    cleanBodyParameters:
+      title: vmqeopfuudtdsufvyvddq
+      description: 'Dolores dolorum amet iste laborum eius est dolor.'
+      location_city: consequatur
+      location_lat: 11613.31890586
+      location_lng: 11613.31890586
+      duration: 8
+      max_participants: 56
+      requirements:
+        -
+          field: consequatur
+          operator: '<='
+          value: consequatur
+          is_compulsory: false
+    fileParameters: []
+    responses: []
+    responseFields: []
+    auth:
+      - headers
+      - Authorization
+      - 'Bearer 3V5EgbkvZcDPa166h8fd4ae'
+    controller: null
+    method: null
+    route: null
+  -
+    custom: []
+    httpMethods:
+      - GET
+    uri: 'api/specs/{id}'
+    metadata:
+      custom: []
+      groupName: Endpoints
+      groupDescription: ''
+      subgroup: ''
+      subgroupDescription: ''
+      title: 'Display the specified spec.'
+      description: ''
+      authenticated: true
+      deprecated: false
+    headers:
+      Authorization: 'Bearer Bearer {YOUR_TOKEN}'
+      Content-Type: application/json
+      Accept: application/json
+    urlParameters:
+      id:
+        custom: []
+        name: id
+        description: 'The ID of the spec.'
+        required: true
+        example: consequatur
+        type: string
+        enumValues: []
+        exampleWasSpecified: false
+        nullable: false
+        deprecated: false
+    cleanUrlParameters:
+      id: consequatur
+    queryParameters: []
+    cleanQueryParameters: []
+    bodyParameters: []
+    cleanBodyParameters: []
+    fileParameters: []
+    responses:
+      -
+        custom: []
+        status: 401
+        content: '{"message":"Unauthenticated."}'
+        headers:
+          cache-control: 'no-cache, private'
+          content-type: application/json
+          access-control-allow-origin: '*'
+        description: null
     responseFields: []
     auth:
       - headers

@@ -13,16 +13,6 @@ export default function LoginScreen({ navigation }: any) {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const isProfileComplete = (profile: any) => {
-    if (!profile) return false;
-    const fullNameOk = typeof profile.full_name === 'string' && profile.full_name.trim().length >= 2;
-    const dobOk = typeof profile.dob === 'string' && !Number.isNaN(Date.parse(profile.dob));
-    const sexOk = typeof profile.sex === 'string' && profile.sex.trim().length > 0;
-    const occupationOk = typeof profile.occupation === 'string' && profile.occupation.trim().length >= 2;
-    const qualificationOk = typeof profile.qualification === 'string' && profile.qualification.trim().length >= 2;
-    const cityOk = typeof profile.city === 'string' && profile.city.trim().length > 0;
-    return fullNameOk && dobOk && sexOk && occupationOk && qualificationOk && cityOk;
-  };
 
   const handleLogin = async () => {
     const cleanEmail = email.trim();
@@ -39,14 +29,15 @@ export default function LoginScreen({ navigation }: any) {
     try {
       await AuthService.login({ email: cleanEmail, password });
 
-      // Fetch the user with profile to decide where to land.
       const me = await api.get('/user');
-      const user = me.data?.data ?? me.data; // /user returns a raw user object
-      const profile = user?.profile;
+      const user = me.data?.data ?? me.data;
+
+      // Use backend computed attribute
+      const isComplete = user.profile_complete === true;
 
       navigation.reset({
         index: 0,
-        routes: [{ name: isProfileComplete(profile) ? 'Home' : 'Profile' }],
+        routes: [{ name: isComplete ? 'Home' : 'Profile' }],
       });
     } catch (error) {
       if (axios.isAxiosError(error)) {

@@ -14,4 +14,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
         return response()->json($user->toArray(), 200, [], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
     });
     Route::put('/profile', [\App\Http\Controllers\ProfileController::class, 'update']);
+    
+    Route::get('/my-specs', [\App\Http\Controllers\SpecController::class, 'mySpecs']);
+    Route::post('/specs/{id}/join', [\App\Http\Controllers\SpecController::class, 'join']);
+    Route::post('/specs/{id}/applications/{applicationId}/approve', [\App\Http\Controllers\SpecController::class, 'approveApplication']);
+    Route::post('/specs/{id}/applications/{applicationId}/reject', [\App\Http\Controllers\SpecController::class, 'rejectApplication']);
+    Route::apiResource('specs', \App\Http\Controllers\SpecController::class);
 });

@@ -63,4 +63,16 @@ class User extends Authenticatable
     {
         return $this->hasOne(BalloonSkin::class);
     }
+
+    /**
+     * Get the profile completion status.
+     *
+     * @return bool
+     */
+    public function getProfileCompleteAttribute(): bool
+    {
+        return $this->profile && $this->profile->profile_completed_at !== null;
+    }
+
+    protected $appends = ['profile_complete'];
 }
