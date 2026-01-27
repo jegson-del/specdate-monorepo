@@ -36,6 +36,9 @@ return [
     ],
 
     'imagekit' => [
+        // Set to true only when ImageKit origin is configured and you want to use it for URLs.
+        // When false or unset, media URLs use S3 directly (simpler; no ImageKit setup needed).
+        'enabled' => env('USE_IMAGEKIT', false),
         'url' => env('IMAGEKIT_URL_ENDPOINT'),
     ],
 

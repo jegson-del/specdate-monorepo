@@ -22,6 +22,7 @@ export const profileSchema = z.object({
     hobbies: z.string().min(2, "Hobbies is required"),
     is_smoker: z.boolean(),
     is_drug_user: z.boolean(),
+    drinking: z.string().optional(),
     sexual_orientation: z.string().min(2, "Sexual orientation is required"),
     latitude: z.coerce.number().min(-90).max(90).optional(),
     longitude: z.coerce.number().min(-180).max(180).optional(),

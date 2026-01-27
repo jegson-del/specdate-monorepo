@@ -7,8 +7,12 @@ export type ProfileImageGridProps = {
     images: (string | null)[];
     maxSlots?: number;
     readOnly?: boolean;
+    /** Tap image to view (e.g. open fullscreen viewer). */
     onImagePress?: (index: number) => void;
+    /** Deprecated: use onEditSlot. Add photo to empty slot. */
     onAddPress?: (index: number) => void;
+    /** Edit pen tap: open uploader for this slot. Pass slot index; parent sends media_id when slot has image. */
+    onEditSlot?: (index: number) => void;
 };
 
 const DEFAULT_SLOTS = 6;
@@ -19,14 +23,17 @@ export function ProfileImageGrid({
     readOnly = false,
     onImagePress,
     onAddPress,
+    onEditSlot,
 }: ProfileImageGridProps) {
     const theme = useTheme();
     const slots = Array.from({ length: maxSlots }, (_, i) => images[i] ?? null);
+    const showEditIcon = !readOnly && onEditSlot != null;
 
     const renderCell = (uri: string | null, index: number) => {
         const hasImage = !!uri;
-        const canTap = hasImage && onImagePress;
+        const canView = hasImage && onImagePress;
         const canAdd = !readOnly && !hasImage && onAddPress;
+        const canEdit = showEditIcon;
 
         const content = hasImage ? (
             <Image
@@ -37,23 +44,33 @@ export function ProfileImageGrid({
             />
         ) : (
             <View style={[styles.placeholder, { backgroundColor: theme.colors.surfaceVariant }]}>
-                {canAdd ? (
+                {!hasImage && (canAdd || canEdit) ? (
                     <MaterialCommunityIcons
-                        name={index < 3 ? 'camera-plus' : 'plus'}
-                        size={24}
+                        name="plus"
+                        size={28}
                         color={theme.colors.onSurfaceVariant}
                     />
                 ) : null}
             </View>
         );
 
-        const badge = hasImage ? (
-            <View style={styles.badge} pointerEvents="none">
-                <View style={[styles.badgeInner, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
-                    <MaterialCommunityIcons name="image" size={10} color="#fff" />
-                </View>
-            </View>
+        const editPen = canEdit ? (
+            <TouchableOpacity
+                style={[styles.editPen, { backgroundColor: theme.colors.primary }]}
+                onPress={() => onEditSlot?.(index)}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={hasImage ? 'Replace photo' : 'Add photo'}
+            >
+                <MaterialCommunityIcons name="pencil" size={14} color="#fff" />
+            </TouchableOpacity>
         ) : null;
+
+        const contentWithTap = hasImage && canView
+            ? <TouchableOpacity style={styles.cellContent} onPress={() => onImagePress?.(index)} activeOpacity={0.9}>{content}</TouchableOpacity>
+            : canEdit && !hasImage
+                ? <TouchableOpacity style={styles.cellContent} onPress={() => onEditSlot?.(index)} activeOpacity={0.9}>{content}</TouchableOpacity>
+                : content;
 
         const cellInner = (
             <View
@@ -62,12 +79,19 @@ export function ProfileImageGrid({
                     { backgroundColor: hasImage ? 'transparent' : theme.colors.surfaceVariant },
                 ]}
             >
-                {content}
-                {badge}
+                {contentWithTap}
+                {editPen}
             </View>
         );
 
-        if (canTap) {
+        if (canEdit) {
+            return (
+                <View key={index} style={styles.cellTouch}>
+                    {cellInner}
+                </View>
+            );
+        }
+        if (canView) {
             return (
                 <TouchableOpacity
                     key={index}
@@ -126,6 +150,11 @@ const styles = StyleSheet.create({
         flex: 1,
         height: '100%',
     },
+    cellContent: {
+        flex: 1,
+        width: '100%',
+        height: '100%',
+    },
     cell: {
         flex: 1,
         height: '100%',
@@ -145,14 +174,15 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    badge: {
+    editPen: {
         position: 'absolute',
-        top: 6,
+        bottom: 6,
         right: 6,
-    },
-    badgeInner: {
-        paddingHorizontal: 6,
-        paddingVertical: 3,
-        borderRadius: 6,
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+        ...(Platform.OS === 'android' ? { elevation: 2 } : {}),
     },
 });

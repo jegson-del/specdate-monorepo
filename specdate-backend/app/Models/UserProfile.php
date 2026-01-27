@@ -12,7 +12,8 @@ class UserProfile extends Model
         'dob', 'full_name', 'hobbies',
         'sex', 'occupation', 'qualification', 'sexual_orientation',
         'height', 'ethnicity',
-        'is_smoker', 'is_drug_user',
+        'height', 'ethnicity',
+        'is_smoker', 'is_drug_user', 'drinking',
         'profile_completed_at',
     ];
 

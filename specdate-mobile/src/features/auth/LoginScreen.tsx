@@ -93,7 +93,7 @@ export default function LoginScreen({ navigation }: any) {
         <Text variant="headlineMedium" style={{ color: theme.colors.primary, fontWeight: 'bold' }}>
           Welcome back
         </Text>
-        <Text variant="bodyMedium" style={{ color: theme.colors.outline, marginTop: 6 }}>
+        <Text variant="bodyMedium" style={{ color: theme.colors.secondary, marginTop: 6 }}>
           Login to continue.
         </Text>
 

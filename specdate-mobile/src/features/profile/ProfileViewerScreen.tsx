@@ -7,6 +7,7 @@ import { UserService } from '../../services/users';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ProfileImageGrid, ImageViewerModal } from './components';
+import { toImageUri } from '../../utils/imageUrl';
 
 function formatAge(dob?: string) {
     if (!dob) return null;
@@ -44,7 +45,7 @@ export default function ProfileViewerScreen({ route, navigation }: any) {
     const profile = user?.profile;
     const displayName = profile?.full_name || user?.name || 'Unknown';
     const avatarUri =
-        profile?.avatar ||
+        toImageUri(profile?.avatar) ||
         `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&size=512&background=7C3AED&color=ffffff`;
     const location = [profile?.city, profile?.state, profile?.country].filter(Boolean).join(', ') || '—';
     const age = formatAge(profile?.dob);
@@ -53,15 +54,17 @@ export default function ProfileViewerScreen({ route, navigation }: any) {
     const [viewerInitialIndex, setViewerInitialIndex] = useState(0);
 
     const images = useMemo(() => {
-        const raw = (user?.images ?? []).length > 0 ? (user?.images ?? []) : DUMMY_IMAGES;
-        const arr: (string | null)[] = [...raw];
+        const raw = (user?.images ?? []) as string[];
+        const valid = raw.map((u) => toImageUri(u) ?? null).filter(Boolean) as string[];
+        const arr: (string | null)[] = valid.length > 0 ? [...valid] : [...DUMMY_IMAGES];
         while (arr.length < 6) arr.push(null);
         return arr.slice(0, 6);
     }, [user?.images]);
 
     const imagesFilled = useMemo(() => {
-        const raw = (user?.images ?? []).length > 0 ? (user?.images ?? []) : DUMMY_IMAGES;
-        return raw.filter(Boolean) as string[];
+        const raw = (user?.images ?? []) as string[];
+        const valid = raw.map((u) => toImageUri(u)).filter(Boolean) as string[];
+        return valid.length > 0 ? valid : DUMMY_IMAGES;
     }, [user?.images]);
 
     const openViewer = useCallback((index: number) => {
@@ -211,17 +214,7 @@ export default function ProfileViewerScreen({ route, navigation }: any) {
                             <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 12 }}>
                                 {imagesFilled.length} photo{imagesFilled.length !== 1 ? 's' : ''}
                             </Text>
-                            <ProfileImageGrid images={images} maxSlots={6} readOnly />
-                            <Button
-                                mode="outlined"
-                                icon="image-multiple"
-                                onPress={() => openViewer(0)}
-                                style={[styles.viewPhotosBtn, { borderColor: theme.colors.primary }]}
-                                labelStyle={{ color: theme.colors.primary }}
-                                compact
-                            >
-                                View photos
-                            </Button>
+                            <ProfileImageGrid images={images} maxSlots={6} readOnly onImagePress={openViewer} />
                         </>
                     ) : (
                         <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
@@ -283,9 +276,21 @@ export default function ProfileViewerScreen({ route, navigation }: any) {
                     <Divider style={styles.divider} />
                     <View style={styles.lifestyleRow}>
                         <View style={styles.lifestyleLabel}>
-                            <MaterialCommunityIcons name="glass-wine" size={20} color={theme.colors.onSurfaceVariant} />
+                            <MaterialCommunityIcons name="glass-cocktail" size={20} color={theme.colors.onSurfaceVariant} />
                             <Text variant="bodyLarge" style={{ color: theme.colors.onSurface }}>
-                                Drinker / Drug Use
+                                Drinking
+                            </Text>
+                        </View>
+                        <Text variant="bodyLarge" style={{ color: theme.colors.onSurfaceVariant, textTransform: 'capitalize' }}>
+                            {profile?.drinking || 'No'}
+                        </Text>
+                    </View>
+                    <Divider style={styles.divider} />
+                    <View style={styles.lifestyleRow}>
+                        <View style={styles.lifestyleLabel}>
+                            <MaterialCommunityIcons name="pill" size={20} color={theme.colors.onSurfaceVariant} />
+                            <Text variant="bodyLarge" style={{ color: theme.colors.onSurface }}>
+                                Drug Use
                             </Text>
                         </View>
                         <Text variant="bodyLarge" style={{ color: theme.colors.onSurfaceVariant }}>

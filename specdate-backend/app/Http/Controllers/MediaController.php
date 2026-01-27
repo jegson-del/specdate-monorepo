@@ -20,33 +20,39 @@ class MediaController extends Controller
     }
 
     /**
-     * Upload a file.
-     * 
-     * @param Request $request
-     * @return JsonResponse
+     * Upload a file, or update an existing media row when media_id is sent (profile_gallery only).
+     *
+     * Body: file, type, and optionally media_id (int) to replace that slot's image and url.
      */
     public function upload(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'file' => 'required|file|max:10240', // Max 10MB
             'type' => 'required|string|in:avatar,profile_gallery,chat,proof',
+            'media_id' => 'nullable|integer|exists:media,id',
         ]);
 
         if ($validator->fails()) {
             return $this->sendError('Validation Error.', $validator->errors(), 422);
         }
 
+        $type = $request->input('type');
+        $mediaId = $request->has('media_id') ? (int) $request->input('media_id') : null;
+        if ($mediaId !== null && !in_array($type, ['avatar', 'profile_gallery'], true)) {
+            return $this->sendError('media_id is only supported for avatar or profile_gallery.', [], 422);
+        }
+
         try {
             $media = $this->mediaService->uploadFile(
                 $request->file('file'),
                 $request->user(),
-                $request->input('type')
+                $type,
+                $mediaId
             );
-            
-            // Append the generated URL to the response
-            $media->url = $media->getUrl();
 
-            return $this->sendResponse($media, 'File uploaded successfully.', 201);
+            return $this->sendResponse($media, $mediaId ? 'Image updated successfully.' : 'File uploaded successfully.', 201);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return $this->sendError('Media not found or not yours.', [], 404);
         } catch (\Exception $e) {
             return $this->sendError('File upload failed.', ['error' => $e->getMessage()], 500);
         }

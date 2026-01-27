@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../services/api';
 
+export type ProfileGallerySlot = { id: number; url: string };
+
 export type User = {
     id: number;
     name: string;
@@ -11,7 +13,9 @@ export type User = {
     profile_complete: boolean;
     balance?: any;
     balloon_skin?: any;
-    images?: string[]; // Added: Gallery images
+    images?: string[];
+    /** Gallery slots with id+url so client can send media_id when replacing a slot (max 6). */
+    profile_gallery_media?: ProfileGallerySlot[];
 };
 
 async function fetchUser(): Promise<User> {

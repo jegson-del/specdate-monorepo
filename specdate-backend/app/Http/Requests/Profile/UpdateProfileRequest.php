@@ -19,6 +19,7 @@ class UpdateProfileRequest extends ApiFormRequest
             'hobbies' => 'nullable|string',
             'is_smoker' => 'nullable|boolean',
             'is_drug_user' => 'nullable|boolean',
+            'drinking' => 'nullable|string|max:100',
             'sexual_orientation' => 'nullable|string|max:50',
             'city' => 'nullable|string|max:100',
             'state' => 'nullable|string|max:100',

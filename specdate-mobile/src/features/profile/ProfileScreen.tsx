@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, StyleSheet, ScrollView, Alert, Platform, TouchableOpacity } from 'react-native';
 import { Text, Button, useTheme, TextInput, SegmentedButtons, Searchbar, Avatar, IconButton, Surface, Divider, ActivityIndicator } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { z } from 'zod';
 import { profileSchema, ProfileFormData } from '../../utils/validation';
 import { ProfileService } from '../../services/profile';
@@ -15,6 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ProfileImageGrid, ImageViewerModal } from './components';
 import { MediaService } from '../../services/media';
+import { toImageUri } from '../../utils/imageUrl';
 
 // --- OPTIONS & CONSTANTS ---
 const OTHER_VALUE = '__other__';
@@ -29,6 +31,11 @@ const ETHNICITY_OPTIONS = [
     'Asian', 'Black / African Descent', 'Hispanic / Latino', 'Middle Eastern',
     'Native American / Indigenous', 'Pacific Islander', 'South Asian', 'White / Caucasian',
     'Multiracial / Mixed', 'Prefer not to say',
+];
+const DRINKING_OPTIONS = [
+    { label: 'No', value: 'no' },
+    { label: 'Socially', value: 'socially' },
+    { label: 'Occasionally', value: 'occasionally' },
 ];
 
 // --- DATE PICKER SETUP ---
@@ -90,6 +97,7 @@ export default function ProfileScreen({ navigation }: any) {
         hobbies: '',
         is_smoker: false,
         is_drug_user: false,
+        drinking: 'no',
         sexual_orientation: 'Heterosexual',
         latitude: undefined,
         longitude: undefined,
@@ -122,34 +130,41 @@ export default function ProfileScreen({ navigation }: any) {
     const qualificationOptions = useMemo(() => getFilteredOptions(QUALIFICATION_OPTIONS, qualificationSearch), [qualificationSearch]);
     const ethnicityOptions = useMemo(() => getFilteredOptions(ETHNICITY_OPTIONS, ethnicitySearch), [ethnicitySearch]);
 
+    // Refetch user when Profile screen gains focus so form always pre-fills from latest server data
+    useFocusEffect(
+        useCallback(() => {
+            queryClient.invalidateQueries({ queryKey: ['user'] });
+        }, [queryClient])
+    );
+
     // --- EFFECTS ---
     useEffect(() => {
-        // Load user profile data
-        if (user?.profile) {
-            const profile = user.profile;
-            setForm({
-                full_name: profile.full_name || '',
-                dob: profile.dob ? formatYYYYMMDD(new Date(profile.dob)) : '',
-                sex: profile.sex || 'Male',
-                occupation: profile.occupation || '',
-                qualification: profile.qualification || '',
-                hobbies: profile.hobbies || '',
-                is_smoker: profile.is_smoker || false,
-                is_drug_user: profile.is_drug_user || false,
-                sexual_orientation: profile.sexual_orientation || 'Heterosexual',
-                latitude: profile.latitude,
-                longitude: profile.longitude,
-                city: profile.city || '',
-                state: profile.state || '',
-                country: profile.country || '',
-                height: profile.height,
-                ethnicity: profile.ethnicity || '',
-            });
-        }
-        // Load user images (ensure array of 6)
-        if (user?.images) {
-            const filled = (user.images as string[]) || [];
-            const newImages = [...filled, ...new Array(6 - filled.length).fill(null)].slice(0, 6);
+        // Load user profile data into form whenever user/profile is available
+        if (!user) return;
+        const profile = user.profile ?? {};
+        setForm({
+            full_name: profile.full_name || user.name || '',
+            dob: profile.dob ? formatYYYYMMDD(new Date(profile.dob)) : '',
+            sex: profile.sex || 'Male',
+            occupation: profile.occupation || '',
+            qualification: profile.qualification || '',
+            hobbies: profile.hobbies || '',
+            is_smoker: profile.is_smoker || false,
+            is_drug_user: profile.is_drug_user || false,
+            drinking: profile.drinking || 'no',
+            sexual_orientation: profile.sexual_orientation || 'Heterosexual',
+            latitude: profile.latitude,
+            longitude: profile.longitude,
+            city: profile.city || '',
+            state: profile.state || '',
+            country: profile.country || '',
+            height: profile.height,
+            ethnicity: profile.ethnicity || '',
+        });
+        // Load user images (ensure array of 6; only use valid absolute URLs)
+        if (user.images && Array.isArray(user.images)) {
+            const valid = (user.images as string[]).map((u) => toImageUri(u) ?? null).filter(Boolean) as string[];
+            const newImages = [...valid, ...new Array(6 - valid.length).fill(null)].slice(0, 6);
             setImages(newImages);
         }
     }, [user]);
@@ -185,10 +200,29 @@ export default function ProfileScreen({ navigation }: any) {
         return status === 'granted';
     };
 
-    const uploadImageAndRefresh = async (uri: string, type: 'avatar' | 'profile_gallery') => {
+    const uploadImageAndRefresh = async (uri: string, type: 'avatar' | 'profile_gallery', mediaId?: number) => {
         setImgLoading(true);
         try {
-            await MediaService.upload(uri, type);
+            const media = await MediaService.upload(uri, type, mediaId);
+            const uploadedUrl = media?.url && (media.url as string).startsWith('http') ? media.url : null;
+            // Optimistic update: show the new image immediately using the URL returned from upload
+            if (uploadedUrl) {
+                queryClient.setQueryData(['user'], (old: any) => {
+                    if (!old) return old;
+                    if (type === 'avatar') {
+                        return { ...old, profile: { ...(old.profile || {}), avatar: uploadedUrl } };
+                    }
+                    const prev = (old.images || []) as string[];
+                    return { ...old, images: [...prev, uploadedUrl] };
+                });
+                if (type === 'profile_gallery') {
+                    setImages((prev) => {
+                        const filled = prev.filter(Boolean) as string[];
+                        const next = [...filled, uploadedUrl, ...new Array(6 - filled.length - 1).fill(null)].slice(0, 6);
+                        return next;
+                    });
+                }
+            }
             await queryClient.invalidateQueries({ queryKey: ['user'] });
             Alert.alert('Success', 'Image uploaded successfully.');
         } catch (e: any) {
@@ -199,7 +233,7 @@ export default function ProfileScreen({ navigation }: any) {
         }
     };
 
-    const takePhotoWithCamera = async (type: 'avatar' | 'profile_gallery') => {
+    const takePhotoWithCamera = async (type: 'avatar' | 'profile_gallery', replaceSlotIndex?: number) => {
         const granted = await ensureCameraPermission();
         if (!granted) {
             Alert.alert('Camera access needed', 'Allow camera access to take a new photo.');
@@ -212,11 +246,17 @@ export default function ProfileScreen({ navigation }: any) {
             quality: 0.8,
         });
         if (!result.canceled && result.assets[0]) {
-            await uploadImageAndRefresh(result.assets[0].uri, type);
+            const mediaId = type === 'profile_gallery' && replaceSlotIndex != null
+                ? (user as any)?.profile_gallery_media?.[replaceSlotIndex]?.id
+                : type === 'avatar'
+                    ? (user as any)?.profile?.avatar_media_id
+                    : undefined;
+            await uploadImageAndRefresh(result.assets[0].uri, type, mediaId);
         }
     };
 
-    const pickFromGallery = async (type: 'avatar' | 'profile_gallery') => {
+    /** replaceSlotIndex: when set for profile_gallery, backend updates that slot (media_id) instead of creating. */
+    const pickFromGallery = async (type: 'avatar' | 'profile_gallery', replaceSlotIndex?: number) => {
         const granted = await ensureMediaLibraryPermission();
         if (!granted) {
             Alert.alert('Photo access needed', 'Allow access to your photos to pick an image.');
@@ -229,7 +269,12 @@ export default function ProfileScreen({ navigation }: any) {
             quality: 0.8,
         });
         if (!result.canceled && result.assets[0]) {
-            await uploadImageAndRefresh(result.assets[0].uri, type);
+            const mediaId = type === 'profile_gallery' && replaceSlotIndex != null
+                ? (user as any)?.profile_gallery_media?.[replaceSlotIndex]?.id
+                : type === 'avatar'
+                    ? (user as any)?.profile?.avatar_media_id
+                    : undefined;
+            await uploadImageAndRefresh(result.assets[0].uri, type, mediaId);
         }
     };
 
@@ -346,18 +391,19 @@ export default function ProfileScreen({ navigation }: any) {
                         <Avatar.Image
                             size={120}
                             source={{
-                                uri: user?.profile?.avatar ||
+                                uri: toImageUri(user?.profile?.avatar) ||
                                     `https://ui-avatars.com/api/?name=${encodeURIComponent(form.full_name || user?.name || 'User')}&size=512&background=7C3AED&color=ffffff`
                             }}
                             style={{ backgroundColor: theme.colors.surfaceVariant }}
                         />
                         <TouchableOpacity
                             style={[styles.editBadge, { backgroundColor: theme.colors.primary }]}
-                            onPress={() => pickFromGallery('avatar')}
-                            onLongPress={() => {
-                                Alert.alert('Avatar photo', 'Take a new photo with the camera.', [
+                            onPress={() => {
+                                if (imgLoading) return;
+                                Alert.alert('Change avatar', '', [
                                     { text: 'Cancel', style: 'cancel' },
                                     { text: 'Take photo', onPress: () => takePhotoWithCamera('avatar') },
+                                    { text: 'Choose from library', onPress: () => pickFromGallery('avatar') },
                                 ]);
                             }}
                             activeOpacity={0.8}
@@ -365,12 +411,12 @@ export default function ProfileScreen({ navigation }: any) {
                             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                             accessible
                             accessibilityRole="button"
-                            accessibilityLabel="Change avatar photo"
+                            accessibilityLabel="Edit avatar"
                         >
                             {imgLoading ? (
                                 <ActivityIndicator size={18} color={theme.colors.onPrimary} />
                             ) : (
-                                <MaterialCommunityIcons name="camera" size={18} color={theme.colors.onPrimary} />
+                                <MaterialCommunityIcons name="pencil" size={18} color={theme.colors.onPrimary} />
                             )}
                         </TouchableOpacity>
                     </View>
@@ -449,7 +495,13 @@ export default function ProfileScreen({ navigation }: any) {
                         maxSlots={6}
                         readOnly={false}
                         onImagePress={openImageViewer}
-                        onAddPress={() => pickFromGallery('profile_gallery')}
+                        onEditSlot={(index) => {
+                            Alert.alert('Photo', '', [
+                                { text: 'Cancel', style: 'cancel' },
+                                { text: 'Take photo', onPress: () => takePhotoWithCamera('profile_gallery', index) },
+                                { text: 'Choose from library', onPress: () => pickFromGallery('profile_gallery', index) },
+                            ]);
+                        }}
                     />
                 </Surface>
 
@@ -574,9 +626,28 @@ export default function ProfileScreen({ navigation }: any) {
                     <Divider style={styles.divider} />
                     <View style={styles.lifestyleRow}>
                         <View style={styles.lifestyleLabel}>
-                            <MaterialCommunityIcons name="glass-wine" size={20} color={theme.colors.onSurfaceVariant} />
+                            <MaterialCommunityIcons name="glass-cocktail" size={20} color={theme.colors.onSurfaceVariant} />
                             <Text variant="bodyLarge" style={[styles.lifestyleLabelText, { color: theme.colors.onSurface }]}>
-                                Drinker / Drug Use
+                                Drinking
+                            </Text>
+                        </View>
+                        <View style={styles.lifestylePills}>
+                            <Dropdown
+                                label=""
+                                placeholder="Select..."
+                                mode="flat"
+                                options={DRINKING_OPTIONS}
+                                value={form.drinking || 'no'}
+                                onSelect={(v) => updateForm({ drinking: (v as string) || 'no' })}
+                            />
+                        </View>
+                    </View>
+                    <Divider style={styles.divider} />
+                    <View style={styles.lifestyleRow}>
+                        <View style={styles.lifestyleLabel}>
+                            <MaterialCommunityIcons name="pill" size={20} color={theme.colors.onSurfaceVariant} />
+                            <Text variant="bodyLarge" style={[styles.lifestyleLabelText, { color: theme.colors.onSurface }]}>
+                                Drug Use
                             </Text>
                         </View>
                         <SegmentedButtons
@@ -681,6 +752,7 @@ export default function ProfileScreen({ navigation }: any) {
                 images={imagesFilled}
                 initialIndex={viewerInitialIndex}
                 onClose={() => setViewerVisible(false)}
+                onReplace={(index) => { setViewerVisible(false); pickFromGallery('profile_gallery', index); }}
             />
         </View>
     );
@@ -840,8 +912,8 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     lifestylePills: {
-        flexShrink: 1,
-        minWidth: 140,
+        flexGrow: 1,
+        minWidth: 200,
     },
     saveButton: {
         marginHorizontal: 16,

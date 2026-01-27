@@ -10,45 +10,70 @@ use Illuminate\Support\Str;
 
 class MediaService
 {
+    public const PROFILE_GALLERY_MAX = 6;
+
     /**
-     * Upload a file for a user.
-     * 
+     * Upload a file for a user, or update an existing media row when media_id is provided.
+     *
      * @param UploadedFile $file
      * @param User $user
      * @param string $type (avatar, profile_gallery, chat, proof)
+     * @param int|null $mediaId When provided (and type is profile_gallery), update this row instead of creating. Keeps slot count at 6.
      * @return Media
      */
-    public function uploadFile(UploadedFile $file, User $user, string $type): Media
+    public function uploadFile(UploadedFile $file, User $user, string $type, ?int $mediaId = null): Media
     {
-        // 1. Generate unique filename
         $extension = $file->getClientOriginalExtension();
         $filename = Str::uuid() . '.' . $extension;
-        
-        // 2. Define path (e.g. uploads/{user_id}/{type}/{filename})
-        // Grouping by user/type keeps S3 bucket organized
         $path = "uploads/{$user->id}/{$type}";
         $fullPath = "{$path}/{$filename}";
 
-        // 3. Upload to S3
-        // 's3' disk must be configured in filesystems.php
-        Storage::disk('s3')->putFileAs($path, $file, $filename, 'public');
-
-        // 4. Handle specific logic based on type
-        if ($type === 'avatar') {
-            // Optional: Mark old avatars as inactive or delete them
-            // For now, we just let them accumulate or could soft-delete logic here
+        // Update-by-id: replace file and url for existing row (avatar or profile_gallery). No media_id = new image.
+        if ($mediaId !== null) {
+            $allowedTypes = ['avatar', 'profile_gallery'];
+            if (!in_array($type, $allowedTypes, true)) {
+                throw new \InvalidArgumentException('media_id is only supported for avatar or profile_gallery.');
+            }
+            $media = Media::where('id', $mediaId)->where('user_id', $user->id)->where('type', $type)->firstOrFail();
+            Storage::disk('s3')->delete($media->file_path);
+            Storage::disk('s3')->putFileAs($path, $file, $filename, 'public');
+            $url = Storage::disk('s3')->url($fullPath);
+            $media->update([
+                'file_path' => $fullPath,
+                'url' => $url,
+                'mime_type' => $file->getMimeType(),
+                'size' => $file->getSize(),
+            ]);
+            return $media->fresh();
         }
 
-        // 5. Create DB Record
-        $media = Media::create([
+        // Avatar (new): delete previous avatar(s) so only one exists (S3 + DB)
+        if ($type === 'avatar') {
+            Media::where('user_id', $user->id)->where('type', 'avatar')->get()->each(fn (Media $old) => $this->deleteMedia($old));
+        }
+
+        // Profile gallery: enforce max 6 — remove oldest if at capacity before creating
+        if ($type === 'profile_gallery') {
+            $current = Media::where('user_id', $user->id)->where('type', 'profile_gallery')->orderBy('id')->get();
+            if ($current->count() >= self::PROFILE_GALLERY_MAX) {
+                $oldest = $current->first();
+                if ($oldest) {
+                    $this->deleteMedia($oldest);
+                }
+            }
+        }
+
+        Storage::disk('s3')->putFileAs($path, $file, $filename, 'public');
+        $url = Storage::disk('s3')->url($fullPath);
+
+        return Media::create([
             'user_id' => $user->id,
             'file_path' => $fullPath,
+            'url' => $url,
             'type' => $type,
             'mime_type' => $file->getMimeType(),
             'size' => $file->getSize(),
         ]);
-
-        return $media;
     }
 
     /**

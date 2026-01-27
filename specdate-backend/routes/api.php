@@ -10,8 +10,17 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/user', function (Request $request) {
         $user = $request->user()->load(['balance', 'profile', 'balloonSkin', 'media']);
-        // Use safe JSON options to avoid 500 "Syntax error" from invalid UTF-8.
-        return response()->json($user->toArray(), 200, [], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        $data = $user->toArray();
+        // Expose avatar URL and media id so mobile can send media_id when editing (update that row).
+        $avatarMedia = $user->media->where('type', 'avatar')->sortByDesc('id')->first();
+        if (isset($data['profile']) && is_array($data['profile'])) {
+            $data['profile']['avatar'] = $avatarMedia ? $avatarMedia->url : null;
+            $data['profile']['avatar_media_id'] = $avatarMedia?->id;
+        }
+        // Expose profile_gallery with id+url so mobile can send media_id when replacing a slot (max 6).
+        $gallery = $user->media->where('type', 'profile_gallery')->sortByDesc('id')->take(6)->values();
+        $data['profile_gallery_media'] = $gallery->map(fn ($m) => ['id' => $m->id, 'url' => $m->url])->all();
+        return response()->json($data, 200, [], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
     });
     Route::put('/profile', [\App\Http\Controllers\ProfileController::class, 'update']);
     Route::get('/users/{id}', [\App\Http\Controllers\UserController::class, 'show']);

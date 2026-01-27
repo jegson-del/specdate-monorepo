@@ -3,50 +3,44 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 
 class Media extends Model
 {
     protected $fillable = [
         'user_id',
         'file_path',
+        'url',       // Full S3 public URL; stored at upload so mobile can show images
         'type',
         'mime_type',
         'size',
     ];
 
     /**
-     * Get the optimized URL via ImageKit.
-     * 
-     * @param array $transformations e.g. ['w' => 300, 'h' => 300]
+     * Get the public URL for this file.
+     * Prefers stored url (set at upload). Falls back to S3 URL from file_path for older rows.
+     *
+     * @param array $transformations Reserved for future use (e.g. ImageKit resizing).
      */
     public function getUrl(array $transformations = []): string
     {
-        // Base ImageKit URL from .env, e.g., https://ik.imagekit.io/your_id/
-        $baseUrl = rtrim(config('services.imagekit.url', env('IMAGEKIT_URL_ENDPOINT')), '/');
-        
-        // The file path in S3 is the same relative path for ImageKit (if configured as origin)
-        $path = ltrim($this->file_path, '/');
-        
-        $url = "{$baseUrl}/{$path}";
-
-        if (!empty($transformations)) {
-            // Simple transformation string builder: tr=w-300,h-300
-            $params = [];
-            foreach ($transformations as $key => $value) {
-                $params[] = "{$key}-{$value}";
-            }
-            $url .= '?tr=' . implode(',', $params);
+        $stored = $this->attributes['url'] ?? null;
+        if ($stored !== null && $stored !== '') {
+            return (string) $stored;
         }
-
-        return $url;
+        return Storage::disk('s3')->url($this->file_path);
     }
 
     /**
-     * Accessor for full URL (default, no transformations).
+     * Accessor for full URL. Returns stored S3 url or computed from file_path for legacy rows.
      * Usage: $media->url
      */
     public function getUrlAttribute(): string
     {
-        return $this->getUrl();
+        $stored = $this->attributes['url'] ?? null;
+        if ($stored !== null && $stored !== '') {
+            return (string) $stored;
+        }
+        return Storage::disk('s3')->url($this->file_path);
     }
 }

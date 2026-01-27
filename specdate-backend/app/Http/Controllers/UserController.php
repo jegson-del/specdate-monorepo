@@ -32,12 +32,15 @@ class UserController extends Controller
             ->count();
         $datesCount = 0; // placeholder: first-dates / meetups when we have that data
 
+        $avatarMedia = $user->media->where('type', 'avatar')->sortByDesc('id')->first();
+        $avatarUrl = $avatarMedia ? $avatarMedia->url : null;
+
         $public = [
             'id' => $user->id,
             'name' => $user->name,
             'profile' => $profile ? [
                 'full_name' => $profile->full_name,
-                'avatar' => $profile->avatar ?? null,
+                'avatar' => $avatarUrl ?? $profile->avatar ?? null,
                 'city' => $profile->city,
                 'state' => $profile->state,
                 'country' => $profile->country,

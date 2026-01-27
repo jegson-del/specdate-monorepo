@@ -18,6 +18,7 @@ export type PublicProfile = {
         ethnicity?: string;
         is_smoker?: boolean;
         is_drug_user?: boolean;
+        drinking?: string;
         sexual_orientation?: string;
     } | null;
     images?: string[];

@@ -19,10 +19,12 @@ export type ImageViewerModalProps = {
     images: string[];
     initialIndex?: number;
     onClose: () => void;
+    /** When set, show "Replace" button; call with current index (e.g. for profile gallery slot). */
+    onReplace?: (index: number) => void;
 };
 
 /** Full-screen image viewer overlay (swipe between images, close via X). */
-export function ImageViewerModal({ visible, images, initialIndex = 0, onClose }: ImageViewerModalProps) {
+export function ImageViewerModal({ visible, images, initialIndex = 0, onClose, onReplace }: ImageViewerModalProps) {
     const insets = useSafeAreaInsets();
     const listRef = useRef<FlatList>(null);
     const [currentIndex, setCurrentIndex] = useState(initialIndex);
@@ -67,7 +69,17 @@ export function ImageViewerModal({ visible, images, initialIndex = 0, onClose }:
                 <Text variant="bodyMedium" style={styles.counter}>
                     {currentIndex + 1} / {images.length}
                 </Text>
-                <View style={{ width: 40 }} />
+                {onReplace ? (
+                    <IconButton
+                        icon="image-edit"
+                        iconColor="#fff"
+                        size={24}
+                        onPress={() => { onReplace(currentIndex); onClose(); }}
+                        style={styles.closeBtn}
+                    />
+                ) : (
+                    <View style={{ width: 40 }} />
+                )}
             </View>
 
             {images.length === 0 ? (

@@ -80,19 +80,18 @@ class User extends Authenticatable
     }
 
     /**
-     * Get the gallery images.
+     * Get the gallery images (max 6, latest first).
      *
-     * @return array
+     * @return array<string>
      */
     public function getImagesAttribute(): array
     {
-        // Safe check for relation loaded or lazy load
         return $this->media
             ->where('type', 'profile_gallery')
-            ->map(function ($media) {
-                return $media->url;
-            })
+            ->sortByDesc('id')
+            ->take(6)
             ->values()
+            ->map(fn ($media) => $media->url)
             ->all();
     }
 

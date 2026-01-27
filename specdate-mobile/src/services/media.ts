@@ -13,16 +13,16 @@ export interface MediaItem {
 }
 
 /**
- * Upload a file to the backend.
- * Uses fetch + FormData (not axios) so multipart boundary is set correctly.
- * Do NOT set Content-Type; fetch sets multipart/form-data with boundary.
+ * Upload a file to the backend, or update an existing media row when mediaId is provided (profile_gallery only).
  *
  * @param uri Local file URI (image picker) or blob URL on web
  * @param type 'avatar' | 'profile_gallery' | 'chat' | 'proof'
+ * @param mediaId When provided with type profile_gallery, backend updates this row's file/url instead of creating.
  */
 export async function uploadMedia(
     uri: string,
-    type: 'avatar' | 'profile_gallery' | 'chat' | 'proof'
+    type: 'avatar' | 'profile_gallery' | 'chat' | 'proof',
+    mediaId?: number | null
 ): Promise<MediaItem> {
     const formData = new FormData();
 
@@ -46,6 +46,9 @@ export async function uploadMedia(
     }
 
     formData.append('type', type);
+    if (mediaId != null) {
+        formData.append('media_id', String(mediaId));
+    }
 
     const headers: Record<string, string> = {
         Accept: 'application/json',
