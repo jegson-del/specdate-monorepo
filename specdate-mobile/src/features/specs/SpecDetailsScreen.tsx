@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, StyleSheet, ScrollView, ImageBackground, Alert, Pressable } from 'react-native';
+import { View, StyleSheet, ScrollView, ImageBackground, Alert, TouchableOpacity } from 'react-native';
 import { Text, useTheme, IconButton, Button, Avatar, Surface, ActivityIndicator, Divider, Chip } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -79,7 +79,7 @@ function cmToFeetInches(cm: number) {
 }
 
 export default function SpecDetailsScreen({ route, navigation }: any) {
-    const { specId } = route.params;
+    const specId = route.params?.specId;
     const theme = useTheme();
     const insets = useSafeAreaInsets();
     const queryClient = useQueryClient();
@@ -88,11 +88,13 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
     const { data: spec, isLoading, error } = useQuery({
         queryKey: ['spec', specId],
         queryFn: async () => {
+            if (!specId) throw new Error('Spec ID is required');
             const res = await SpecService.getOne(specId);
             // Our backend wraps responses: { success, message, data }
             return (res as any)?.data ?? res;
         },
         retry: false,
+        enabled: !!specId, // Only run query if specId is available
     });
 
     const likeMutation = useMutation({
@@ -133,40 +135,8 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
         return spec.applications.find((a: any) => a.user_id === user.id);
     }, [spec, user]);
 
-    const onShare = () => {
-        Alert.alert('Share', `Sharing spec: ${spec?.title}`);
-    };
-
-    if (isLoading) {
-        return (
-            <View style={[styles.loadingContainer, { backgroundColor: theme.colors.background }]}>
-                <ActivityIndicator size="large" color={theme.colors.primary} />
-            </View>
-        );
-    }
-
-    if (error || !spec) {
-        return (
-            <View style={[styles.loadingContainer, { backgroundColor: theme.colors.background }]}>
-                <Text style={{ color: theme.colors.onSurface }}>Failed to load spec details.</Text>
-            </View>
-        );
-    }
-
-    const expiresText = formatExpires(spec.expires_at);
-    const headerLine = [
-        spec.location_city ? titleCase(spec.location_city) : null,
-        expiresText !== '—' ? expiresText : null,
-    ]
-        .filter(Boolean)
-        .join(' • ');
-
-    const ownerName = spec.owner?.profile?.full_name || spec.owner?.name || 'Unknown';
-    const ownerAvatar =
-        spec.owner?.profile?.avatar ||
-        `https://ui-avatars.com/api/?name=${encodeURIComponent(ownerName)}&size=512&background=111827&color=ffffff`;
-
     const requirements = useMemo(() => {
+        if (!spec?.requirements) return [];
         const raw = (spec.requirements ?? []).map((r: any) => {
             const field = String(r.field ?? '');
             const operator = String(r.operator ?? '');
@@ -296,7 +266,49 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
         });
 
         return out;
-    }, [spec.requirements]);
+    }, [spec?.requirements]);
+
+    const onShare = () => {
+        Alert.alert('Share', `Sharing spec: ${spec?.title}`);
+    };
+
+    // Early return for missing specId - but all hooks must be called first
+    if (!specId) {
+        return (
+            <View style={[styles.loadingContainer, { backgroundColor: theme.colors.background }]}>
+                <Text style={{ color: theme.colors.onSurface }}>Invalid spec ID.</Text>
+            </View>
+        );
+    }
+
+    if (isLoading) {
+        return (
+            <View style={[styles.loadingContainer, { backgroundColor: theme.colors.background }]}>
+                <ActivityIndicator size="large" color={theme.colors.primary} />
+            </View>
+        );
+    }
+
+    if (error || !spec) {
+        return (
+            <View style={[styles.loadingContainer, { backgroundColor: theme.colors.background }]}>
+                <Text style={{ color: theme.colors.onSurface }}>Failed to load spec details.</Text>
+            </View>
+        );
+    }
+
+    const expiresText = formatExpires(spec.expires_at);
+    const headerLine = [
+        spec.location_city ? titleCase(spec.location_city) : null,
+        expiresText !== '—' ? expiresText : null,
+    ]
+        .filter(Boolean)
+        .join(' • ');
+
+    const ownerName = spec.owner?.profile?.full_name || spec.owner?.name || 'Unknown';
+    const ownerAvatar =
+        spec.owner?.profile?.avatar ||
+        `https://ui-avatars.com/api/?name=${encodeURIComponent(ownerName)}&size=512&background=111827&color=ffffff`;
 
     return (
         <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
@@ -310,50 +322,81 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                         resizeMode="cover"
                     >
                         <LinearGradient
-                            colors={[ 'rgba(0,0,0,0.10)', 'rgba(0,0,0,0.82)' ]}
+                            colors={[ 'rgba(0,0,0,0.0)', 'rgba(0,0,0,0.3)', 'rgba(0,0,0,0.75)' ]}
+                            locations={[0, 0.5, 1]}
                             style={StyleSheet.absoluteFillObject}
                         />
 
                         <IconButton
                             icon="arrow-left"
                             iconColor="#FFFFFF"
-                            style={[styles.backButton, { top: insets.top + 8 }]}
+                            style={[styles.backButton, { top: insets.top + 12 }]}
                             onPress={() => navigation.goBack()}
                         />
 
-                        <View style={[styles.heroContent, { paddingBottom: 18 }]}>
-                            <View style={styles.ownerRow}>
-                                <View style={styles.ownerPill}>
-                                    <Avatar.Image size={26} source={{ uri: ownerAvatar }} />
-                                    <Text style={styles.ownerPillText} numberOfLines={1}>
-                                        {ownerName}
-                                    </Text>
-                                </View>
-                                <Button
-                                    mode="contained-tonal"
-                                    compact
-                                    onPress={() => Alert.alert('Coming soon', 'Creator profile screen will be added next.')}
-                                    style={styles.viewProfileBtn}
-                                >
-                                    View profile
-                                </Button>
-                            </View>
+                        <View style={[styles.heroContent, { paddingBottom: 24 }]}>
+                            {/* Owner info - user image + created-by row; both open profile */}
+                            {(() => {
+                                const openCreatorProfile = () => {
+                                    const uid = (spec as any).user_id;
+                                    if (uid === user?.id) {
+                                        navigation.navigate('Profile');
+                                    } else {
+                                        navigation.navigate('ProfileViewer', { userId: Number(uid) });
+                                    }
+                                };
+                                return (
+                                    <View style={styles.ownerInfoMinimal}>
+                                        <TouchableOpacity
+                                            onPress={openCreatorProfile}
+                                            style={styles.ownerAvatarWrap}
+                                            activeOpacity={0.7}
+                                            hitSlop={12}
+                                        >
+                                            <Avatar.Image size={40} source={{ uri: ownerAvatar }} />
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            onPress={openCreatorProfile}
+                                            style={styles.ownerTextWrap}
+                                            activeOpacity={0.7}
+                                            hitSlop={8}
+                                        >
+                                            <View style={styles.ownerInfoText}>
+                                                <Text style={styles.ownerLabel}>Created by</Text>
+                                                <Text style={styles.ownerNameMinimal} numberOfLines={1}>
+                                                    {ownerName}
+                                                </Text>
+                                            </View>
+                                            <MaterialCommunityIcons
+                                                name="chevron-right"
+                                                size={20}
+                                                color="rgba(255,255,255,0.7)"
+                                                style={styles.ownerChevron}
+                                            />
+                                        </TouchableOpacity>
+                                    </View>
+                                );
+                            })()}
 
+                            {/* Title - prominent */}
                             <Text style={styles.heroTitle}>{spec.title}</Text>
 
-                            <View style={styles.heroMetaRow}>
-                                <MaterialCommunityIcons name="map-marker" size={16} color="rgba(255,255,255,0.92)" />
-                                <Text style={styles.heroMetaText} numberOfLines={2}>
-                                    {headerLine || '—'}
-                                </Text>
-                            </View>
+                            {/* Meta info - clean and minimal */}
+                            {headerLine ? (
+                                <View style={styles.heroMetaRow}>
+                                    <MaterialCommunityIcons name="map-marker" size={14} color="rgba(255,255,255,0.85)" />
+                                    <Text style={styles.heroMetaText} numberOfLines={1}>
+                                        {headerLine}
+                                    </Text>
+                                </View>
+                            ) : null}
                         </View>
                     </ImageBackground>
                 </View>
 
                 {/* Actions */}
                 <View style={styles.actionsRow}>
-                    <Pressable onPress={() => likeMutation.mutate()} style={({ pressed }) => [{ opacity: pressed ? 0.9 : 1 }]}>
+                    <TouchableOpacity onPress={() => likeMutation.mutate()} activeOpacity={0.9}>
                         <Surface style={[styles.actionPill, { backgroundColor: theme.colors.elevation.level2 }]} elevation={0}>
                             <MaterialCommunityIcons
                                 name={(spec as any).is_liked ? 'heart' : 'heart-outline'}
@@ -364,14 +407,14 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                                 {(spec as any).likes_count || 0}
                             </Text>
                         </Surface>
-                    </Pressable>
+                    </TouchableOpacity>
 
-                    <Pressable onPress={onShare} style={({ pressed }) => [{ opacity: pressed ? 0.9 : 1 }]}>
+                    <TouchableOpacity onPress={onShare} activeOpacity={0.9}>
                         <Surface style={[styles.actionPill, { backgroundColor: theme.colors.elevation.level2 }]} elevation={0}>
                             <MaterialCommunityIcons name="share-variant" size={18} color={theme.colors.onSurface} />
                             <Text style={[styles.actionPillText, { color: theme.colors.onSurface }]}>Share</Text>
                         </Surface>
-                    </Pressable>
+                    </TouchableOpacity>
                 </View>
 
                 {/* About */}
@@ -484,21 +527,35 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                                     p.user?.profile?.avatar ||
                                     `https://picsum.photos/seed/specdate-user-${p.user_id || p.id}/200/200`;
 
+                                const participantUserId = p.user_id ?? p.user?.id;
+                                const openParticipantProfile = () => {
+                                    if (!participantUserId) return;
+                                    if (participantUserId === user?.id) {
+                                        navigation.navigate('Profile');
+                                    } else {
+                                        navigation.navigate('ProfileViewer', { userId: Number(participantUserId) });
+                                    }
+                                };
+                                const handleLongPress = () => {
+                                    if (isOwner && !eliminated) {
+                                        Alert.alert(
+                                            'Eliminate participant?',
+                                            `Remove ${displayName} from this spec?`,
+                                            [
+                                                { text: 'Cancel', style: 'cancel' },
+                                                { text: 'Eliminate', style: 'destructive', onPress: () => eliminateMutation.mutate(p.id) },
+                                            ]
+                                        );
+                                    }
+                                };
+
                                 return (
                                     <View key={p.id} style={[styles.participantCard, eliminated && { opacity: 0.5 }]}>
-                                        <Pressable
-                                            onPress={() => {
-                                                if (isOwner && !eliminated) {
-                                                    Alert.alert(
-                                                        'Eliminate participant?',
-                                                        `Remove ${displayName} from this spec?`,
-                                                        [
-                                                            { text: 'Cancel', style: 'cancel' },
-                                                            { text: 'Eliminate', style: 'destructive', onPress: () => eliminateMutation.mutate(p.id) },
-                                                        ]
-                                                    );
-                                                }
-                                            }}
+                                        <TouchableOpacity
+                                            onPress={openParticipantProfile}
+                                            onLongPress={handleLongPress}
+                                            activeOpacity={0.8}
+                                            hitSlop={8}
                                         >
                                             <View style={[styles.avatarRing, { borderColor: eliminated ? '#EF4444' : theme.colors.primary }]}>
                                                 <Avatar.Image size={56} source={{ uri: avatarUri }} />
@@ -508,7 +565,7 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                                                     </View>
                                                 ) : null}
                                             </View>
-                                        </Pressable>
+                                        </TouchableOpacity>
 
                                         <Text style={[styles.participantName, { color: theme.colors.onSurface }]} numberOfLines={1}>
                                             {displayName.split(' ')[0]}
@@ -550,34 +607,80 @@ const styles = StyleSheet.create({
     root: { flex: 1 },
     loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
-    heroWrap: { height: 360 },
+    heroWrap: { height: 380 },
     hero: { width: '100%', height: '100%', justifyContent: 'flex-end' },
-    backButton: { position: 'absolute', left: 10, backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: 18 },
-    heroContent: { paddingHorizontal: 16, gap: 10 },
+    backButton: { 
+        position: 'absolute', 
+        left: 16, 
+        top: 16,
+        backgroundColor: 'rgba(0,0,0,0.4)', 
+        borderRadius: 20,
+        marginTop: 0,
+    },
+    heroContent: { 
+        paddingHorizontal: 20, 
+        paddingBottom: 24,
+        gap: 16,
+    },
     heroTitle: {
         color: '#FFFFFF',
-        fontSize: 26,
+        fontSize: 28,
         fontWeight: '900',
-        letterSpacing: 0.2,
+        letterSpacing: -0.5,
+        lineHeight: 34,
     },
-    heroMetaRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-    heroMetaText: { color: 'rgba(255,255,255,0.92)', fontSize: 13, fontWeight: '700', flex: 1 },
+    heroMetaRow: { 
+        flexDirection: 'row', 
+        gap: 6, 
+        alignItems: 'center',
+        marginTop: 4,
+    },
+    heroMetaText: { 
+        color: 'rgba(255,255,255,0.9)', 
+        fontSize: 14, 
+        fontWeight: '600',
+    },
 
-    ownerPill: {
+    ownerInfoMinimal: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        alignSelf: 'flex-start',
+        paddingVertical: 4,
+        paddingRight: 4,
+    },
+    ownerAvatarWrap: {
+        padding: 4,
+    },
+    ownerTextWrap: {
+        flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
-        alignSelf: 'flex-start',
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-        borderRadius: 999,
-        backgroundColor: 'rgba(255,255,255,0.18)',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.22)',
+        minWidth: 0,
     },
-    ownerPillText: { color: '#FFFFFF', fontWeight: '800', maxWidth: 260 },
-    ownerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-    viewProfileBtn: { borderRadius: 999 },
+    ownerInfoText: {
+        gap: 2,
+        flex: 1,
+        minWidth: 0,
+    },
+    ownerLabel: {
+        color: 'rgba(255,255,255,0.7)',
+        fontSize: 11,
+        fontWeight: '600',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+    },
+    ownerNameMinimal: {
+        color: '#FFFFFF',
+        fontSize: 15,
+        fontWeight: '700',
+        maxWidth: 200,
+    },
+    ownerChevron: {
+        marginLeft: 'auto',
+        opacity: 0.7,
+    },
 
     actionsRow: { flexDirection: 'row', gap: 12, paddingHorizontal: 16, paddingTop: 12 },
     actionPill: {

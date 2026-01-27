@@ -12,6 +12,7 @@ import RegisterScreen from './src/features/auth/RegisterScreen';
 import OtpVerificationScreen from './src/features/auth/OtpVerificationScreen';
 import LoginScreen from './src/features/auth/LoginScreen';
 import ProfileScreen from './src/features/profile/ProfileScreen';
+import ProfileViewerScreen from './src/features/profile/ProfileViewerScreen';
 import HomeScreen from './src/features/home/HomeScreen';
 import ProvidersScreen from './src/features/providers/ProvidersScreen';
 import CreateSpecScreen from './src/features/specs/CreateSpecScreen';
@@ -91,6 +92,7 @@ export default function App() {
               <Stack.Screen name="OtpVerification" component={OtpVerificationScreen} />
               <Stack.Screen name="Login" component={LoginScreen} />
               <Stack.Screen name="Profile" component={ProfileScreen} />
+              <Stack.Screen name="ProfileViewer" component={ProfileViewerScreen} />
               <Stack.Screen name="Home" component={HomeScreen} />
               <Stack.Screen name="Providers" component={ProvidersScreen} />
               {/* Stubs to be implemented next */}

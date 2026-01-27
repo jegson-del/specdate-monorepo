@@ -1,26 +1,40 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Platform } from 'react-native';
-import { Text, Button, useTheme, TextInput, SegmentedButtons, HelperText, Searchbar } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, Alert, Platform, TouchableOpacity } from 'react-native';
+import { Text, Button, useTheme, TextInput, SegmentedButtons, Searchbar, Avatar, IconButton, Surface, Divider, ActivityIndicator } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { z } from 'zod';
 import { profileSchema, ProfileFormData } from '../../utils/validation';
-// We need to update validation.ts too, but for now we update strict typing here if needed locally
-// Actually ProfileFormData comes from validation.ts so we should update that file first or cast here.
-// But let's assume we will update validation.ts next.
-
 import { ProfileService } from '../../services/profile';
-import { MotiView } from 'moti';
-import axios from 'axios';
+import { useUser } from '../../hooks/useUser';
+import { useQueryClient } from '@tanstack/react-query';
 import * as Location from 'expo-location';
+import * as ImagePicker from 'expo-image-picker';
 import { Dropdown } from 'react-native-paper-dropdown';
 import { OCCUPATION_OPTIONS, QUALIFICATION_OPTIONS } from '../../constants/profileOptions';
+import { LinearGradient } from 'expo-linear-gradient';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { ProfileImageGrid, ImageViewerModal } from './components';
+import { MediaService } from '../../services/media';
 
-let didTryAutoProfileLocationPrefill = false;
+// --- OPTIONS & CONSTANTS ---
+const OTHER_VALUE = '__other__';
+const HEIGHT_OPTIONS = Array.from({ length: 121 }, (_, i) => {
+    const cm = i + 130;
+    const realFeet = (cm * 0.393701) / 12;
+    const feet = Math.floor(realFeet);
+    const inches = Math.round((realFeet - feet) * 12);
+    return { label: `${cm} cm (${feet}'${inches}")`, value: String(cm) };
+});
+const ETHNICITY_OPTIONS = [
+    'Asian', 'Black / African Descent', 'Hispanic / Latino', 'Middle Eastern',
+    'Native American / Indigenous', 'Pacific Islander', 'South Asian', 'White / Caucasian',
+    'Multiracial / Mixed', 'Prefer not to say',
+];
 
+// --- DATE PICKER SETUP ---
 let DateTimePicker: any = null;
 let DateTimePickerAndroid: any = null;
 try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const mod = require('@react-native-community/datetimepicker');
     DateTimePicker = mod?.default ?? null;
     DateTimePickerAndroid = mod?.DateTimePickerAndroid ?? null;
@@ -36,41 +50,19 @@ function formatYYYYMMDD(d: Date) {
     return `${yyyy}-${mm}-${dd}`;
 }
 
-const OTHER_VALUE = '__other__';
-
-const HEIGHT_OPTIONS = Array.from({ length: 121 }, (_, i) => {
-    const cm = i + 130; // 130cm to 250cm
-    const realFeet = (cm * 0.393701) / 12;
-    const feet = Math.floor(realFeet);
-    const inches = Math.round((realFeet - feet) * 12);
-    return {
-        label: `${cm} cm (${feet}'${inches}")`,
-        value: String(cm),
-    };
-});
-
-const ETHNICITY_OPTIONS = [
-    'Asian',
-    'Black / African Descent',
-    'Hispanic / Latino',
-    'Middle Eastern',
-    'Native American / Indigenous',
-    'Pacific Islander',
-    'South Asian',
-    'White / Caucasian',
-    'Multiracial / Mixed',
-    'Prefer not to say',
-];
-
 export default function ProfileScreen({ navigation }: any) {
     const theme = useTheme();
-    const promptText = { color: theme.colors.primary, opacity: 0.98 };
     const insets = useSafeAreaInsets();
+    const queryClient = useQueryClient();
+    const { data: user } = useUser();
+
+    // --- STATE ---
     const [loading, setLoading] = useState(false);
     const [locLoading, setLocLoading] = useState(false);
-    const [locHint, setLocHint] = useState<string | null>(null);
-    const [showDobPicker, setShowDobPicker] = useState(false);
+    const [imgLoading, setImgLoading] = useState(false);
 
+    // UI Local State
+    const [showDobPicker, setShowDobPicker] = useState(false);
     const [occupationSearch, setOccupationSearch] = useState('');
     const [qualificationSearch, setQualificationSearch] = useState('');
     const [ethnicitySearch, setEthnicitySearch] = useState('');
@@ -82,6 +74,12 @@ export default function ProfileScreen({ navigation }: any) {
     const [occupationOther, setOccupationOther] = useState('');
     const [qualificationOther, setQualificationOther] = useState('');
     const [ethnicityOther, setEthnicityOther] = useState('');
+
+    // Images (Mock for now, will connect to backend later)
+    const [images, setImages] = useState<(string | null)[]>(new Array(6).fill(null));
+    const [viewerVisible, setViewerVisible] = useState(false);
+    const [viewerInitialIndex, setViewerInitialIndex] = useState(0);
+    const imagesFilled = useMemo(() => images.filter(Boolean) as string[], [images]);
 
     const [form, setForm] = useState<Partial<ProfileFormData>>({
         full_name: '',
@@ -101,33 +99,10 @@ export default function ProfileScreen({ navigation }: any) {
         height: undefined,
         ethnicity: '',
     });
-
     const [errors, setErrors] = useState<Record<string, string>>({});
 
-    const updateForm = (patch: Partial<ProfileFormData>) => {
-        setForm((prev) => ({ ...prev, ...patch }));
-    };
-
-    const occupationOptions = useMemo(() => {
-        const base = OCCUPATION_OPTIONS.map((v) => ({ label: v, value: v }));
-        const q = occupationSearch.trim().toLowerCase();
-        const filtered = q ? base.filter((o) => o.label.toLowerCase().includes(q)) : base;
-        return [...filtered, { label: 'Other…', value: OTHER_VALUE }];
-    }, [occupationSearch]);
-
-    const qualificationOptions = useMemo(() => {
-        const base = QUALIFICATION_OPTIONS.map((v) => ({ label: v, value: v }));
-        const q = qualificationSearch.trim().toLowerCase();
-        const filtered = q ? base.filter((o) => o.label.toLowerCase().includes(q)) : base;
-        return [...filtered, { label: 'Other…', value: OTHER_VALUE }];
-    }, [qualificationSearch]);
-
-    const ethnicityOptions = useMemo(() => {
-        const base = ETHNICITY_OPTIONS.map((v) => ({ label: v, value: v }));
-        const q = ethnicitySearch.trim().toLowerCase();
-        const filtered = q ? base.filter((o) => o.label.toLowerCase().includes(q)) : base;
-        return [...filtered, { label: 'Other…', value: OTHER_VALUE }];
-    }, [ethnicitySearch]);
+    // --- HELPERS ---
+    const updateForm = (patch: Partial<ProfileFormData>) => setForm((prev) => ({ ...prev, ...patch }));
 
     const dobDate = useMemo(() => {
         const raw = (form.dob || '').trim();
@@ -136,8 +111,129 @@ export default function ProfileScreen({ navigation }: any) {
         return isNaN(parsed.getTime()) ? new Date(2000, 0, 1) : parsed;
     }, [form.dob]);
 
+    // --- OPTIONS MEMO ---
+    const getFilteredOptions = (base: readonly string[], query: string) => {
+        const q = query.trim().toLowerCase();
+        const baseObjs = base.map((v) => ({ label: v, value: v }));
+        const filtered = q ? baseObjs.filter((o) => o.label.toLowerCase().includes(q)) : baseObjs;
+        return [...filtered, { label: 'Other…', value: OTHER_VALUE }];
+    };
+    const occupationOptions = useMemo(() => getFilteredOptions(OCCUPATION_OPTIONS, occupationSearch), [occupationSearch]);
+    const qualificationOptions = useMemo(() => getFilteredOptions(QUALIFICATION_OPTIONS, qualificationSearch), [qualificationSearch]);
+    const ethnicityOptions = useMemo(() => getFilteredOptions(ETHNICITY_OPTIONS, ethnicitySearch), [ethnicitySearch]);
+
+    // --- EFFECTS ---
+    useEffect(() => {
+        // Load user profile data
+        if (user?.profile) {
+            const profile = user.profile;
+            setForm({
+                full_name: profile.full_name || '',
+                dob: profile.dob ? formatYYYYMMDD(new Date(profile.dob)) : '',
+                sex: profile.sex || 'Male',
+                occupation: profile.occupation || '',
+                qualification: profile.qualification || '',
+                hobbies: profile.hobbies || '',
+                is_smoker: profile.is_smoker || false,
+                is_drug_user: profile.is_drug_user || false,
+                sexual_orientation: profile.sexual_orientation || 'Heterosexual',
+                latitude: profile.latitude,
+                longitude: profile.longitude,
+                city: profile.city || '',
+                state: profile.state || '',
+                country: profile.country || '',
+                height: profile.height,
+                ethnicity: profile.ethnicity || '',
+            });
+        }
+        // Load user images (ensure array of 6)
+        if (user?.images) {
+            const filled = (user.images as string[]) || [];
+            const newImages = [...filled, ...new Array(6 - filled.length).fill(null)].slice(0, 6);
+            setImages(newImages);
+        }
+    }, [user]);
+
+    useEffect(() => {
+        // Initialize dropdowns based on existing form data
+        const initDropdown = (val: string | undefined, options: readonly string[], setSelect: any, setOther: any) => {
+            if (!val) return;
+            if (options.includes(val)) {
+                setSelect(val);
+            } else {
+                setSelect(OTHER_VALUE);
+                setOther(val);
+            }
+        };
+        initDropdown(form.occupation, OCCUPATION_OPTIONS, setOccupationSelect, setOccupationOther);
+        initDropdown(form.qualification, QUALIFICATION_OPTIONS, setQualificationSelect, setQualificationOther);
+        initDropdown(form.ethnicity, ETHNICITY_OPTIONS, setEthnicitySelect, setEthnicityOther);
+    }, [form.occupation, form.qualification, form.ethnicity]);
+
+    // --- HANDLERS ---
+    const ensureMediaLibraryPermission = async (): Promise<boolean> => {
+        const existing = await ImagePicker.getMediaLibraryPermissionsAsync();
+        if (existing.status === 'granted') return true;
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        return status === 'granted';
+    };
+
+    const ensureCameraPermission = async (): Promise<boolean> => {
+        const existing = await ImagePicker.getCameraPermissionsAsync();
+        if (existing.status === 'granted') return true;
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        return status === 'granted';
+    };
+
+    const uploadImageAndRefresh = async (uri: string, type: 'avatar' | 'profile_gallery') => {
+        setImgLoading(true);
+        try {
+            await MediaService.upload(uri, type);
+            await queryClient.invalidateQueries({ queryKey: ['user'] });
+            Alert.alert('Success', 'Image uploaded successfully.');
+        } catch (e: any) {
+            const msg = e?.message || e?.response?.data?.message || 'Upload failed. Try again.';
+            Alert.alert('Upload Failed', msg);
+        } finally {
+            setImgLoading(false);
+        }
+    };
+
+    const takePhotoWithCamera = async (type: 'avatar' | 'profile_gallery') => {
+        const granted = await ensureCameraPermission();
+        if (!granted) {
+            Alert.alert('Camera access needed', 'Allow camera access to take a new photo.');
+            return;
+        }
+        const result = await ImagePicker.launchCameraAsync({
+            mediaTypes: ['images'],
+            allowsEditing: type === 'avatar',
+            aspect: type === 'avatar' ? [1, 1] : undefined,
+            quality: 0.8,
+        });
+        if (!result.canceled && result.assets[0]) {
+            await uploadImageAndRefresh(result.assets[0].uri, type);
+        }
+    };
+
+    const pickFromGallery = async (type: 'avatar' | 'profile_gallery') => {
+        const granted = await ensureMediaLibraryPermission();
+        if (!granted) {
+            Alert.alert('Photo access needed', 'Allow access to your photos to pick an image.');
+            return;
+        }
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            allowsEditing: type === 'avatar',
+            aspect: type === 'avatar' ? [1, 1] : undefined,
+            quality: 0.8,
+        });
+        if (!result.canceled && result.assets[0]) {
+            await uploadImageAndRefresh(result.assets[0].uri, type);
+        }
+    };
+
     const openDobPicker = () => {
-        // Android: prefer imperative API to avoid mount/unmount glitches.
         if (Platform.OS === 'android' && DateTimePickerAndroid) {
             DateTimePickerAndroid.open({
                 value: dobDate,
@@ -145,509 +241,651 @@ export default function ProfileScreen({ navigation }: any) {
                 is24Hour: true,
                 maximumDate: new Date(),
                 onChange: (event: any, selected?: Date) => {
-                    // event.type: 'set' | 'dismissed' | 'neutralButtonPressed'
-                    if (event?.type !== 'set') return;
-                    if (!selected) return;
-                    setForm((prev) => ({ ...prev, dob: formatYYYYMMDD(selected) }));
+                    if (event?.type !== 'set' || !selected) return;
+                    updateForm({ dob: formatYYYYMMDD(selected) });
                 },
             });
-            return;
-        }
-
-        // iOS / others: fall back to component rendering.
-        setShowDobPicker(true);
-    };
-
-    const prefillFromLocation = async () => {
-        setLocLoading(true);
-        setLocHint(null);
-        try {
-            const perm = await Location.requestForegroundPermissionsAsync();
-            if (perm.status !== 'granted') {
-                // Non-blocking: user can fill manually
-                setLocHint('Location permission not granted (fill manually).');
-                return;
-            }
-
-            const servicesEnabled = await Location.hasServicesEnabledAsync();
-            if (!servicesEnabled) {
-                setLocHint('Location services are off (fill manually).');
-                return;
-            }
-
-            let pos = await Location.getLastKnownPositionAsync();
-            if (!pos) {
-                pos = await Location.getCurrentPositionAsync({
-                    accuracy: Location.Accuracy.Balanced,
-                });
-            }
-            if (!pos) {
-                setLocHint('Could not detect location (fill manually).');
-                return;
-            }
-
-            const { latitude, longitude } = pos.coords;
-            const places = await Location.reverseGeocodeAsync({ latitude, longitude });
-            const place = places?.[0];
-
-            setForm((prev) => ({
-                ...prev,
-                latitude,
-                longitude,
-                city: place?.city ?? prev.city,
-                state: place?.region ?? prev.state,
-                country: place?.country ?? prev.country,
-            }));
-        } catch (e) {
-            setLocHint('Could not detect location (fill manually).');
-        } finally {
-            setLocLoading(false);
+        } else {
+            setShowDobPicker(true);
         }
     };
-
-    useEffect(() => {
-        if (didTryAutoProfileLocationPrefill) return;
-        didTryAutoProfileLocationPrefill = true;
-        if (form.country || form.city || form.state) return;
-        void prefillFromLocation();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    // If profile already has values (future: GET /user), initialize dropdown selections.
-    useEffect(() => {
-        const occ = (form.occupation || '').trim();
-        if (occ) {
-            if (OCCUPATION_OPTIONS.includes(occ as any)) {
-                setOccupationSelect(occ);
-            } else {
-                setOccupationSelect(OTHER_VALUE);
-                setOccupationOther(occ);
-            }
-        }
-
-        const qual = (form.qualification || '').trim();
-        if (qual) {
-            if (QUALIFICATION_OPTIONS.includes(qual as any)) {
-                setQualificationSelect(qual);
-            } else {
-                setQualificationSelect(OTHER_VALUE);
-                setQualificationOther(qual);
-            }
-        }
-
-        const eth = (form.ethnicity || '').trim();
-        if (eth) {
-            if (ETHNICITY_OPTIONS.includes(eth)) {
-                setEthnicitySelect(eth);
-            } else {
-                setEthnicitySelect(OTHER_VALUE);
-                setEthnicityOther(eth);
-            }
-        }
-        // run once on mount
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
 
     const handleSave = async () => {
         setLoading(true);
         setErrors({});
         try {
-            // Validate
             profileSchema.parse(form);
-
-            // API Call
             await ProfileService.update(form);
-
-            Alert.alert("Success", "Profile updated!", [
-                {
-                    text: "Continue",
-                    onPress: () =>
-                        navigation.reset({
-                            index: 0,
-                            routes: [{ name: 'Home' }],
-                        }),
-                }
-            ]);
-
+            queryClient.invalidateQueries({ queryKey: ['user'] });
+            Alert.alert("Success", "Profile updated!");
         } catch (error: any) {
             if (error instanceof z.ZodError) {
                 const fieldErrors: Record<string, string> = {};
                 error.issues.forEach((issue) => {
-                    const path = issue.path[0];
-                    if (path) {
-                        fieldErrors[path.toString()] = issue.message;
-                    }
+                    if (issue.path[0]) fieldErrors[issue.path[0].toString()] = issue.message;
                 });
                 setErrors(fieldErrors);
-                console.log("Validation errors:", fieldErrors);
                 Alert.alert("Validation Error", "Please check the highlighted fields.");
             } else {
-                if (axios.isAxiosError(error)) {
-                    const status = error.response?.status;
-                    const msg = (error.response?.data as any)?.message;
-                    Alert.alert("Error", msg || `Failed to update profile (${status ?? 'no status'})`);
-                    console.error('Profile update error:', status, error.response?.data);
-                    return;
-                }
                 console.error(error);
-                Alert.alert("Error", "Failed to update profile. Please try again.");
+                Alert.alert("Error", "Failed to update profile.");
             }
         } finally {
             setLoading(false);
         }
     };
 
-    return (
-        <View
-            style={[
-                styles.container,
-                {
-                    backgroundColor: theme.colors.background,
-                    paddingTop: insets.top,
-                    paddingRight: insets.right,
-                    paddingBottom: insets.bottom,
-                    paddingLeft: insets.left,
-                },
-            ]}
-        >
-            <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-                <Text variant="headlineSmall" style={[styles.screenTitle, { color: theme.colors.onSurface }]}>
-                    Complete Your Profile
-                </Text>
-                <Text variant="bodyMedium" style={[styles.screenSubtitle, styles.screenSubtitleText, promptText]}>
-                    Tell us more about yourself to find your perfect spec.
-                </Text>
+    const handleLogout = () => {
+        Alert.alert("Logout", "Are you sure you want to log out?", [
+            { text: "Cancel", style: "cancel" },
+            {
+                text: "Logout",
+                style: "destructive",
+                onPress: () => {
+                    // TODO: Implement actual logout logic (clear token, etc)
+                    navigation.reset({ index: 0, routes: [{ name: 'Auth', params: { screen: 'Login' } }] });
+                }
+            }
+        ]);
+    };
 
-                <MotiView animate={{ opacity: 1 }} style={styles.form}>
+    const handlePauseAccount = () => {
+        Alert.alert("Pause Account", "Your profile will be hidden from the discovery feed.", [{ text: "OK" }]);
+    };
+
+    const handleDeleteAccount = () => {
+        Alert.alert("Delete Account", "This action is irreversible. Are you sure?", [
+            { text: "Cancel", style: "cancel" },
+            { text: "Delete", style: "destructive", onPress: () => Alert.alert("Deleted", "Your account has been scheduled for deletion.") }
+        ]);
+    };
+
+    const openImageViewer = (index: number) => {
+        const filled = images.filter(Boolean) as string[];
+        const idx = filled.indexOf(images[index] as string);
+        setViewerInitialIndex(idx >= 0 ? idx : 0);
+        setViewerVisible(true);
+    };
+
+    return (
+        <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+            <LinearGradient
+                colors={[theme.colors.elevation.level1, theme.colors.background]}
+                style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 280 }}
+            />
+
+            <ScrollView
+                contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 40 }]}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+            >
+                {/* Top Navigation */}
+                <View style={[styles.topNav, { paddingTop: insets.top + 8, paddingBottom: 8 }]}>
+                    <IconButton
+                        icon="arrow-left"
+                        iconColor={theme.colors.onSurface}
+                        size={24}
+                        onPress={() => {
+                            if (navigation.canGoBack()) {
+                                navigation.goBack();
+                            } else {
+                                navigation.navigate('Home');
+                            }
+                        }}
+                        style={styles.backButton}
+                    />
+                    <Text variant="titleLarge" style={[styles.screenTitle, { color: theme.colors.onSurface }]}>
+                        Edit Profile
+                    </Text>
+                    <View style={{ width: 40 }} />
+                </View>
+
+                {/* Header */}
+                <View style={styles.header}>
+                    <View style={styles.avatarContainer}>
+                        <Avatar.Image
+                            size={120}
+                            source={{
+                                uri: user?.profile?.avatar ||
+                                    `https://ui-avatars.com/api/?name=${encodeURIComponent(form.full_name || user?.name || 'User')}&size=512&background=7C3AED&color=ffffff`
+                            }}
+                            style={{ backgroundColor: theme.colors.surfaceVariant }}
+                        />
+                        <TouchableOpacity
+                            style={[styles.editBadge, { backgroundColor: theme.colors.primary }]}
+                            onPress={() => pickFromGallery('avatar')}
+                            onLongPress={() => {
+                                Alert.alert('Avatar photo', 'Take a new photo with the camera.', [
+                                    { text: 'Cancel', style: 'cancel' },
+                                    { text: 'Take photo', onPress: () => takePhotoWithCamera('avatar') },
+                                ]);
+                            }}
+                            activeOpacity={0.8}
+                            disabled={imgLoading}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            accessible
+                            accessibilityRole="button"
+                            accessibilityLabel="Change avatar photo"
+                        >
+                            {imgLoading ? (
+                                <ActivityIndicator size={18} color={theme.colors.onPrimary} />
+                            ) : (
+                                <MaterialCommunityIcons name="camera" size={18} color={theme.colors.onPrimary} />
+                            )}
+                        </TouchableOpacity>
+                    </View>
+                    <Text variant="headlineMedium" style={[styles.nameText, { color: theme.colors.onSurface }]}>
+                        {form.full_name || user?.name || 'Your Name'}
+                    </Text>
+                    <View style={styles.headerMeta}>
+                        <MaterialCommunityIcons name="map-marker" size={14} color={theme.colors.onSurfaceVariant} />
+                        <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant, marginLeft: 4 }}>
+                            {form.city || user?.profile?.city || 'Add location'}
+                        </Text>
+                        {form.dob && (
+                            <>
+                                <Text style={{ color: theme.colors.onSurfaceVariant, marginHorizontal: 8 }}>•</Text>
+                                <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+                                    {new Date().getFullYear() - new Date(form.dob).getFullYear()} y/o
+                                </Text>
+                            </>
+                        )}
+                    </View>
+                </View>
+
+                {/* Balance / Wallet */}
+                <Surface style={[styles.walletSection, { backgroundColor: theme.colors.elevation.level1 }]} elevation={0}>
+                    <View style={styles.walletHeader}>
+                        <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.primary, marginBottom: 0 }]}>
+                            Wallet
+                        </Text>
+                        <TouchableOpacity
+                            onPress={() => Alert.alert('Coming soon', 'Top up and transaction history will be available soon.')}
+                            style={[styles.walletTopUp, { backgroundColor: theme.colors.primaryContainer }]}
+                            activeOpacity={0.8}
+                        >
+                            <MaterialCommunityIcons name="plus-circle" size={18} color={theme.colors.primary} />
+                            <Text variant="labelMedium" style={{ color: theme.colors.primary, fontWeight: '700', marginLeft: 6 }}>
+                                Top up
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                    <View style={styles.walletRow}>
+                        <View style={[styles.walletCard, { backgroundColor: theme.colors.errorContainer }]}>
+                            <View style={[styles.walletIconWrap, { backgroundColor: 'rgba(239,68,68,0.2)' }]}>
+                                <MaterialCommunityIcons name="balloon" size={28} color="#EF4444" />
+                            </View>
+                            <Text variant="headlineSmall" style={[styles.walletAmount, { color: theme.colors.onSurface }]}>
+                                {user?.balance?.red_balloons ?? 0}
+                            </Text>
+                            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, fontWeight: '600' }}>
+                                Red balloons
+                            </Text>
+                        </View>
+                        <View style={[styles.walletCard, { backgroundColor: theme.colors.primaryContainer }]}>
+                            <View style={[styles.walletIconWrap, { backgroundColor: 'rgba(124,58,237,0.2)' }]}>
+                                <MaterialCommunityIcons name="balloon" size={28} color={theme.colors.primary} />
+                            </View>
+                            <Text variant="headlineSmall" style={[styles.walletAmount, { color: theme.colors.onSurface }]}>
+                                {user?.balance?.blue_balloons ?? 0}
+                            </Text>
+                            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, fontWeight: '600' }}>
+                                Blue balloons
+                            </Text>
+                        </View>
+                    </View>
+                </Surface>
+
+                {/* Info Text */}
+                <Surface style={[styles.section, { backgroundColor: theme.colors.elevation.level1 }]} elevation={0}>
+                    <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
+                        Public Photos
+                    </Text>
+                    <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 12 }}>
+                        Add up to 6 photos to show off your best self.
+                    </Text>
+                    <ProfileImageGrid
+                        images={images}
+                        maxSlots={6}
+                        readOnly={false}
+                        onImagePress={openImageViewer}
+                        onAddPress={() => pickFromGallery('profile_gallery')}
+                    />
+                </Surface>
+
+                {/* Form Fields */}
+                <Surface style={[styles.section, { backgroundColor: theme.colors.elevation.level1 }]} elevation={0}>
+                    <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
+                        Basic Details
+                    </Text>
 
                     <TextInput
-                        mode="outlined"
+                        mode="flat"
                         label="Full Name"
                         value={form.full_name}
                         onChangeText={(t) => updateForm({ full_name: t })}
                         style={styles.input}
                         error={!!errors.full_name}
+                        contentStyle={styles.inputContent}
+                        underlineColor="transparent"
                     />
-                    {errors.full_name && <HelperText type="error">{errors.full_name}</HelperText>}
+
+                    <Divider style={styles.divider} />
 
                     <TextInput
-                        mode="outlined"
+                        mode="flat"
                         label="Date of Birth"
                         value={form.dob}
-                        onChangeText={(t) => updateForm({ dob: t })}
+                        editable={false}
+                        right={<TextInput.Icon icon="calendar" onPress={openDobPicker} />}
                         style={styles.input}
-                        error={!!errors.dob}
-                        placeholder="YYYY-MM-DD"
-                        editable={DateTimePicker ? false : true}
-                        right={DateTimePicker ? <TextInput.Icon icon="calendar" onPress={openDobPicker} /> : undefined}
+                        contentStyle={styles.inputContent}
+                        underlineColor="transparent"
                     />
-                    {errors.dob && <HelperText type="error">{errors.dob}</HelperText>}
-
-                    {DateTimePicker ? (
-                        Platform.OS !== 'android' && showDobPicker ? (
-                            <DateTimePicker
-                                value={dobDate}
-                                mode="date"
-                                display="default"
-                                onChange={(event: any, selected?: Date) => {
-                                    if (event?.type === 'dismissed') {
-                                        setShowDobPicker(false);
-                                        return;
-                                    }
-                                    if (!selected) return;
-                                    setShowDobPicker(false);
-                                    setForm((prev) => ({ ...prev, dob: formatYYYYMMDD(selected) }));
-                                }}
-                                maximumDate={new Date()}
-                            />
-                        ) : null
-                    ) : (
-                        <HelperText type="info">
-                            Install `@react-native-community/datetimepicker` to enable calendar DOB selection.
-                        </HelperText>
+                    {/* DateTimePicker rendering logic */}
+                    {DateTimePicker && Platform.OS !== 'android' && showDobPicker && (
+                        <DateTimePicker
+                            value={dobDate}
+                            mode="date"
+                            display="default"
+                            onChange={(e: any, d?: Date) => {
+                                setShowDobPicker(false);
+                                if (d) updateForm({ dob: formatYYYYMMDD(d) });
+                            }}
+                            maximumDate={new Date()}
+                        />
                     )}
 
-                    <Text variant="bodyLarge" style={{ marginTop: 10, color: theme.colors.onSurface }}>Gender</Text>
-                    <SegmentedButtons
-                        value={form.sex || 'Male'}
-                        onValueChange={(val) => updateForm({ sex: val as any })}
-                        buttons={[
-                            { value: 'Male', label: 'Male' },
-                            { value: 'Female', label: 'Female' },
-                            { value: 'Other', label: 'Other' },
-                        ]}
-                        style={styles.segmented}
-                    />
+                    <Divider style={styles.divider} />
 
-                    <Text variant="bodyLarge" style={{ marginTop: 10, color: theme.colors.onSurface }}>Sexual Orientation</Text>
-                    <SegmentedButtons
-                        value={form.sexual_orientation || 'Heterosexual'}
-                        onValueChange={(val) => updateForm({ sexual_orientation: val })}
-                        buttons={[
-                            { value: 'Heterosexual', label: 'Heterosexual' },
-                            { value: 'Homosexual', label: 'Homosexual' },
-                            { value: 'Bisexual', label: 'Bisexual' },
-                            // { value: 'Other', label: 'Other' }, // Can expand if needed
-                        ]}
-                        style={styles.segmented}
-                    />
-                    {errors.sexual_orientation && <HelperText type="error">{errors.sexual_orientation}</HelperText>}
+                    <View style={styles.rowInput}>
+                        <Text variant="bodyLarge" style={{ color: theme.colors.onSurfaceVariant }}>Gender</Text>
+                        <SegmentedButtons
+                            value={form.sex || 'Male'}
+                            onValueChange={(val) => updateForm({ sex: val as any })}
+                            buttons={[
+                                { value: 'Male', label: 'M' },
+                                { value: 'Female', label: 'F' },
+                                { value: 'Other', label: 'O' },
+                            ]}
+                            style={{ flex: 1, marginLeft: 16 }}
+                            density="small"
+                        />
+                    </View>
 
-                    <Text variant="bodyLarge" style={{ marginTop: 10, color: theme.colors.onSurface }}>Smoker?</Text>
-                    <SegmentedButtons
-                        value={form.is_smoker ? 'yes' : 'no'}
-                        onValueChange={(val) => updateForm({ is_smoker: val === 'yes' })}
-                        buttons={[
-                            { value: 'no', label: 'No' },
-                            { value: 'yes', label: 'Yes' },
-                        ]}
-                        style={styles.segmented}
-                    />
-                    {errors.is_smoker && <HelperText type="error">{errors.is_smoker}</HelperText>}
+                    <Divider style={styles.divider} />
 
-                    <Text variant="bodyLarge" style={{ marginTop: 10, color: theme.colors.onSurface }}>Drug use?</Text>
-                    <SegmentedButtons
-                        value={form.is_drug_user ? 'yes' : 'no'}
-                        onValueChange={(val) => updateForm({ is_drug_user: val === 'yes' })}
-                        buttons={[
-                            { value: 'no', label: 'No' },
-                            { value: 'yes', label: 'Yes' },
-                        ]}
-                        style={styles.segmented}
-                    />
-                    {errors.is_drug_user && <HelperText type="error">{errors.is_drug_user}</HelperText>}
                     <Dropdown
                         label="Occupation"
-                        placeholder="Select occupation"
-                        mode="outlined"
+                        placeholder="Select..."
+                        mode="flat"
                         options={occupationOptions}
                         value={occupationSelect}
                         onSelect={(v) => {
                             setOccupationSelect(v);
                             setOccupationSearch('');
-                            if (v === OTHER_VALUE) {
-                                // keep whatever the user typed previously (if any)
-                                setForm((prev) => ({ ...prev, occupation: occupationOther }));
-                                return;
-                            }
-                            setForm((prev) => ({ ...prev, occupation: v || '' }));
+                            if (v === OTHER_VALUE) setForm((p) => ({ ...p, occupation: occupationOther }));
+                            else setForm((p) => ({ ...p, occupation: v || '' }));
                         }}
-                        error={!!errors.occupation}
                         CustomMenuHeader={() => (
-                            <View style={styles.searchHeader}>
-                                <Searchbar
-                                    placeholder="Search occupation"
-                                    value={occupationSearch}
-                                    onChangeText={setOccupationSearch}
-                                    autoCapitalize="none"
-                                />
-                            </View>
+                            <Searchbar placeholder="Search..." value={occupationSearch} onChangeText={setOccupationSearch} />
                         )}
                     />
-                    {errors.occupation && <HelperText type="error">{errors.occupation}</HelperText>}
+                    {occupationSelect === OTHER_VALUE && (
+                        <TextInput label="Specify Occupation" value={occupationOther} onChangeText={(t) => { setOccupationOther(t); updateForm({ occupation: t }); }} mode="flat" style={styles.input} />
+                    )}
+                </Surface>
 
-                    {occupationSelect === OTHER_VALUE ? (
-                        <TextInput
-                            mode="outlined"
-                            label="Occupation (Other)"
-                            value={occupationOther}
-                            onChangeText={(t) => {
-                                setOccupationOther(t);
-                                setForm((prev) => ({ ...prev, occupation: t }));
-                            }}
-                            style={styles.input}
-                            error={!!errors.occupation}
-                        />
-                    ) : null}
-
-                    <Dropdown
-                        label="Qualification"
-                        placeholder="Select qualification"
-                        mode="outlined"
-                        options={qualificationOptions}
-                        value={qualificationSelect}
-                        onSelect={(v) => {
-                            setQualificationSelect(v);
-                            setQualificationSearch('');
-                            if (v === OTHER_VALUE) {
-                                setForm((prev) => ({ ...prev, qualification: qualificationOther }));
-                                return;
-                            }
-                            setForm((prev) => ({ ...prev, qualification: v || '' }));
-                        }}
-                        error={!!errors.qualification}
-                        CustomMenuHeader={() => (
-                            <View style={styles.searchHeader}>
-                                <Searchbar
-                                    placeholder="Search qualification"
-                                    value={qualificationSearch}
-                                    onChangeText={setQualificationSearch}
-                                    autoCapitalize="none"
-                                />
-                            </View>
-                        )}
-                    />
-                    {errors.qualification && <HelperText type="error">{errors.qualification}</HelperText>}
-
-                    {qualificationSelect === OTHER_VALUE ? (
-                        <TextInput
-                            mode="outlined"
-                            label="Qualification (Other)"
-                            value={qualificationOther}
-                            onChangeText={(t) => {
-                                setQualificationOther(t);
-                                setForm((prev) => ({ ...prev, qualification: t }));
-                            }}
-                            style={styles.input}
-                            error={!!errors.qualification}
-                        />
-                    ) : null}
-
-                    <Dropdown
-                        label="Height"
-                        placeholder="Select height"
-                        mode="outlined"
-                        options={HEIGHT_OPTIONS}
-                        value={form.height ? String(form.height) : undefined}
-                        onSelect={(v) => updateForm({ height: v ? parseInt(v, 10) : undefined })}
-                        error={!!errors.height}
-                    />
-                    {errors.height && <HelperText type="error">{errors.height}</HelperText>}
-
-                    <Dropdown
-                        label="Ethnicity"
-                        placeholder="Select ethnicity"
-                        mode="outlined"
-                        options={ethnicityOptions}
-                        value={ethnicitySelect}
-                        onSelect={(v) => {
-                            setEthnicitySelect(v);
-                            setEthnicitySearch('');
-                            if (v === OTHER_VALUE) {
-                                setForm((prev) => ({ ...prev, ethnicity: ethnicityOther }));
-                                return;
-                            }
-                            setForm((prev) => ({ ...prev, ethnicity: v || '' }));
-                        }}
-                        error={!!errors.ethnicity}
-                        CustomMenuHeader={() => (
-                            <View style={styles.searchHeader}>
-                                <Searchbar
-                                    placeholder="Search ethnicity"
-                                    value={ethnicitySearch}
-                                    onChangeText={setEthnicitySearch}
-                                    autoCapitalize="none"
-                                />
-                            </View>
-                        )}
-                    />
-                    {errors.ethnicity && <HelperText type="error">{errors.ethnicity}</HelperText>}
-
-                    {ethnicitySelect === OTHER_VALUE ? (
-                        <TextInput
-                            mode="outlined"
-                            label="Ethnicity (Other)"
-                            value={ethnicityOther}
-                            onChangeText={(t) => {
-                                setEthnicityOther(t);
-                                setForm((prev) => ({ ...prev, ethnicity: t }));
-                            }}
-                            style={styles.input}
-                            error={!!errors.ethnicity}
-                        />
-                    ) : null}
-
+                <Surface style={[styles.section, { backgroundColor: theme.colors.elevation.level1 }]} elevation={0}>
+                    <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
+                        About Me
+                    </Text>
                     <TextInput
-                        mode="outlined"
-                        label="Hobbies"
+                        mode="flat"
+                        label="Bio / Hobbies"
                         value={form.hobbies}
                         onChangeText={(t) => updateForm({ hobbies: t })}
-                        style={styles.input}
+                        style={[styles.input, { minHeight: 80 }]}
                         multiline
+                        placeholder="What do you love doing?"
+                        underlineColor="transparent"
                     />
-                    {errors.hobbies && <HelperText type="error">{errors.hobbies}</HelperText>}
+                </Surface>
 
-                    <TextInput
-                        mode="outlined"
-                        label="City"
-                        value={form.city}
-                        onChangeText={(t) => updateForm({ city: t })}
-                        style={styles.input}
-                    />
-                    {errors.city && <HelperText type="error">{errors.city}</HelperText>}
+                <Surface style={[styles.section, { backgroundColor: theme.colors.elevation.level1 }]} elevation={0}>
+                    <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
+                        Lifestyle
+                    </Text>
+                    <View style={styles.lifestyleRow}>
+                        <View style={styles.lifestyleLabel}>
+                            <MaterialCommunityIcons name="smoking" size={20} color={theme.colors.onSurfaceVariant} />
+                            <Text variant="bodyLarge" style={[styles.lifestyleLabelText, { color: theme.colors.onSurface }]}>
+                                Smoker
+                            </Text>
+                        </View>
+                        <SegmentedButtons
+                            value={form.is_smoker ? 'yes' : 'no'}
+                            onValueChange={(v) => updateForm({ is_smoker: v === 'yes' })}
+                            buttons={[{ value: 'no', label: 'No' }, { value: 'yes', label: 'Yes' }]}
+                            density="small"
+                            style={styles.lifestylePills}
+                        />
+                    </View>
+                    <Divider style={styles.divider} />
+                    <View style={styles.lifestyleRow}>
+                        <View style={styles.lifestyleLabel}>
+                            <MaterialCommunityIcons name="glass-wine" size={20} color={theme.colors.onSurfaceVariant} />
+                            <Text variant="bodyLarge" style={[styles.lifestyleLabelText, { color: theme.colors.onSurface }]}>
+                                Drinker / Drug Use
+                            </Text>
+                        </View>
+                        <SegmentedButtons
+                            value={form.is_drug_user ? 'yes' : 'no'}
+                            onValueChange={(v) => updateForm({ is_drug_user: v === 'yes' })}
+                            buttons={[{ value: 'no', label: 'No' }, { value: 'yes', label: 'Yes' }]}
+                            density="small"
+                            style={styles.lifestylePills}
+                        />
+                    </View>
+                </Surface>
 
-                    <TextInput
-                        mode="outlined"
-                        label="State"
-                        value={form.state}
-                        onChangeText={(t) => updateForm({ state: t })}
-                        style={styles.input}
-                    />
-                    {errors.state && <HelperText type="error">{errors.state}</HelperText>}
+                {/* Main Action Button */}
+                <Button
+                    mode="contained"
+                    onPress={handleSave}
+                    loading={loading}
+                    style={styles.saveButton}
+                    contentStyle={{ height: 50 }}
+                >
+                    Save Changes
+                </Button>
 
-                    <TextInput
-                        mode="outlined"
-                        label="Country"
-                        value={form.country}
-                        onChangeText={(t) => updateForm({ country: t })}
-                        style={styles.input}
-                    />
-                    {errors.country && <HelperText type="error">{errors.country}</HelperText>}
+                {/* Account Actions */}
+                <Surface style={[styles.accountSection, { backgroundColor: theme.colors.elevation.level1 }]} elevation={0}>
+                    <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
+                        Account
+                    </Text>
 
-                    {locLoading ? (
-                        <HelperText type="info">Detecting your location…</HelperText>
-                    ) : locHint ? (
-                        <HelperText type="info">{locHint}</HelperText>
-                    ) : null}
-
-                    <Button
-                        mode="contained"
-                        onPress={handleSave}
-                        loading={loading}
-                        style={styles.button}
-                        contentStyle={{ height: 50 }}
+                    <TouchableOpacity
+                        onPress={handlePauseAccount}
+                        style={[styles.accountActionItem, { borderColor: theme.colors.outline }]}
+                        activeOpacity={0.7}
                     >
-                        Save & Continue
-                    </Button>
-                </MotiView>
+                        <View style={styles.accountActionLeft}>
+                            <View style={[styles.accountIconContainer, { backgroundColor: theme.colors.secondaryContainer }]}>
+                                <MaterialCommunityIcons name="pause-circle" size={22} color={theme.colors.secondary} />
+                            </View>
+                            <View style={styles.accountActionText}>
+                                <Text variant="bodyLarge" style={{ color: theme.colors.onSurface, fontWeight: '600' }}>
+                                    Pause Account
+                                </Text>
+                                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 2 }}>
+                                    Hide your profile temporarily
+                                </Text>
+                            </View>
+                        </View>
+                        <MaterialCommunityIcons name="chevron-right" size={20} color={theme.colors.onSurfaceVariant} />
+                    </TouchableOpacity>
+
+                    <Divider style={styles.divider} />
+
+                    <TouchableOpacity
+                        onPress={handleLogout}
+                        style={[styles.accountActionItem, { borderColor: theme.colors.outline }]}
+                        activeOpacity={0.7}
+                    >
+                        <View style={styles.accountActionLeft}>
+                            <View style={[styles.accountIconContainer, { backgroundColor: theme.colors.errorContainer }]}>
+                                <MaterialCommunityIcons name="logout" size={22} color={theme.colors.error} />
+                            </View>
+                            <View style={styles.accountActionText}>
+                                <Text variant="bodyLarge" style={{ color: theme.colors.onSurface, fontWeight: '600' }}>
+                                    Log Out
+                                </Text>
+                                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 2 }}>
+                                    Sign out of your account
+                                </Text>
+                            </View>
+                        </View>
+                        <MaterialCommunityIcons name="chevron-right" size={20} color={theme.colors.onSurfaceVariant} />
+                    </TouchableOpacity>
+
+                    <Divider style={styles.divider} />
+
+                    <TouchableOpacity
+                        onPress={handleDeleteAccount}
+                        style={[styles.accountActionItem, styles.deleteActionItem, { borderColor: theme.colors.error }]}
+                        activeOpacity={0.7}
+                    >
+                        <View style={styles.accountActionLeft}>
+                            <View style={[styles.accountIconContainer, { backgroundColor: theme.colors.errorContainer }]}>
+                                <MaterialCommunityIcons name="delete-outline" size={22} color={theme.colors.error} />
+                            </View>
+                            <View style={styles.accountActionText}>
+                                <Text variant="bodyLarge" style={{ color: theme.colors.error, fontWeight: '700' }}>
+                                    Delete My Account
+                                </Text>
+                                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 2 }}>
+                                    Permanently delete your account
+                                </Text>
+                            </View>
+                        </View>
+                        <MaterialCommunityIcons name="chevron-right" size={20} color={theme.colors.error} />
+                    </TouchableOpacity>
+                </Surface>
+
             </ScrollView>
+
+            <ImageViewerModal
+                visible={viewerVisible}
+                images={imagesFilled}
+                initialIndex={viewerInitialIndex}
+                onClose={() => setViewerVisible(false)}
+            />
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
+    container: { flex: 1 },
+    scrollContent: {},
+    topNav: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 8,
+        marginBottom: 8,
     },
-    content: {
-        padding: 24,
+    backButton: {
+        margin: 0,
     },
     screenTitle: {
-        marginBottom: 8,
-        fontWeight: '900',
+        fontWeight: '800',
+        fontSize: 20,
+        letterSpacing: -0.5,
     },
-    screenSubtitle: {
+    header: {
+        alignItems: 'center',
+        marginBottom: 32,
+        paddingHorizontal: 16,
+    },
+    avatarContainer: {
+        position: 'relative',
+        marginBottom: 16,
+    },
+    editBadge: {
+        position: 'absolute',
+        bottom: 0,
+        right: 0,
+        borderRadius: 20,
+        width: 40,
+        height: 40,
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 10,
+        elevation: 4,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
+    },
+    headerMeta: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 8,
+    },
+    nameText: {
+        fontWeight: 'bold',
+    },
+    section: {
+        marginHorizontal: 16,
         marginBottom: 20,
+        padding: 20,
+        borderRadius: 20,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.05)',
     },
-    screenSubtitleText: {
-        fontWeight: '900',
+    walletSection: {
+        marginHorizontal: 16,
+        marginBottom: 20,
+        padding: 20,
+        borderRadius: 20,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.05)',
     },
-    form: {
+    walletHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 16,
+    },
+    walletTopUp: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        borderRadius: 999,
+    },
+    walletRow: {
+        flexDirection: 'row',
         gap: 12,
+    },
+    walletCard: {
+        flex: 1,
+        borderRadius: 16,
+        padding: 16,
+        alignItems: 'center',
+        minHeight: 100,
+        justifyContent: 'center',
+    },
+    walletIconWrap: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 8,
+    },
+    walletAmount: {
+        fontWeight: '900',
+        marginBottom: 4,
+    },
+    sectionTitle: {
+        marginBottom: 20,
+        fontWeight: '800',
+        textTransform: 'uppercase',
+        fontSize: 11,
+        letterSpacing: 1.2,
     },
     input: {
         backgroundColor: 'transparent',
+        paddingHorizontal: 0,
     },
-    searchHeader: {
-        paddingHorizontal: 8,
-        paddingTop: 8,
-        paddingBottom: 4,
+    inputContent: {
+        paddingHorizontal: 0,
     },
-    button: {
-        marginTop: 30,
+    divider: {
+        marginVertical: 8,
+        opacity: 0.3,
+    },
+    rowInput: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 8,
+    },
+    rowBetween: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 12,
+    },
+    lifestyleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 12,
+        flexWrap: 'wrap',
+    },
+    lifestyleLabel: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        flex: 1,
+        minWidth: 140,
+    },
+    lifestyleLabelText: {
+        fontWeight: '600',
+    },
+    lifestylePills: {
+        flexShrink: 1,
+        minWidth: 140,
+    },
+    saveButton: {
+        marginHorizontal: 16,
+        marginTop: 8,
+        marginBottom: 8,
+        borderRadius: 16,
+        elevation: 2,
+    },
+    accountSection: {
+        marginHorizontal: 16,
+        marginTop: 24,
+        marginBottom: 20,
+        padding: 20,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.05)',
+    },
+    accountActionItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 16,
+        paddingHorizontal: 4,
         borderRadius: 12,
+        borderWidth: 1,
+        marginBottom: 8,
     },
-    segmented: {
-        marginBottom: 10,
-    }
+    deleteActionItem: {
+        borderWidth: 1.5,
+    },
+    accountActionLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        flex: 1,
+    },
+    accountIconContainer: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    accountActionText: {
+        flex: 1,
+    },
 });

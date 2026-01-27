@@ -11,6 +11,7 @@ export type User = {
     profile_complete: boolean;
     balance?: any;
     balloon_skin?: any;
+    images?: string[]; // Added: Gallery images
 };
 
 async function fetchUser(): Promise<User> {

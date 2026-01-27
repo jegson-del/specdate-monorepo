@@ -59,6 +59,11 @@ class User extends Authenticatable
         return $this->hasOne(UserBalance::class);
     }
 
+    public function media()
+    {
+        return $this->hasMany(Media::class);
+    }
+
     public function balloonSkin()
     {
         return $this->hasOne(BalloonSkin::class);
@@ -74,5 +79,22 @@ class User extends Authenticatable
         return $this->profile && $this->profile->profile_completed_at !== null;
     }
 
-    protected $appends = ['profile_complete'];
+    /**
+     * Get the gallery images.
+     *
+     * @return array
+     */
+    public function getImagesAttribute(): array
+    {
+        // Safe check for relation loaded or lazy load
+        return $this->media
+            ->where('type', 'profile_gallery')
+            ->map(function ($media) {
+                return $media->url;
+            })
+            ->values()
+            ->all();
+    }
+
+    protected $appends = ['profile_complete', 'images'];
 }

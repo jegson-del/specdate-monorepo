@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { View, StyleSheet, Pressable, ImageBackground } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, ImageBackground } from 'react-native';
 import { Text, Surface } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -41,7 +41,7 @@ const SpecCard = memo(({ item, theme, homeColors, tagColor, withAlpha, onPress }
 
     return (
         <View style={styles.cardWrap}>
-            <Pressable onPress={handlePress}>
+            <TouchableOpacity onPress={handlePress} activeOpacity={0.9}>
                 <Surface
                     style={[
                         styles.card,
@@ -105,15 +105,16 @@ const SpecCard = memo(({ item, theme, homeColors, tagColor, withAlpha, onPress }
 
                         <View style={styles.metaRow}>
                             <MaterialCommunityIcons name="silverware-fork-knife" size={16} color={theme.colors.primary} />
-                            <Pressable
+                            <TouchableOpacity
                                 onPress={handlePressProvider}
                                 style={{ flex: 1 }}
                                 hitSlop={8}
+                                activeOpacity={0.7}
                             >
                                 <Text style={[styles.metaText, { color: homeColors.cardSubtext }]} numberOfLines={1}>
                                     First date: {item.firstDateProvider === '—' ? 'Choose provider' : item.firstDateProvider}
                                 </Text>
-                            </Pressable>
+                            </TouchableOpacity>
                         </View>
 
                         <View style={styles.metaRow}>
@@ -132,7 +133,7 @@ const SpecCard = memo(({ item, theme, homeColors, tagColor, withAlpha, onPress }
                         </View>
                     </View>
                 </Surface>
-            </Pressable>
+            </TouchableOpacity>
         </View>
     );
 });

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, StyleSheet, FlatList, Pressable, ImageBackground, ScrollView } from 'react-native';
+import { View, StyleSheet, FlatList, TouchableOpacity, ImageBackground, ScrollView } from 'react-native';
 import { ActivityIndicator, Text, useTheme, IconButton, Surface, Searchbar, Avatar, Portal, Modal, SegmentedButtons } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -434,17 +434,17 @@ export default function HomeScreen({ navigation }: any) {
             {(['LIVE', 'ONGOING', 'POPULAR', 'HOTTEST'] as FeedKey[]).map((k) => {
               const active = feed === k;
               return (
-                <Pressable
+                <TouchableOpacity
                   key={k}
                   onPress={() => setFeed(k)}
-                  style={({ pressed }) => [
+                  style={[
                     styles.feedPill,
                     {
                       backgroundColor: active ? tagColor(k) : theme.colors.elevation.level2,
                       borderColor: active ? tagColor(k) : theme.colors.outline,
-                      opacity: pressed ? 0.9 : 1,
                     },
                   ]}
+                  activeOpacity={0.9}
                 >
                   <View
                     style={[
@@ -455,7 +455,7 @@ export default function HomeScreen({ navigation }: any) {
                   <Text style={[styles.feedPillText, { color: active ? '#FFFFFF' : theme.colors.onSurface }]}>
                     {k}
                   </Text>
-                </Pressable>
+                </TouchableOpacity>
               );
             })}
           </ScrollView>
@@ -553,7 +553,7 @@ export default function HomeScreen({ navigation }: any) {
         elevation={2}
       >
         <View style={styles.bottomNavRow}>
-          <Pressable onPress={() => setBottomTab('Home')} style={styles.bottomNavItem}>
+          <TouchableOpacity onPress={() => setBottomTab('Home')} style={styles.bottomNavItem} activeOpacity={0.7}>
             <MaterialCommunityIcons
               name="home-variant"
               size={24}
@@ -567,9 +567,9 @@ export default function HomeScreen({ navigation }: any) {
             >
               Home
             </Text>
-          </Pressable>
+          </TouchableOpacity>
 
-          <Pressable onPress={() => setBottomTab('Dates')} style={styles.bottomNavItem}>
+          <TouchableOpacity onPress={() => setBottomTab('Dates')} style={styles.bottomNavItem} activeOpacity={0.7}>
             <MaterialCommunityIcons
               name="heart-multiple"
               size={24}
@@ -583,16 +583,16 @@ export default function HomeScreen({ navigation }: any) {
             >
               Dates
             </Text>
-          </Pressable>
+          </TouchableOpacity>
 
-          <Pressable onPress={() => navigation.navigate('CreateSpec')} style={styles.bottomNavCenterWrap}>
+          <TouchableOpacity onPress={() => navigation.navigate('CreateSpec')} style={styles.bottomNavCenterWrap} activeOpacity={0.7}>
             <View style={[styles.bottomNavCenterBtn, { backgroundColor: theme.colors.primary }]}>
               <MaterialCommunityIcons name="plus" size={28} color={theme.colors.onPrimary} />
             </View>
             <Text style={[styles.bottomNavLabel, { color: homeColors.subtext, marginTop: 6 }]}>Create</Text>
-          </Pressable>
+          </TouchableOpacity>
 
-          <Pressable onPress={() => setBottomTab('Specs')} style={styles.bottomNavItem}>
+          <TouchableOpacity onPress={() => setBottomTab('Specs')} style={styles.bottomNavItem} activeOpacity={0.7}>
             <MaterialCommunityIcons
               name="clipboard-check-outline" // More "Spec" like (Requirements checked)
               size={24}
@@ -606,9 +606,9 @@ export default function HomeScreen({ navigation }: any) {
             >
               Specs
             </Text>
-          </Pressable>
+          </TouchableOpacity>
 
-          <Pressable onPress={() => setBottomTab('Requests')} style={styles.bottomNavItem}>
+          <TouchableOpacity onPress={() => setBottomTab('Requests')} style={styles.bottomNavItem} activeOpacity={0.7}>
             <MaterialCommunityIcons
               name="account-check"
               size={24}
@@ -622,7 +622,7 @@ export default function HomeScreen({ navigation }: any) {
             >
               Requests
             </Text>
-          </Pressable>
+          </TouchableOpacity>
         </View>
       </Surface>
     </View>

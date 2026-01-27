@@ -6,6 +6,10 @@ import * as SecureStore from 'expo-secure-store';
 const API_URL = 'http://10.0.2.2:8000/api';
 const AUTH_TOKEN_KEY = 'specdate.authToken';
 
+export function getApiBaseUrl(): string {
+    return API_URL;
+}
+
 export const api = axios.create({
     baseURL: API_URL,
     headers: {

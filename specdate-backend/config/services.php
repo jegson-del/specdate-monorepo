@@ -35,4 +35,8 @@ return [
         ],
     ],
 
+    'imagekit' => [
+        'url' => env('IMAGEKIT_URL_ENDPOINT'),
+    ],
+
 ];
