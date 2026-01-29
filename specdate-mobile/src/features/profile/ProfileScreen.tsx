@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Platform, TouchableOpacity } from 'react-native';
-import { Text, Button, useTheme, TextInput, SegmentedButtons, Searchbar, Avatar, IconButton, Surface, Divider, ActivityIndicator } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, Alert, Platform, TouchableOpacity, Image, RefreshControl } from 'react-native';
+import { Text, Button, useTheme, TextInput, SegmentedButtons, Searchbar, Avatar, IconButton, Surface, Divider, ActivityIndicator, HelperText } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { z } from 'zod';
@@ -14,9 +14,11 @@ import { Dropdown } from 'react-native-paper-dropdown';
 import { OCCUPATION_OPTIONS, QUALIFICATION_OPTIONS } from '../../constants/profileOptions';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { ProfileImageGrid, ImageViewerModal } from './components';
+import { ProfileImageGrid, ImageViewerModal, ConfirmModal } from './components';
 import { MediaService } from '../../services/media';
-import { toImageUri } from '../../utils/imageUrl';
+import { AuthService } from '../../services/auth';
+import { AccountService } from '../../services/account';
+import { toImageUri, imageUriWithCacheBust } from '../../utils/imageUrl';
 
 // --- OPTIONS & CONSTANTS ---
 const OTHER_VALUE = '__other__';
@@ -61,7 +63,7 @@ export default function ProfileScreen({ navigation }: any) {
     const theme = useTheme();
     const insets = useSafeAreaInsets();
     const queryClient = useQueryClient();
-    const { data: user } = useUser();
+    const { data: user, isRefetching, refetch: refetchUser } = useUser();
 
     // --- STATE ---
     const [loading, setLoading] = useState(false);
@@ -86,7 +88,18 @@ export default function ProfileScreen({ navigation }: any) {
     const [images, setImages] = useState<(string | null)[]>(new Array(6).fill(null));
     const [viewerVisible, setViewerVisible] = useState(false);
     const [viewerInitialIndex, setViewerInitialIndex] = useState(0);
-    const imagesFilled = useMemo(() => images.filter(Boolean) as string[], [images]);
+    // Cache-bust avatar and gallery URIs so Image components refetch when profile/avatar updates (same URL, new content)
+    const profileUpdatedAt = user?.profile?.updated_at ?? null;
+    const avatarUri = useMemo(
+        () => imageUriWithCacheBust(toImageUri(user?.profile?.avatar), profileUpdatedAt) ||
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(form?.full_name || user?.name || 'User')}&size=512&background=7C3AED&color=ffffff`,
+        [user?.profile?.avatar, profileUpdatedAt, form?.full_name, user?.name]
+    );
+    const imagesWithCacheBust = useMemo(
+        () => images.map((u) => (u ? (imageUriWithCacheBust(u, profileUpdatedAt) ?? u) : null)),
+        [images, profileUpdatedAt]
+    );
+    const imagesFilled = useMemo(() => imagesWithCacheBust.filter(Boolean) as string[], [imagesWithCacheBust]);
 
     const [form, setForm] = useState<Partial<ProfileFormData>>({
         full_name: '',
@@ -108,16 +121,19 @@ export default function ProfileScreen({ navigation }: any) {
         ethnicity: '',
     });
     const [errors, setErrors] = useState<Record<string, string>>({});
+    type ConfirmAction = 'pause' | 'unpause' | 'delete' | null;
+    const [confirmModal, setConfirmModal] = useState<ConfirmAction>(null);
+    const [accountActionLoading, setAccountActionLoading] = useState(false);
 
     // --- HELPERS ---
     const updateForm = (patch: Partial<ProfileFormData>) => setForm((prev) => ({ ...prev, ...patch }));
 
     const dobDate = useMemo(() => {
-        const raw = (form.dob || '').trim();
+        const raw = (form?.dob || '').trim();
         if (!raw) return new Date(2000, 0, 1);
         const parsed = new Date(raw);
         return isNaN(parsed.getTime()) ? new Date(2000, 0, 1) : parsed;
-    }, [form.dob]);
+    }, [form?.dob]);
 
     // --- OPTIONS MEMO ---
     const getFilteredOptions = (base: readonly string[], query: string) => {
@@ -139,34 +155,36 @@ export default function ProfileScreen({ navigation }: any) {
 
     // --- EFFECTS ---
     useEffect(() => {
-        // Load user profile data into form whenever user/profile is available
-        if (!user) return;
-        const profile = user.profile ?? {};
+        // Load user profile data into form only when we have a real user (id) so we never overwrite with empty/partial refetch
+        if (!user || typeof user.id !== 'number') return;
+        const profile = user.profile && typeof user.profile === 'object' ? user.profile : {};
         setForm({
-            full_name: profile.full_name || user.name || '',
-            dob: profile.dob ? formatYYYYMMDD(new Date(profile.dob)) : '',
-            sex: profile.sex || 'Male',
-            occupation: profile.occupation || '',
-            qualification: profile.qualification || '',
-            hobbies: profile.hobbies || '',
-            is_smoker: profile.is_smoker || false,
-            is_drug_user: profile.is_drug_user || false,
-            drinking: profile.drinking || 'no',
-            sexual_orientation: profile.sexual_orientation || 'Heterosexual',
-            latitude: profile.latitude,
-            longitude: profile.longitude,
-            city: profile.city || '',
-            state: profile.state || '',
-            country: profile.country || '',
-            height: profile.height,
-            ethnicity: profile.ethnicity || '',
+            full_name: profile?.full_name || user.name || '',
+            dob: profile?.dob ? formatYYYYMMDD(new Date(profile.dob)) : '',
+            sex: profile?.sex || 'Male',
+            occupation: profile?.occupation || '',
+            qualification: profile?.qualification || '',
+            hobbies: profile?.hobbies || '',
+            is_smoker: profile?.is_smoker ?? false,
+            is_drug_user: profile?.is_drug_user ?? false,
+            drinking: profile?.drinking || 'no',
+            sexual_orientation: profile?.sexual_orientation || 'Heterosexual',
+            latitude: profile?.latitude,
+            longitude: profile?.longitude,
+            city: profile?.city || '',
+            state: profile?.state || '',
+            country: profile?.country || '',
+            height: profile?.height,
+            ethnicity: profile?.ethnicity || '',
         });
-        // Load user images (ensure array of 6; only use valid absolute URLs)
-        if (user.images && Array.isArray(user.images)) {
-            const valid = (user.images as string[]).map((u) => toImageUri(u) ?? null).filter(Boolean) as string[];
-            const newImages = [...valid, ...new Array(6 - valid.length).fill(null)].slice(0, 6);
-            setImages(newImages);
-        }
+        // Load user images from either images[] or profile_gallery_media[] (API can return either)
+        const urlList =
+            Array.isArray(user.images) && user.images.length > 0
+                ? (user.images as string[])
+                : (user as any).profile_gallery_media?.map((m: { url?: string }) => m?.url).filter(Boolean) ?? [];
+        const valid = urlList.map((u) => toImageUri(u) ?? null).filter(Boolean) as string[];
+        const newImages = [...valid, ...new Array(6 - valid.length).fill(null)].slice(0, 6);
+        setImages(newImages);
     }, [user]);
 
     useEffect(() => {
@@ -296,11 +314,12 @@ export default function ProfileScreen({ navigation }: any) {
     };
 
     const handleSave = async () => {
+        const payload = form ?? {};
         setLoading(true);
         setErrors({});
         try {
-            profileSchema.parse(form);
-            await ProfileService.update(form);
+            profileSchema.parse(payload);
+            await ProfileService.update(payload);
             queryClient.invalidateQueries({ queryKey: ['user'] });
             Alert.alert("Success", "Profile updated!");
         } catch (error: any) {
@@ -310,7 +329,10 @@ export default function ProfileScreen({ navigation }: any) {
                     if (issue.path[0]) fieldErrors[issue.path[0].toString()] = issue.message;
                 });
                 setErrors(fieldErrors);
-                Alert.alert("Validation Error", "Please check the highlighted fields.");
+                const message = Object.values(fieldErrors).length > 0
+                    ? Object.values(fieldErrors).join('\n')
+                    : 'Please check the highlighted fields.';
+                Alert.alert("Validation Error", message);
             } else {
                 console.error(error);
                 Alert.alert("Error", "Failed to update profile.");
@@ -320,34 +342,79 @@ export default function ProfileScreen({ navigation }: any) {
         }
     };
 
-    const handleLogout = () => {
-        Alert.alert("Logout", "Are you sure you want to log out?", [
-            { text: "Cancel", style: "cancel" },
-            {
-                text: "Logout",
-                style: "destructive",
-                onPress: () => {
-                    // TODO: Implement actual logout logic (clear token, etc)
-                    navigation.reset({ index: 0, routes: [{ name: 'Auth', params: { screen: 'Login' } }] });
-                }
-            }
-        ]);
+    const handleLogout = async () => {
+        await AuthService.logout();
+        queryClient.removeQueries({ queryKey: ['user'] });
+        navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
     };
 
     const handlePauseAccount = () => {
-        Alert.alert("Pause Account", "Your profile will be hidden from the discovery feed.", [{ text: "OK" }]);
+        if (user?.is_paused) {
+            setConfirmModal('unpause');
+        } else {
+            setConfirmModal('pause');
+        }
     };
 
     const handleDeleteAccount = () => {
-        Alert.alert("Delete Account", "This action is irreversible. Are you sure?", [
-            { text: "Cancel", style: "cancel" },
-            { text: "Delete", style: "destructive", onPress: () => Alert.alert("Deleted", "Your account has been scheduled for deletion.") }
-        ]);
+        setConfirmModal('delete');
     };
 
+    const handleConfirmModalConfirm = async () => {
+        if (!confirmModal) return;
+        setAccountActionLoading(true);
+        try {
+            if (confirmModal === 'pause') {
+                await AccountService.pause();
+                queryClient.invalidateQueries({ queryKey: ['user'] });
+            } else if (confirmModal === 'unpause') {
+                await AccountService.unpause();
+                queryClient.invalidateQueries({ queryKey: ['user'] });
+            } else if (confirmModal === 'delete') {
+                await AccountService.deleteAccount();
+                await AuthService.logout();
+                queryClient.removeQueries({ queryKey: ['user'] });
+                setConfirmModal(null);
+                navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+                return;
+            }
+            setConfirmModal(null);
+        } catch (e: any) {
+            const msg = e?.response?.data?.message ?? e?.message ?? 'Something went wrong.';
+            Alert.alert('Error', msg);
+        } finally {
+            setAccountActionLoading(false);
+        }
+    };
+
+    const confirmModalConfig =
+        confirmModal === 'pause'
+            ? {
+                title: 'Pause account?',
+                message:
+                    'Your profile will be hidden from others and you won\'t be able to create specs. You can still log in and unpause anytime.',
+                confirmLabel: 'Pause',
+                destructive: false,
+            }
+            : confirmModal === 'unpause'
+                ? {
+                    title: 'Unpause account?',
+                    message: 'Your profile will be visible again and you can create specs.',
+                    confirmLabel: 'Unpause',
+                    destructive: false,
+                }
+                : confirmModal === 'delete'
+                    ? {
+                        title: 'Delete account?',
+                        message: 'This is permanent. All your data will be removed. You will not be able to recover your account.',
+                        confirmLabel: 'Delete account',
+                        destructive: true,
+                    }
+                    : null;
+
     const openImageViewer = (index: number) => {
-        const filled = images.filter(Boolean) as string[];
-        const idx = filled.indexOf(images[index] as string);
+        const filled = imagesWithCacheBust.filter(Boolean) as string[];
+        const idx = filled.indexOf(imagesWithCacheBust[index] as string);
         setViewerInitialIndex(idx >= 0 ? idx : 0);
         setViewerVisible(true);
     };
@@ -363,6 +430,13 @@ export default function ProfileScreen({ navigation }: any) {
                 contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 40 }]}
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={loading || isRefetching}
+                        onRefresh={() => queryClient.invalidateQueries({ queryKey: ['user'] })}
+                        colors={[theme.colors.primary]}
+                    />
+                }
             >
                 {/* Top Navigation */}
                 <View style={[styles.topNav, { paddingTop: insets.top + 8, paddingBottom: 8 }]}>
@@ -390,10 +464,7 @@ export default function ProfileScreen({ navigation }: any) {
                     <View style={styles.avatarContainer}>
                         <Avatar.Image
                             size={120}
-                            source={{
-                                uri: toImageUri(user?.profile?.avatar) ||
-                                    `https://ui-avatars.com/api/?name=${encodeURIComponent(form.full_name || user?.name || 'User')}&size=512&background=7C3AED&color=ffffff`
-                            }}
+                            source={{ uri: avatarUri }}
                             style={{ backgroundColor: theme.colors.surfaceVariant }}
                         />
                         <TouchableOpacity
@@ -421,18 +492,18 @@ export default function ProfileScreen({ navigation }: any) {
                         </TouchableOpacity>
                     </View>
                     <Text variant="headlineMedium" style={[styles.nameText, { color: theme.colors.onSurface }]}>
-                        {form.full_name || user?.name || 'Your Name'}
+                        {form?.full_name || user?.name || 'Your Name'}
                     </Text>
                     <View style={styles.headerMeta}>
                         <MaterialCommunityIcons name="map-marker" size={14} color={theme.colors.onSurfaceVariant} />
                         <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant, marginLeft: 4 }}>
-                            {form.city || user?.profile?.city || 'Add location'}
+                            {form?.city || user?.profile?.city || 'Add location'}
                         </Text>
-                        {form.dob && (
+                        {form?.dob && (
                             <>
                                 <Text style={{ color: theme.colors.onSurfaceVariant, marginHorizontal: 8 }}>•</Text>
                                 <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-                                    {new Date().getFullYear() - new Date(form.dob).getFullYear()} y/o
+                                    {new Date().getFullYear() - new Date(form?.dob ?? '').getFullYear()} y/o
                                 </Text>
                             </>
                         )}
@@ -459,24 +530,32 @@ export default function ProfileScreen({ navigation }: any) {
                     <View style={styles.walletRow}>
                         <View style={[styles.walletCard, { backgroundColor: theme.colors.errorContainer }]}>
                             <View style={[styles.walletIconWrap, { backgroundColor: 'rgba(239,68,68,0.2)' }]}>
-                                <MaterialCommunityIcons name="balloon" size={28} color="#EF4444" />
+                                {/* Red Spark (Life) */}
+                                <Image
+                                    source={require('../../../assets/images/spark_red.png')}
+                                    style={{ width: 34, height: 34, resizeMode: 'contain' }}
+                                />
                             </View>
                             <Text variant="headlineSmall" style={[styles.walletAmount, { color: theme.colors.onSurface }]}>
-                                {user?.balance?.red_balloons ?? 0}
+                                {user?.balance?.red_sparks ?? 0}
                             </Text>
-                            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, fontWeight: '600' }}>
-                                Red balloons
+                            <Text variant="bodySmall" numberOfLines={1} adjustsFontSizeToFit style={{ color: theme.colors.onSurfaceVariant, fontWeight: '600' }}>
+                                Red Sparks
                             </Text>
                         </View>
                         <View style={[styles.walletCard, { backgroundColor: theme.colors.primaryContainer }]}>
                             <View style={[styles.walletIconWrap, { backgroundColor: 'rgba(124,58,237,0.2)' }]}>
-                                <MaterialCommunityIcons name="balloon" size={28} color={theme.colors.primary} />
+                                {/* Blue Spark (Credit) */}
+                                <Image
+                                    source={require('../../../assets/images/spark_blue.png')}
+                                    style={{ width: 34, height: 34, resizeMode: 'contain' }}
+                                />
                             </View>
                             <Text variant="headlineSmall" style={[styles.walletAmount, { color: theme.colors.onSurface }]}>
-                                {user?.balance?.blue_balloons ?? 0}
+                                {user?.balance?.blue_sparks ?? 0}
                             </Text>
-                            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, fontWeight: '600' }}>
-                                Blue balloons
+                            <Text variant="bodySmall" numberOfLines={1} adjustsFontSizeToFit style={{ color: theme.colors.onSurfaceVariant, fontWeight: '600' }}>
+                                Blue Sparks
                             </Text>
                         </View>
                     </View>
@@ -491,7 +570,7 @@ export default function ProfileScreen({ navigation }: any) {
                         Add up to 6 photos to show off your best self.
                     </Text>
                     <ProfileImageGrid
-                        images={images}
+                        images={imagesWithCacheBust}
                         maxSlots={6}
                         readOnly={false}
                         onImagePress={openImageViewer}
@@ -514,13 +593,14 @@ export default function ProfileScreen({ navigation }: any) {
                     <TextInput
                         mode="flat"
                         label="Full Name"
-                        value={form.full_name}
+                        value={form?.full_name}
                         onChangeText={(t) => updateForm({ full_name: t })}
                         style={styles.input}
                         error={!!errors.full_name}
                         contentStyle={styles.inputContent}
                         underlineColor="transparent"
                     />
+                    {!!errors.full_name && <HelperText type="error" visible>{errors.full_name}</HelperText>}
 
                     <Divider style={styles.divider} />
 
@@ -528,12 +608,14 @@ export default function ProfileScreen({ navigation }: any) {
                         mode="flat"
                         label="Date of Birth"
                         value={form.dob}
+                        error={!!errors.dob}
                         editable={false}
                         right={<TextInput.Icon icon="calendar" onPress={openDobPicker} />}
                         style={styles.input}
                         contentStyle={styles.inputContent}
                         underlineColor="transparent"
                     />
+                    {!!errors.dob && <HelperText type="error" visible>{errors.dob}</HelperText>}
                     {/* DateTimePicker rendering logic */}
                     {DateTimePicker && Platform.OS !== 'android' && showDobPicker && (
                         <DateTimePicker
@@ -553,7 +635,7 @@ export default function ProfileScreen({ navigation }: any) {
                     <View style={styles.rowInput}>
                         <Text variant="bodyLarge" style={{ color: theme.colors.onSurfaceVariant }}>Gender</Text>
                         <SegmentedButtons
-                            value={form.sex || 'Male'}
+                            value={form?.sex || 'Male'}
                             onValueChange={(val) => updateForm({ sex: val as any })}
                             buttons={[
                                 { value: 'Male', label: 'M' },
@@ -583,8 +665,67 @@ export default function ProfileScreen({ navigation }: any) {
                             <Searchbar placeholder="Search..." value={occupationSearch} onChangeText={setOccupationSearch} />
                         )}
                     />
+                    {!!errors.occupation && <HelperText type="error" visible>{errors.occupation}</HelperText>}
                     {occupationSelect === OTHER_VALUE && (
                         <TextInput label="Specify Occupation" value={occupationOther} onChangeText={(t) => { setOccupationOther(t); updateForm({ occupation: t }); }} mode="flat" style={styles.input} />
+                    )}
+
+                    <Divider style={styles.divider} />
+
+                    <Dropdown
+                        label="Qualification"
+                        placeholder="Select..."
+                        mode="flat"
+                        options={qualificationOptions}
+                        value={qualificationSelect}
+                        onSelect={(v) => {
+                            setQualificationSelect(v);
+                            setQualificationSearch('');
+                            if (v === OTHER_VALUE) setForm((p) => ({ ...p, qualification: qualificationOther }));
+                            else setForm((p) => ({ ...p, qualification: v || '' }));
+                        }}
+                        CustomMenuHeader={() => (
+                            <Searchbar placeholder="Search..." value={qualificationSearch} onChangeText={setQualificationSearch} />
+                        )}
+                    />
+                    {!!errors.qualification && <HelperText type="error" visible>{errors.qualification}</HelperText>}
+                    {qualificationSelect === OTHER_VALUE && (
+                        <TextInput label="Specify Qualification" value={qualificationOther} onChangeText={(t) => { setQualificationOther(t); updateForm({ qualification: t }); }} mode="flat" style={styles.input} />
+                    )}
+
+                    <Divider style={styles.divider} />
+
+                    <Dropdown
+                        label="Height (cm)"
+                        placeholder="Select..."
+                        mode="flat"
+                        options={HEIGHT_OPTIONS}
+                        value={form?.height != null ? String(form.height) : undefined}
+                        onSelect={(v) => updateForm({ height: v ? Number(v) : undefined })}
+                    />
+                    {!!errors.height && <HelperText type="error" visible>{errors.height}</HelperText>}
+
+                    <Divider style={styles.divider} />
+
+                    <Dropdown
+                        label="Ethnicity"
+                        placeholder="Select..."
+                        mode="flat"
+                        options={ethnicityOptions}
+                        value={ethnicitySelect}
+                        onSelect={(v) => {
+                            setEthnicitySelect(v);
+                            setEthnicitySearch('');
+                            if (v === OTHER_VALUE) setForm((p) => ({ ...p, ethnicity: ethnicityOther }));
+                            else setForm((p) => ({ ...p, ethnicity: v || '' }));
+                        }}
+                        CustomMenuHeader={() => (
+                            <Searchbar placeholder="Search..." value={ethnicitySearch} onChangeText={setEthnicitySearch} />
+                        )}
+                    />
+                    {!!errors.ethnicity && <HelperText type="error" visible>{errors.ethnicity}</HelperText>}
+                    {ethnicitySelect === OTHER_VALUE && (
+                        <TextInput label="Specify Ethnicity" value={ethnicityOther} onChangeText={(t) => { setEthnicityOther(t); updateForm({ ethnicity: t }); }} mode="flat" style={styles.input} />
                     )}
                 </Surface>
 
@@ -601,7 +742,9 @@ export default function ProfileScreen({ navigation }: any) {
                         multiline
                         placeholder="What do you love doing?"
                         underlineColor="transparent"
+                        error={!!errors.hobbies}
                     />
+                    {!!errors.hobbies && <HelperText type="error" visible>{errors.hobbies}</HelperText>}
                 </Surface>
 
                 <Surface style={[styles.section, { backgroundColor: theme.colors.elevation.level1 }]} elevation={0}>
@@ -616,7 +759,7 @@ export default function ProfileScreen({ navigation }: any) {
                             </Text>
                         </View>
                         <SegmentedButtons
-                            value={form.is_smoker ? 'yes' : 'no'}
+                            value={form?.is_smoker ? 'yes' : 'no'}
                             onValueChange={(v) => updateForm({ is_smoker: v === 'yes' })}
                             buttons={[{ value: 'no', label: 'No' }, { value: 'yes', label: 'Yes' }]}
                             density="small"
@@ -637,7 +780,7 @@ export default function ProfileScreen({ navigation }: any) {
                                 placeholder="Select..."
                                 mode="flat"
                                 options={DRINKING_OPTIONS}
-                                value={form.drinking || 'no'}
+                                value={form?.drinking || 'no'}
                                 onSelect={(v) => updateForm({ drinking: (v as string) || 'no' })}
                             />
                         </View>
@@ -651,7 +794,7 @@ export default function ProfileScreen({ navigation }: any) {
                             </Text>
                         </View>
                         <SegmentedButtons
-                            value={form.is_drug_user ? 'yes' : 'no'}
+                            value={form?.is_drug_user ? 'yes' : 'no'}
                             onValueChange={(v) => updateForm({ is_drug_user: v === 'yes' })}
                             buttons={[{ value: 'no', label: 'No' }, { value: 'yes', label: 'Yes' }]}
                             density="small"
@@ -684,14 +827,20 @@ export default function ProfileScreen({ navigation }: any) {
                     >
                         <View style={styles.accountActionLeft}>
                             <View style={[styles.accountIconContainer, { backgroundColor: theme.colors.secondaryContainer }]}>
-                                <MaterialCommunityIcons name="pause-circle" size={22} color={theme.colors.secondary} />
+                                <MaterialCommunityIcons
+                                    name={user?.is_paused ? 'play-circle' : 'pause-circle'}
+                                    size={22}
+                                    color={theme.colors.secondary}
+                                />
                             </View>
                             <View style={styles.accountActionText}>
                                 <Text variant="bodyLarge" style={{ color: theme.colors.onSurface, fontWeight: '600' }}>
-                                    Pause Account
+                                    {user?.is_paused ? 'Paused' : 'Pause Account'}
                                 </Text>
                                 <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 2 }}>
-                                    Hide your profile temporarily
+                                    {user?.is_paused
+                                        ? 'Your profile is hidden. Tap to unpause.'
+                                        : 'Hide your profile temporarily'}
                                 </Text>
                             </View>
                         </View>
@@ -754,6 +903,19 @@ export default function ProfileScreen({ navigation }: any) {
                 onClose={() => setViewerVisible(false)}
                 onReplace={(index) => { setViewerVisible(false); pickFromGallery('profile_gallery', index); }}
             />
+
+            {confirmModalConfig && (
+                <ConfirmModal
+                    visible={!!confirmModal}
+                    title={confirmModalConfig.title}
+                    message={confirmModalConfig.message}
+                    confirmLabel={confirmModalConfig.confirmLabel}
+                    onConfirm={handleConfirmModalConfirm}
+                    onCancel={() => setConfirmModal(null)}
+                    destructive={confirmModalConfig.destructive}
+                    loading={accountActionLoading}
+                />
+            )}
         </View>
     );
 }
@@ -847,7 +1009,7 @@ const styles = StyleSheet.create({
     walletCard: {
         flex: 1,
         borderRadius: 16,
-        padding: 16,
+        padding: 12,
         alignItems: 'center',
         minHeight: 100,
         justifyContent: 'center',

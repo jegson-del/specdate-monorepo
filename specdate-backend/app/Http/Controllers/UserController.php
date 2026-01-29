@@ -25,6 +25,10 @@ class UserController extends Controller
             return $this->sendError('User not found.', [], 404);
         }
 
+        if ($user->is_paused) {
+            return $this->sendError('User not found.', [], 404);
+        }
+
         $profile = $user->profile;
         $specsCreated = Spec::where('user_id', $id)->count();
         $specsParticipated = SpecApplication::where('user_id', $id)

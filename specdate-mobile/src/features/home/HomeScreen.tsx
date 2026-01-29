@@ -1,11 +1,14 @@
-import React, { useMemo, useState } from 'react';
-import { View, StyleSheet, FlatList, TouchableOpacity, ImageBackground, ScrollView } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { View, StyleSheet, FlatList, TouchableOpacity, ImageBackground, ScrollView, Image } from 'react-native';
 import { ActivityIndicator, Text, useTheme, IconButton, Surface, Searchbar, Avatar, Portal, Modal, SegmentedButtons } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SpecService } from '../../services/specs';
-import { useQuery } from '@tanstack/react-query';
+import { useUser } from '../../hooks/useUser';
+import { toImageUri } from '../../utils/imageUrl';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import SpecCard from './components/SpecCard';
 import PersonCard from './components/PersonCard';
 
@@ -20,6 +23,7 @@ type SpecCardItem = {
   firstDateProvider: string;
   likesCount: number;
   tag: 'LIVE' | 'ONGOING' | 'POPULAR' | 'HOTTEST';
+  ownerAvatar?: string;
 };
 
 type FeedKey = SpecCardItem['tag'];
@@ -136,6 +140,10 @@ function withAlpha(color: string, alpha: number) {
 
 export default function HomeScreen({ navigation }: any) {
   const theme = useTheme();
+  const queryClient = useQueryClient();
+  const { data: user } = useUser();
+  const avatarUrl = useMemo(() => toImageUri(user?.profile?.avatar), [user?.profile?.avatar]);
+
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<HomeTab>('Specs');
   const [feed, setFeed] = useState<FeedKey>('LIVE');
@@ -146,36 +154,55 @@ export default function HomeScreen({ navigation }: any) {
 
 
 
+  const fetchSpecsForFeed = useCallback(async (f: FeedKey): Promise<SpecCardItem[]> => {
+    const res = await SpecService.getAll(f);
+    const paginator = res?.data;
+    const fetched: any[] = Array.isArray(paginator) ? paginator : (paginator?.data || []);
+
+    return fetched.map((s: any) => {
+      const end = new Date(s.expires_at);
+      const now = new Date();
+      const diffMs = end.getTime() - now.getTime();
+      const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+      const expiresText = diffDays > 0 ? `Ends in ${diffDays}d` : 'Ending soon';
+
+      return {
+        id: String(s.id),
+        title: s.title,
+        owner: s.owner?.profile?.full_name || s.owner?.name || 'Unknown',
+        expiresIn: expiresText,
+        joinCount: s.applications_count || 0,
+        maxParticipants: s.max_participants,
+        eliminatedCount: 0,
+        firstDateProvider: '—',
+        likesCount: s.likes_count || 0,
+        tag: s.tag || f,
+        ownerAvatar: s.owner?.avatar || s.owner?.profile?.avatar,
+      } as SpecCardItem;
+    });
+  }, []);
+
   const { data: specs = [], isLoading, error, isError, refetch, isRefetching } = useQuery({
-    queryKey: ['specs', feed], // Add feed to key to trigger refetch on change
+    queryKey: ['specs', feed],
     retry: false,
-    queryFn: async () => {
-      const res = await SpecService.getAll(feed); // Pass filter
-      const paginator = res.data;
-      const fetched: any[] = Array.isArray(paginator) ? paginator : (paginator?.data || []);
-
-      return fetched.map((s: any) => {
-        const end = new Date(s.expires_at);
-        const now = new Date();
-        const diffMs = end.getTime() - now.getTime();
-        const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-        const expiresText = diffDays > 0 ? `Ends in ${diffDays}d` : 'Ending soon';
-
-        return {
-          id: String(s.id),
-          title: s.title,
-          owner: s.owner?.profile?.full_name || s.owner?.name || 'Unknown',
-          expiresIn: expiresText,
-          joinCount: s.applications_count || 0,
-          maxParticipants: s.max_participants,
-          eliminatedCount: 0,
-          firstDateProvider: '—',
-          likesCount: s.likes_count || 0,
-          tag: s.tag || feed, // Use backend provided tag or current feed
-        } as SpecCardItem;
-      });
-    },
+    staleTime: 60 * 1000,
+    placeholderData: (previousData) => previousData,
+    queryFn: () => fetchSpecsForFeed(feed),
   });
+
+  const feedKeys: FeedKey[] = ['LIVE', 'ONGOING', 'POPULAR', 'HOTTEST'];
+
+  // When Home is focused: refetch current feed and prefetch other feeds so tab clicks show data quickly
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+      feedKeys.forEach((f) => {
+        if (f !== feed) {
+          queryClient.prefetchQuery({ queryKey: ['specs', f], queryFn: () => fetchSpecsForFeed(f) });
+        }
+      });
+    }, [refetch, feed, queryClient, fetchSpecsForFeed])
+  );
 
   const specsErrorText = useMemo(() => {
     if (!isError) return '';
@@ -196,8 +223,6 @@ export default function HomeScreen({ navigation }: any) {
 
     return `${msg}\n${hint}`;
   }, [error, isError]);
-
-  console.log('HomeScreen rendering. Specs count:', specs.length);
 
   /*
   // Imported components to avoid inline renderItem causing VirtualizedList warnings
@@ -286,12 +311,18 @@ export default function HomeScreen({ navigation }: any) {
           },
         ]}
       >
-        <IconButton
-          icon="account-circle"
-          size={28}
-          iconColor={homeColors.text}
-          onPress={() => navigation.navigate('Profile')}
-        />
+        {avatarUrl ? (
+          <TouchableOpacity onPress={() => navigation.navigate('Profile')} activeOpacity={0.8} style={{ marginLeft: 6 }}>
+            <Avatar.Image size={32} source={{ uri: avatarUrl }} style={{ backgroundColor: theme.colors.surfaceVariant }} />
+          </TouchableOpacity>
+        ) : (
+          <IconButton
+            icon="account-circle"
+            size={28}
+            iconColor={homeColors.text}
+            onPress={() => navigation.navigate('Profile')}
+          />
+        )}
 
         <View style={styles.titleWrap}>
           <Text style={[styles.title, { color: theme.colors.primary }]}>Spec A Date</Text>
@@ -431,12 +462,15 @@ export default function HomeScreen({ navigation }: any) {
       {tab === 'Specs' ? (
         <View style={[styles.feedWrap, { paddingLeft: insets.left + 16, paddingRight: insets.right + 16 }]}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.feedScroll}>
-            {(['LIVE', 'ONGOING', 'POPULAR', 'HOTTEST'] as FeedKey[]).map((k) => {
+            {feedKeys.map((k) => {
               const active = feed === k;
               return (
                 <TouchableOpacity
                   key={k}
-                  onPress={() => setFeed(k)}
+                  onPress={() => {
+                    setFeed(k);
+                    queryClient.refetchQueries({ queryKey: ['specs', k] });
+                  }}
                   style={[
                     styles.feedPill,
                     {
@@ -511,7 +545,10 @@ export default function HomeScreen({ navigation }: any) {
               homeColors={homeColors}
               tagColor={tagColor}
               withAlpha={withAlpha}
-              onPress={() => navigation.navigate('SpecDetails', { specId: item.id })}
+              onPress={() => {
+                queryClient.prefetchQuery({ queryKey: ['spec', item.id], queryFn: () => SpecService.getOne(item.id) });
+                navigation.navigate('SpecDetails', { specId: item.id });
+              }}
             />
           )}
         />
@@ -570,11 +607,31 @@ export default function HomeScreen({ navigation }: any) {
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => setBottomTab('Dates')} style={styles.bottomNavItem} activeOpacity={0.7}>
-            <MaterialCommunityIcons
-              name="heart-multiple"
-              size={24}
-              color={bottomTab === 'Dates' ? theme.colors.primary : homeColors.subtext}
-            />
+            {bottomTab === 'Dates' ? (
+              <View style={{
+                shadowColor: theme.colors.primary,
+                shadowRadius: 8,
+                shadowOpacity: 0.5,
+                shadowOffset: { width: 0, height: 0 },
+                backgroundColor: 'rgba(255,255,255,0.1)',
+                borderRadius: 16,
+                padding: 6
+              }}>
+                <MaterialCommunityIcons
+                  name="heart"
+                  size={24}
+                  color="#D946EF"
+                  style={{ textShadowColor: '#D946EF', textShadowRadius: 10 }}
+                />
+              </View>
+            ) : (
+              <MaterialCommunityIcons
+                name="heart-outline"
+                size={28}
+                color="#D946EF"
+                style={{ opacity: 0.5 }}
+              />
+            )}
             <Text
               style={[
                 styles.bottomNavLabel,
@@ -593,11 +650,31 @@ export default function HomeScreen({ navigation }: any) {
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => setBottomTab('Specs')} style={styles.bottomNavItem} activeOpacity={0.7}>
-            <MaterialCommunityIcons
-              name="clipboard-check-outline" // More "Spec" like (Requirements checked)
-              size={24}
-              color={bottomTab === 'Specs' ? theme.colors.primary : homeColors.subtext}
-            />
+            {bottomTab === 'Specs' ? (
+              <View style={{
+                shadowColor: theme.colors.primary,
+                shadowRadius: 8,
+                shadowOpacity: 0.5,
+                shadowOffset: { width: 0, height: 0 },
+                backgroundColor: 'rgba(255,255,255,0.1)',
+                borderRadius: 16,
+                padding: 6
+              }}>
+                <MaterialCommunityIcons
+                  name="clipboard-list"
+                  size={24}
+                  color="#8B5CF6"
+                  style={{ textShadowColor: '#8B5CF6', textShadowRadius: 10 }}
+                />
+              </View>
+            ) : (
+              <MaterialCommunityIcons
+                name="clipboard-list-outline"
+                size={28}
+                color="#8B5CF6"
+                style={{ opacity: 0.5 }}
+              />
+            )}
             <Text
               style={[
                 styles.bottomNavLabel,
@@ -609,11 +686,31 @@ export default function HomeScreen({ navigation }: any) {
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => setBottomTab('Requests')} style={styles.bottomNavItem} activeOpacity={0.7}>
-            <MaterialCommunityIcons
-              name="account-check"
-              size={24}
-              color={bottomTab === 'Requests' ? theme.colors.primary : homeColors.subtext}
-            />
+            {bottomTab === 'Requests' ? (
+              <View style={{
+                shadowColor: theme.colors.primary,
+                shadowRadius: 8,
+                shadowOpacity: 0.5,
+                shadowOffset: { width: 0, height: 0 },
+                backgroundColor: 'rgba(255,255,255,0.1)',
+                borderRadius: 16,
+                padding: 6
+              }}>
+                <MaterialCommunityIcons
+                  name="account-plus"
+                  size={24}
+                  color="#06B6D4"
+                  style={{ textShadowColor: '#06B6D4', textShadowRadius: 10 }}
+                />
+              </View>
+            ) : (
+              <MaterialCommunityIcons
+                name="account-plus-outline"
+                size={28}
+                color="#06B6D4"
+                style={{ opacity: 0.5 }}
+              />
+            )}
             <Text
               style={[
                 styles.bottomNavLabel,

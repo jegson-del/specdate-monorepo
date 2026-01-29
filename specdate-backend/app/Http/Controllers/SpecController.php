@@ -69,6 +69,7 @@ class SpecController extends Controller
      */
     /**
      * Display the specified spec.
+     * Injects owner and participants' avatar URLs from media table (url column) into profile.avatar.
      */
     public function show(Request $request, $id)
     {
@@ -79,7 +80,33 @@ class SpecController extends Controller
             return $this->sendError('Spec not found.', [], 404);
         }
 
-        return $this->sendResponse($spec, 'Spec retrieved successfully.');
+        $data = $spec->toArray();
+        // Owner avatar from media table (url column)
+        if (!empty($data['owner'])) {
+            $owner = $spec->owner;
+            $avatarMedia = $owner->relationLoaded('media') ? $owner->media->where('type', 'avatar')->sortByDesc('id')->first() : null;
+            $avatarUrl = $avatarMedia ? $avatarMedia->url : null;
+            if (!isset($data['owner']['profile'])) {
+                $data['owner']['profile'] = [];
+            }
+            $data['owner']['profile']['avatar'] = $avatarUrl ?? ($data['owner']['profile']['avatar'] ?? null);
+        }
+        // Each application participant's avatar from media table
+        if (!empty($data['applications'])) {
+            foreach ($spec->applications as $i => $app) {
+                $u = $app->user;
+                if ($u && isset($data['applications'][$i]['user'])) {
+                    $avatarMedia = $u->relationLoaded('media') ? $u->media->where('type', 'avatar')->sortByDesc('id')->first() : null;
+                    $avatarUrl = $avatarMedia ? $avatarMedia->url : null;
+                    if (!isset($data['applications'][$i]['user']['profile'])) {
+                        $data['applications'][$i]['user']['profile'] = [];
+                    }
+                    $data['applications'][$i]['user']['profile']['avatar'] = $avatarUrl ?? ($data['applications'][$i]['user']['profile']['avatar'] ?? null);
+                }
+            }
+        }
+
+        return $this->sendResponse($data, 'Spec retrieved successfully.');
     }
 
     /**
@@ -170,6 +197,38 @@ class SpecController extends Controller
         try {
             $result = $this->specService->toggleLike($request->user(), $id);
             return $this->sendResponse($result, 'Like toggled.');
+        } catch (HttpException $e) {
+            return $this->sendError($e->getMessage(), [], $e->getStatusCode());
+        }
+    }
+    public function startRound(Request $request, $id)
+    {
+        $request->validate(['question' => 'required|string']);
+        try {
+            $round = $this->specService->startRound($request->user(), $id, $request->input('question'));
+            return $this->sendResponse($round, 'Round started.');
+        } catch (HttpException $e) {
+            return $this->sendError($e->getMessage(), [], $e->getStatusCode());
+        }
+    }
+
+    public function submitAnswer(Request $request, $roundId)
+    {
+        $request->validate(['answer' => 'required|string']);
+        try {
+            $answer = $this->specService->submitAnswer($request->user(), $roundId, $request->input('answer'));
+            return $this->sendResponse($answer, 'Answer submitted.');
+        } catch (HttpException $e) {
+            return $this->sendError($e->getMessage(), [], $e->getStatusCode());
+        }
+    }
+
+    public function eliminateUsers(Request $request, $roundId)
+    {
+        $request->validate(['user_ids' => 'required|array']);
+        try {
+            $result = $this->specService->eliminateUsers($request->user(), $roundId, $request->input('user_ids'));
+            return $this->sendResponse($result, 'Users eliminated.');
         } catch (HttpException $e) {
             return $this->sendError($e->getMessage(), [], $e->getStatusCode());
         }

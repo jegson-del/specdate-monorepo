@@ -36,7 +36,10 @@ class MediaService
             }
             $media = Media::where('id', $mediaId)->where('user_id', $user->id)->where('type', $type)->firstOrFail();
             Storage::disk('s3')->delete($media->file_path);
-            Storage::disk('s3')->putFileAs($path, $file, $filename, 'public');
+            Storage::disk('s3')->putFileAs($path, $file, $filename, [
+                'visibility' => 'public',
+                'ACL' => 'public-read',
+            ]);
             $url = Storage::disk('s3')->url($fullPath);
             $media->update([
                 'file_path' => $fullPath,
@@ -63,7 +66,10 @@ class MediaService
             }
         }
 
-        Storage::disk('s3')->putFileAs($path, $file, $filename, 'public');
+        Storage::disk('s3')->putFileAs($path, $file, $filename, [
+            'visibility' => 'public',
+            'ACL' => 'public-read',
+        ]);
         $url = Storage::disk('s3')->url($fullPath);
 
         return Media::create([

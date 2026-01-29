@@ -41,4 +41,9 @@ class Spec extends Model
     {
         return $this->hasMany(SpecLike::class);
     }
+
+    public function rounds()
+    {
+        return $this->hasMany(SpecRound::class);
+    }
 }

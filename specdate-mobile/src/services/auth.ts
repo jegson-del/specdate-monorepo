@@ -28,6 +28,11 @@ export const AuthService = {
     },
 
     logout: async () => {
+        try {
+            await api.post('/logout');
+        } catch {
+            // Proceed to clear token even if backend call fails (e.g. offline)
+        }
         await setAuthToken(null);
-    }
+    },
 };

@@ -47,15 +47,15 @@ class ProfileService
     }
 
     /**
-     * Check if the profile is complete.
+     * Check if the profile is complete (required for spec join, filter, and creation).
+     * Includes occupation, qualification, sexual_orientation, hobbies for spec filtering and creation.
      *
      * @param \App\Models\UserProfile $profile
      * @return bool
      */
     public function isComplete($profile)
     {
-        // Required fields for "profile complete" gate.
-        // Note: booleans must be checked for null (false is valid).
+        // Required strings: identity, location, and fields used for spec filter/creation
         $requiredStrings = [
             'full_name',
             'dob',
@@ -79,6 +79,7 @@ class ProfileService
             }
         }
 
+        // Lifestyle booleans must be set (false is valid, null is not)
         $requiredBooleans = [
             'is_smoker',
             'is_drug_user',

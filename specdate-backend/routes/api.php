@@ -8,8 +8,13 @@ Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 
 Route::middleware(['auth:sanctum'])->group(function () {
+    Route::post('/logout', [AuthController::class, 'logout']);
+    Route::post('/account/pause', [\App\Http\Controllers\AccountController::class, 'pause']);
+    Route::post('/account/unpause', [\App\Http\Controllers\AccountController::class, 'unpause']);
+    Route::delete('/account', [\App\Http\Controllers\AccountController::class, 'delete']);
+
     Route::get('/user', function (Request $request) {
-        $user = $request->user()->load(['balance', 'profile', 'balloonSkin', 'media']);
+        $user = $request->user()->load(['balance', 'profile', 'sparkSkin', 'media']);
         $data = $user->toArray();
         // Expose avatar URL and media id so mobile can send media_id when editing (update that row).
         $avatarMedia = $user->media->where('type', 'avatar')->sortByDesc('id')->first();
@@ -33,4 +38,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/specs/{id}/like', [\App\Http\Controllers\SpecController::class, 'toggleLike']);
     Route::post('/media/upload', [\App\Http\Controllers\MediaController::class, 'upload']);
     Route::apiResource('specs', \App\Http\Controllers\SpecController::class);
+
+    // Rounds
+    Route::post('/specs/{id}/rounds', [\App\Http\Controllers\SpecController::class, 'startRound']);
+    Route::post('/rounds/{roundId}/answer', [\App\Http\Controllers\SpecController::class, 'submitAnswer']);
+    Route::post('/rounds/{roundId}/eliminate', [\App\Http\Controllers\SpecController::class, 'eliminateUsers']);
+
+    // Notifications
+    Route::get('/notifications', [\App\Http\Controllers\Api\NotificationController::class, 'index']);
+    Route::post('/notifications/{notification}/read', [\App\Http\Controllers\Api\NotificationController::class, 'markRead']);
+    Route::post('/user/push-token', [\App\Http\Controllers\Api\NotificationController::class, 'updatePushToken']);
 });

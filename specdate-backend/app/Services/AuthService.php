@@ -8,11 +8,11 @@ use Illuminate\Support\Facades\Auth;
 
 class AuthService
 {
-    protected $balloonService;
+    protected $sparkService;
 
-    public function __construct(BalloonService $balloonService)
+    public function __construct(SparkService $sparkService)
     {
-        $this->balloonService = $balloonService;
+        $this->sparkService = $sparkService;
     }
 
     /**
@@ -47,8 +47,8 @@ class AuthService
             // ideally we'd validate them here if sent, but simpler to just init location.
         ]);
 
-        // 3. Initialize Balloons
-        $this->balloonService->initializeForUser($user);
+        // 3. Initialize Sparks
+        $this->sparkService->initializeForUser($user);
 
         // 3. Create Token
         $token = $user->createToken('auth_token')->plainTextToken;

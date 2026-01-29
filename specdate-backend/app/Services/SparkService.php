@@ -4,12 +4,12 @@ namespace App\Services;
 
 use App\Models\User;
 use App\Models\UserBalance;
-use App\Models\BalloonSkin;
+use App\Models\SparkSkin;
 
-class BalloonService
+class SparkService
 {
     /**
-     * Initialize user's balloon account with default credits and skin.
+     * Initialize user's spark account with default credits and skin.
      *
      * @param User $user
      * @return void
@@ -19,17 +19,17 @@ class BalloonService
         // 1. Assign Initial Credits
         UserBalance::create([
             'user_id' => $user->id,
-            'red_balloons' => 2,
-            'blue_balloons' => 2,
+            'red_sparks' => 2,
+            'blue_sparks' => 2,
         ]);
 
-        // 2. Create Default Skin
-        BalloonSkin::create([
+        // 2. Create Default Skin (Basic Spark)
+        SparkSkin::create([
             'user_id' => $user->id,
             'color_hex' => '#0000FF', // Default Blue
             'label' => $user->username,
         ]);
     }
 
-    // Future methods: distinct methods for deducting/adding balloons will go here
+    // Future methods: distinct methods for deducting/adding sparks will go here
 }

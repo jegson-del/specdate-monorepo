@@ -24,6 +24,8 @@ class User extends Authenticatable
         'email',
         'mobile',   // Added
         'password',
+        'is_paused',
+        'expo_push_token',
     ];
 
     /**
@@ -46,6 +48,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'is_paused' => 'boolean',
         ];
     }
 
@@ -59,14 +62,24 @@ class User extends Authenticatable
         return $this->hasOne(UserBalance::class);
     }
 
+    public function transactions()
+    {
+        return $this->hasMany(UserTransaction::class);
+    }
+
     public function media()
     {
         return $this->hasMany(Media::class);
     }
 
-    public function balloonSkin()
+    public function notifications()
     {
-        return $this->hasOne(BalloonSkin::class);
+        return $this->hasMany(Notification::class);
+    }
+
+    public function sparkSkin()
+    {
+        return $this->hasOne(SparkSkin::class);
     }
 
     /**
@@ -95,5 +108,19 @@ class User extends Authenticatable
             ->all();
     }
 
-    protected $appends = ['profile_complete', 'images'];
+    /**
+     * Get the avatar URL.
+     *
+     * @return string|null
+     */
+    public function getAvatarAttribute(): ?string
+    {
+        return $this->media
+            ->where('type', 'avatar')
+            ->sortByDesc('id')
+            ->first()
+            ?->url;
+    }
+
+    protected $appends = ['profile_complete', 'images', 'avatar'];
 }

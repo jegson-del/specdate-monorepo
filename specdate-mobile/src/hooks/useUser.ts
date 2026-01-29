@@ -3,6 +3,15 @@ import { api } from '../services/api';
 
 export type ProfileGallerySlot = { id: number; url: string };
 
+export type UserBalance = {
+    id: number;
+    user_id: number;
+    red_sparks: number;
+    blue_sparks: number;
+    created_at: string;
+    updated_at: string;
+};
+
 export type User = {
     id: number;
     name: string;
@@ -11,11 +20,13 @@ export type User = {
     mobile?: string;
     profile?: any;
     profile_complete: boolean;
-    balance?: any;
-    balloon_skin?: any;
+    balance?: UserBalance;
+    spark_skin?: any;
     images?: string[];
     /** Gallery slots with id+url so client can send media_id when replacing a slot (max 6). */
     profile_gallery_media?: ProfileGallerySlot[];
+    /** When true, profile is hidden and user cannot create specs. */
+    is_paused?: boolean;
 };
 
 async function fetchUser(): Promise<User> {
@@ -30,7 +41,9 @@ export function useUser() {
     return useQuery({
         queryKey: ['user'],
         queryFn: fetchUser,
-        staleTime: 1000 * 60 * 5, // 5 minutes
+        staleTime: 1000 * 30, // 30 seconds — profile/image updates show sooner when navigating back
         retry: false, // Don't retry if 401/failed
+        // Keep showing previous user data while refetching (e.g. on Profile focus) so profile doesn't flash to empty/dummy
+        placeholderData: (previousData) => previousData,
     });
 }

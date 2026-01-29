@@ -15,15 +15,16 @@ export const registerSchema = z.object({
 
 export const profileSchema = z.object({
     full_name: z.string().min(2, "Full Name is required"),
-    dob: z.string().refine((date) => !isNaN(Date.parse(date)), { message: "Invalid date" }),
+    dob: z.string().min(1, "Date of birth is required").refine((date) => !isNaN(Date.parse(date)), { message: "Invalid date" }),
     sex: z.enum(['Male', 'Female', 'Other'], { message: "Please select a gender" }),
-    occupation: z.string().min(2, "Occupation is required"),
-    qualification: z.string().min(2, "Qualification is required"),
-    hobbies: z.string().min(2, "Hobbies is required"),
+    // Required for spec filter/creation and profile complete
+    occupation: z.string().min(1, "Occupation is required"),
+    qualification: z.string().min(1, "Qualification is required"),
+    sexual_orientation: z.string().min(1, "Sexual orientation is required"),
+    hobbies: z.string().min(1, "Hobbies is required"),
     is_smoker: z.boolean(),
     is_drug_user: z.boolean(),
     drinking: z.string().optional(),
-    sexual_orientation: z.string().min(2, "Sexual orientation is required"),
     latitude: z.coerce.number().min(-90).max(90).optional(),
     longitude: z.coerce.number().min(-180).max(180).optional(),
     city: z.string().min(1, "City is required"),

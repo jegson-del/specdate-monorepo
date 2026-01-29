@@ -42,7 +42,9 @@ export const SpecService = {
 
     async getOne(id: string) {
         const response = await api.get(`/specs/${id}`);
-        return response.data;
+        const body = response.data as any;
+        // Laravel sendResponse wraps as { success, data, message }; unwrap so caller gets the spec object
+        return body?.data !== undefined ? body.data : body;
     },
 
     async create(payload: CreateSpecPayload) {
@@ -67,6 +69,16 @@ export const SpecService = {
 
     async eliminateApplication(specId: string, applicationId: string) {
         const response = await api.post(`/specs/${specId}/applications/${applicationId}/eliminate`);
+        return response.data;
+    },
+
+    async startRound(specId: string, question: string) {
+        const response = await api.post(`/specs/${specId}/rounds`, { question });
+        return response.data;
+    },
+
+    async submitAnswer(roundId: number, answer: string) {
+        const response = await api.post(`/rounds/${roundId}/answer`, { answer });
         return response.data;
     },
 

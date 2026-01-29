@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Services\AuthService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RegisterRequest;
 
@@ -35,5 +36,14 @@ class AuthController extends Controller
         }
 
         return $this->sendResponse($result, 'User logged in successfully.');
+    }
+
+    /**
+     * Revoke the current access token (logout). Requires auth:sanctum.
+     */
+    public function logout(Request $request): JsonResponse
+    {
+        $request->user()->currentAccessToken()->delete();
+        return $this->sendResponse(null, 'Logged out successfully.');
     }
 }

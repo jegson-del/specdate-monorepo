@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { View, StyleSheet, TouchableOpacity, ImageBackground } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, ImageBackground, Image } from 'react-native';
 import { Text, Surface } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -15,6 +15,7 @@ type SpecCardItem = {
     firstDateProvider: string;
     likesCount: number;
     tag: 'LIVE' | 'ONGOING' | 'POPULAR' | 'HOTTEST';
+    ownerAvatar?: string;
 };
 
 type Props = {
@@ -56,7 +57,7 @@ const SpecCard = memo(({ item, theme, homeColors, tagColor, withAlpha, onPress }
                     {/* Media */}
                     <View style={styles.cardMedia}>
                         <ImageBackground
-                            source={{ uri: `https://picsum.photos/seed/specdate-${item.id}/600/800` }}
+                            source={{ uri: item.ownerAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.owner || 'User')}&size=512&background=random` }}
                             style={StyleSheet.absoluteFillObject}
                             imageStyle={styles.cardMediaImage}
                             resizeMode="cover"
@@ -66,9 +67,18 @@ const SpecCard = memo(({ item, theme, homeColors, tagColor, withAlpha, onPress }
                         </View>
                         {/* Owner tag (glass) – anchored to image */}
                         <View style={styles.ownerOverlay}>
-                            <View style={styles.ownerGlass}>
-                                <MaterialCommunityIcons name="account" size={14} color="rgba(255,255,255,0.95)" />
-                                <Text style={styles.ownerGlassText} numberOfLines={1} ellipsizeMode="tail">
+                            <View style={[styles.ownerGlass, { paddingLeft: 4, paddingVertical: 4 }]}>
+                                {item.ownerAvatar ? (
+                                    <Image
+                                        source={{ uri: item.ownerAvatar }}
+                                        style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: '#eee' }}
+                                    />
+                                ) : (
+                                    <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' }}>
+                                        <MaterialCommunityIcons name="account" size={14} color="rgba(255,255,255,0.95)" />
+                                    </View>
+                                )}
+                                <Text style={[styles.ownerGlassText, { textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 4 }]} numberOfLines={1} ellipsizeMode="tail">
                                     {item.owner}
                                 </Text>
                             </View>

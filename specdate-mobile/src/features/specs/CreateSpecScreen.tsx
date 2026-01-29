@@ -704,6 +704,25 @@ export default function CreateSpecScreen({ navigation }: any) {
         </StepWrapper>
     );
 
+    if (me.data?.is_paused) {
+        return (
+            <View style={[styles.container, { backgroundColor: theme.colors.background, paddingTop: insets.top, justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
+                <Text variant="titleMedium" style={{ textAlign: 'center', marginBottom: 12 }}>
+                    Your account is paused
+                </Text>
+                <Text variant="bodyMedium" style={{ textAlign: 'center', marginBottom: 24, color: theme.colors.onSurfaceVariant }}>
+                    Unpause your account in Profile to create a spec.
+                </Text>
+                <Button mode="contained" onPress={() => navigation.navigate('Profile')}>
+                    Go to Profile
+                </Button>
+                <Button mode="text" onPress={() => navigation.goBack()} style={{ marginTop: 8 }}>
+                    Back
+                </Button>
+            </View>
+        );
+    }
+
     return (
         <View style={[styles.container, { backgroundColor: theme.colors.background, paddingTop: insets.top }]}>
             {/* Header */}

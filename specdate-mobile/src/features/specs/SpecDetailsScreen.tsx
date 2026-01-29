@@ -1,12 +1,14 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, ImageBackground, Alert, TouchableOpacity } from 'react-native';
-import { Text, useTheme, IconButton, Button, Avatar, Surface, ActivityIndicator, Divider, Chip } from 'react-native-paper';
+import { Text, useTheme, IconButton, Button, Avatar, Surface, ActivityIndicator, Divider, Chip, TextInput } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SpecService } from '../../services/specs';
 import { useUser } from '../../hooks/useUser';
+import { toImageUri } from '../../utils/imageUrl';
 
 function formatExpires(expiresAt?: string) {
     if (!expiresAt) return '—';
@@ -79,23 +81,31 @@ function cmToFeetInches(cm: number) {
 }
 
 export default function SpecDetailsScreen({ route, navigation }: any) {
-    const specId = route.params?.specId;
+    // Normalize to string so query key is stable (avoids cache mismatch between number and string)
+    const specId = route.params?.specId != null ? String(route.params.specId) : undefined;
     const theme = useTheme();
     const insets = useSafeAreaInsets();
     const queryClient = useQueryClient();
     const { data: user } = useUser();
 
-    const { data: spec, isLoading, error } = useQuery({
+    const { data: spec, isLoading, error, refetch: refetchSpec } = useQuery({
         queryKey: ['spec', specId],
         queryFn: async () => {
             if (!specId) throw new Error('Spec ID is required');
-            const res = await SpecService.getOne(specId);
-            // Our backend wraps responses: { success, message, data }
-            return (res as any)?.data ?? res;
+            return SpecService.getOne(specId);
         },
         retry: false,
-        enabled: !!specId, // Only run query if specId is available
+        enabled: !!specId,
+        staleTime: 0, // Refetch on focus so we always have fresh data when landing on page
+        placeholderData: (previousData) => previousData, // Keep showing previous spec while refetching (no disappear)
     });
+
+    // When Spec Details gains focus, refetch so we have fresh data; placeholderData keeps current data visible during refetch
+    useFocusEffect(
+        useCallback(() => {
+            if (specId) refetchSpec();
+        }, [specId, refetchSpec])
+    );
 
     const likeMutation = useMutation({
         mutationFn: () => SpecService.toggleLike(specId),
@@ -112,12 +122,39 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
     });
 
     const joinMutation = useMutation({
-        mutationFn: () => SpecService.joinSpec(specId),
+        mutationFn: () => SpecService.joinSpec(String((spec as any)?.id ?? specId)),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['spec', specId] });
+            queryClient.invalidateQueries({ queryKey: ['user'] }); // refresh balance
             Alert.alert('Applied', 'You have joined this spec!');
         },
-        onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to join.'),
+        onError: (err: any) => {
+            const status = err?.response?.status;
+            const data = err?.response?.data;
+            // Backend sendError returns { success, message }; axios may wrap differently
+            const message =
+                (data && typeof data === 'object' && (data.message ?? data.error)) ||
+                (typeof data === 'string' ? data : null) ||
+                err?.message ||
+                'Failed to join.';
+            const code = data?.code;
+            const isProfileIncomplete =
+                status === 403 &&
+                (code === 'PROFILE_INCOMPLETE' || /profile.*complete|complete.*profile/i.test(String(message)));
+
+            if (isProfileIncomplete) {
+                Alert.alert(
+                    'Complete your profile',
+                    'Please complete your profile to join specs. Fill in all required fields and save.',
+                    [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Go to Profile', onPress: () => navigation.navigate('Profile') }
+                    ]
+                );
+            } else {
+                Alert.alert('Error', message);
+            }
+        },
     });
 
     const isOwner = useMemo(() => {
@@ -134,6 +171,69 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
         if (!spec?.applications || !user) return null;
         return spec.applications.find((a: any) => a.user_id === user.id);
     }, [spec, user]);
+
+    const [answerText, setAnswerText] = React.useState('');
+
+    const submitAnswerMutation = useMutation({
+        mutationFn: ({ roundId, text }: { roundId: number, text: string }) => SpecService.submitAnswer(roundId, text),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['spec', specId] });
+            Alert.alert('Success', 'Answer submitted!');
+            setAnswerText(''); // Clear input
+        },
+        onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to submit answer.'),
+    });
+
+    const activeRound = useMemo(() => {
+        if (!spec?.rounds || spec.rounds.length === 0) return null;
+        // The backend returns rounds filtered by ACTIVE, or we find the active one.
+        // Also assuming backend appends 'answers' (filtered by user) to the round.
+        return spec.rounds.find((r: any) => r.status === 'ACTIVE');
+    }, [spec]);
+
+    const myAnswer = useMemo(() => {
+        if (!activeRound?.answers || activeRound.answers.length === 0) return null;
+        return activeRound.answers[0]; // User's answer
+    }, [activeRound]);
+
+    const handleJoin = () => {
+        // 1. Frontend check: profile must be complete to join (matches backend gate)
+        if (!user?.profile_complete) {
+            Alert.alert(
+                'Complete your profile',
+                'Please complete your profile to join specs. Fill in all required fields and save.',
+                [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Go to Profile', onPress: () => navigation.navigate('Profile') }
+                ]
+            );
+            return;
+        }
+
+        // 2. Check Blue Sparks
+        const blueSparks = user?.balance?.blue_sparks || 0;
+        if (blueSparks < 1) {
+            Alert.alert(
+                'Insufficient Blue Sparks',
+                'You need at least 1 Blue Spark to join a spec.',
+                [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Get Sparks', onPress: () => navigation.navigate('Profile') }
+                ]
+            );
+            return;
+        }
+
+        // 3. Confirm then call API
+        Alert.alert(
+            'Join Spec?',
+            'This will cost 1 Blue Spark.',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Join (-1 Spark)', onPress: () => joinMutation.mutate() }
+            ]
+        );
+    };
 
     const requirements = useMemo(() => {
         if (!spec?.requirements) return [];
@@ -250,9 +350,9 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
             // Human-friendly operators for single values
             const opText =
                 r.operator === '>=' ? 'At least' :
-                r.operator === '<=' ? 'Up to' :
-                r.operator === '=' ? 'Is' :
-                r.operator;
+                    r.operator === '<=' ? 'Up to' :
+                        r.operator === '=' ? 'Is' :
+                            r.operator;
 
             out.push({
                 id: r._id,
@@ -322,7 +422,7 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                         resizeMode="cover"
                     >
                         <LinearGradient
-                            colors={[ 'rgba(0,0,0,0.0)', 'rgba(0,0,0,0.3)', 'rgba(0,0,0,0.75)' ]}
+                            colors={['rgba(0,0,0,0.0)', 'rgba(0,0,0,0.3)', 'rgba(0,0,0,0.75)']}
                             locations={[0, 0.5, 1]}
                             style={StyleSheet.absoluteFillObject}
                         />
@@ -425,6 +525,60 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                     </Text>
                 </View>
 
+                {/* Active Round (Participant View) */}
+                {activeRound && myApplication && myApplication.status === 'ACCEPTED' ? (
+                    <View style={styles.section}>
+                        <Surface style={[styles.roundCard, { backgroundColor: theme.colors.elevation.level2 }]} elevation={2}>
+                            <View style={styles.roundHeader}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                    <MaterialCommunityIcons name="clock-fast" size={20} color={theme.colors.primary} />
+                                    <Text style={[styles.roundTitle, { color: theme.colors.primary }]}>
+                                        Round {activeRound.round_number}
+                                    </Text>
+                                </View>
+                                {myAnswer ? (
+                                    <Chip compact icon="check" style={{ backgroundColor: '#10B981' }} textStyle={{ color: '#fff', fontWeight: '800', fontSize: 10 }}>Answered</Chip>
+                                ) : (
+                                    <Chip compact icon="alert-circle-outline" style={{ backgroundColor: '#F59E0B' }} textStyle={{ color: '#fff', fontWeight: '800', fontSize: 10 }}>Action Required</Chip>
+                                )}
+                            </View>
+
+                            <Text style={[styles.roundQuestion, { color: theme.colors.onSurface }]}>
+                                {activeRound.question_text}
+                            </Text>
+
+                            {myAnswer ? (
+                                <View style={[styles.answerBox, { backgroundColor: 'rgba(16, 185, 129, 0.1)', borderColor: '#10B981' }]}>
+                                    <Text style={{ fontStyle: 'italic', color: theme.colors.onSurface }}>"{myAnswer.answer_text}"</Text>
+                                </View>
+                            ) : (
+                                <View style={{ gap: 10, marginTop: 10 }}>
+                                    <TextInput
+                                        mode="outlined"
+                                        placeholder="Type your answer..."
+                                        value={answerText}
+                                        onChangeText={setAnswerText}
+                                        multiline
+                                        numberOfLines={2}
+                                        style={{ backgroundColor: theme.colors.surface }}
+                                        outlineColor={theme.colors.outline}
+                                        activeOutlineColor={theme.colors.primary}
+                                    />
+                                    <Button
+                                        mode="contained"
+                                        onPress={() => submitAnswerMutation.mutate({ roundId: activeRound.id, text: answerText })}
+                                        loading={submitAnswerMutation.isPending}
+                                        disabled={!answerText.trim() || submitAnswerMutation.isPending}
+                                        buttonColor={theme.colors.primary}
+                                    >
+                                        Submit Answer
+                                    </Button>
+                                </View>
+                            )}
+                        </Surface>
+                    </View>
+                ) : null}
+
                 {/* Requirements */}
                 <View style={styles.section}>
                     <View style={styles.sectionTitleRow}>
@@ -524,7 +678,7 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                                 const eliminated = p.status === 'ELIMINATED';
                                 const displayName = p.user?.profile?.full_name || p.user?.name || 'User';
                                 const avatarUri =
-                                    p.user?.profile?.avatar ||
+                                    toImageUri(p.user?.profile?.avatar) ||
                                     `https://picsum.photos/seed/specdate-user-${p.user_id || p.id}/200/200`;
 
                                 const participantUserId = p.user_id ?? p.user?.id;
@@ -584,18 +738,26 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
             {/* Footer CTA */}
             <Surface style={[styles.footer, { paddingBottom: insets.bottom + 10, backgroundColor: theme.colors.surface }]} elevation={3}>
                 {myApplication ? (
-                    <Button mode="contained" disabled style={styles.footerBtn} buttonColor={theme.colors.primary}>
-                        Status: {myApplication.status}
+                    <Button
+                        mode="outlined"
+                        disabled
+                        style={[styles.footerBtn, { borderColor: theme.colors.outlineVariant }]}
+                        textColor={theme.colors.onSurfaceVariant}
+                        labelStyle={{ fontSize: 16, fontWeight: '600' }}
+                        icon="check-circle"
+                    >
+                        {myApplication.status === 'ACCEPTED' ? 'Joined' : 'Applied'}
                     </Button>
                 ) : (
                     <Button
                         mode="contained"
-                        onPress={() => joinMutation.mutate()}
+                        onPress={handleJoin}
                         loading={joinMutation.isPending}
                         style={styles.footerBtn}
                         buttonColor={theme.colors.primary}
+                        labelStyle={{ fontSize: 16, fontWeight: '800' }}
                     >
-                        Join this Spec
+                        Join Spec (1 Blue Spark)
                     </Button>
                 )}
             </Surface>
@@ -609,16 +771,16 @@ const styles = StyleSheet.create({
 
     heroWrap: { height: 380 },
     hero: { width: '100%', height: '100%', justifyContent: 'flex-end' },
-    backButton: { 
-        position: 'absolute', 
-        left: 16, 
+    backButton: {
+        position: 'absolute',
+        left: 16,
         top: 16,
-        backgroundColor: 'rgba(0,0,0,0.4)', 
+        backgroundColor: 'rgba(0,0,0,0.4)',
         borderRadius: 20,
         marginTop: 0,
     },
-    heroContent: { 
-        paddingHorizontal: 20, 
+    heroContent: {
+        paddingHorizontal: 20,
         paddingBottom: 24,
         gap: 16,
     },
@@ -629,15 +791,15 @@ const styles = StyleSheet.create({
         letterSpacing: -0.5,
         lineHeight: 34,
     },
-    heroMetaRow: { 
-        flexDirection: 'row', 
-        gap: 6, 
+    heroMetaRow: {
+        flexDirection: 'row',
+        gap: 6,
         alignItems: 'center',
         marginTop: 4,
     },
-    heroMetaText: { 
-        color: 'rgba(255,255,255,0.9)', 
-        fontSize: 14, 
+    heroMetaText: {
+        color: 'rgba(255,255,255,0.9)',
+        fontSize: 14,
         fontWeight: '600',
     },
 
@@ -735,4 +897,33 @@ const styles = StyleSheet.create({
         borderTopRightRadius: 18,
     },
     footerBtn: { borderRadius: 999, paddingVertical: 6 },
+
+    // Round Styles
+    roundCard: {
+        borderRadius: 16,
+        padding: 16,
+        gap: 12,
+    },
+    roundHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    roundTitle: {
+        fontSize: 14,
+        fontWeight: '900',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+    },
+    roundQuestion: {
+        fontSize: 18,
+        fontWeight: '700',
+        lineHeight: 24,
+    },
+    answerBox: {
+        padding: 12,
+        borderRadius: 8,
+        borderWidth: 1,
+        marginTop: 6,
+    },
 });

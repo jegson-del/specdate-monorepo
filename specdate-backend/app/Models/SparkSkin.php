@@ -5,10 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class BalloonSkin extends Model
+class SparkSkin extends Model
 {
-    /** @use HasFactory<\Database\Factories\BalloonSkinFactory> */
+    /** @use HasFactory<\Database\Factories\SparkSkinFactory> */
     use HasFactory;
+
+    protected $table = 'spark_skins';
 
     protected $fillable = [
         'user_id',
