@@ -35,8 +35,13 @@ export const SpecService = {
         return response.data; // { success, message, data: { current_page, data: Spec[] } }
     },
 
-    async getMySpecs() {
-        const response = await api.get('/my-specs');
+    async getMySpecs(type: 'owned' | 'joined' = 'owned') {
+        const response = await api.get('/my-specs', { params: { type } });
+        return response.data;
+    },
+
+    async getPendingRequests() {
+        const response = await api.get('/user/requests');
         return response.data;
     },
 
@@ -84,6 +89,11 @@ export const SpecService = {
 
     async toggleLike(specId: string) {
         const response = await api.post(`/specs/${specId}/like`);
+        return response.data;
+    },
+
+    async eliminateUsers(roundId: number, userIds: number[]) {
+        const response = await api.post(`/rounds/${roundId}/eliminate`, { user_ids: userIds });
         return response.data;
     },
 };

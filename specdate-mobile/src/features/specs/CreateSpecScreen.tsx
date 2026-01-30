@@ -342,12 +342,19 @@ export default function CreateSpecScreen({ navigation }: any) {
 
         try {
             await createSpec.mutateAsync(payload);
-            Alert.alert('Success', 'Your Spec is live! Let the applications roll in.', [
-                { text: 'View Specs', onPress: () => navigation.navigate('Home') }
-            ]);
+            console.log('Spec created successfully, showing alert...');
+            // Wrap in setTimeout to avoid race conditions with UI updates/loading state
+            setTimeout(() => {
+                Alert.alert('Success', 'Your Spec is live! Let the applications roll in.', [
+                    { text: 'OK', onPress: () => navigation.navigate('Home') }
+                ]);
+            }, 500);
         } catch (e: any) {
+            console.error('Spec creation failed', e);
             const msg = e.response?.data?.message || 'Failed to create spec';
-            Alert.alert('Error', msg);
+            setTimeout(() => {
+                Alert.alert('Error', msg);
+            }, 500);
         }
     };
 

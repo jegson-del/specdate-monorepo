@@ -15,6 +15,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     Route::get('/user', function (Request $request) {
         $user = $request->user()->load(['balance', 'profile', 'sparkSkin', 'media']);
+
         $data = $user->toArray();
         // Expose avatar URL and media id so mobile can send media_id when editing (update that row).
         $avatarMedia = $user->media->where('type', 'avatar')->sortByDesc('id')->first();
@@ -25,6 +26,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
         // Expose profile_gallery with id+url so mobile can send media_id when replacing a slot (max 6).
         $gallery = $user->media->where('type', 'profile_gallery')->sortByDesc('id')->take(6)->values();
         $data['profile_gallery_media'] = $gallery->map(fn ($m) => ['id' => $m->id, 'url' => $m->url])->all();
+
+        // Unread count from our Notification model (User has custom notifications() hasMany, not Laravel's Notifiable DB notifications)
+        $data['unread_notifications_count'] = $user->notifications()->whereNull('read_at')->count();
+
         return response()->json($data, 200, [], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
     });
     Route::put('/profile', [\App\Http\Controllers\ProfileController::class, 'update']);
@@ -37,6 +42,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/specs/{id}/applications/{applicationId}/eliminate', [\App\Http\Controllers\SpecController::class, 'eliminateApplication']);
     Route::post('/specs/{id}/like', [\App\Http\Controllers\SpecController::class, 'toggleLike']);
     Route::post('/media/upload', [\App\Http\Controllers\MediaController::class, 'upload']);
+    Route::get('/user/requests', [\App\Http\Controllers\SpecController::class, 'pendingRequests']);
     Route::apiResource('specs', \App\Http\Controllers\SpecController::class);
 
     // Rounds

@@ -46,7 +46,8 @@ class SpecController extends Controller
      */
     public function mySpecs(Request $request)
     {
-        $specs = $this->specService->listMine($request->user());
+        $type = $request->input('type', 'all'); // 'owned', 'joined', 'all'
+        $specs = $this->specService->listMine($request->user(), $type);
         return $this->sendResponse($specs, 'My specs retrieved successfully.');
     }
 
@@ -102,6 +103,25 @@ class SpecController extends Controller
                         $data['applications'][$i]['user']['profile'] = [];
                     }
                     $data['applications'][$i]['user']['profile']['avatar'] = $avatarUrl ?? ($data['applications'][$i]['user']['profile']['avatar'] ?? null);
+                }
+            }
+        }
+        // Round answers: inject avatar for each answer's user (so owner sees participant avatars)
+        if (!empty($data['rounds'])) {
+            foreach ($spec->rounds as $ri => $round) {
+                if (empty($round->answers) || !isset($data['rounds'][$ri]['answers'])) {
+                    continue;
+                }
+                foreach ($round->answers as $ai => $answer) {
+                    $u = $answer->user;
+                    if ($u && isset($data['rounds'][$ri]['answers'][$ai]['user'])) {
+                        $avatarMedia = $u->relationLoaded('media') ? $u->media->where('type', 'avatar')->sortByDesc('id')->first() : null;
+                        $avatarUrl = $avatarMedia ? $avatarMedia->url : null;
+                        if (!isset($data['rounds'][$ri]['answers'][$ai]['user']['profile'])) {
+                            $data['rounds'][$ri]['answers'][$ai]['user']['profile'] = [];
+                        }
+                        $data['rounds'][$ri]['answers'][$ai]['user']['profile']['avatar'] = $avatarUrl ?? ($data['rounds'][$ri]['answers'][$ai]['user']['profile']['avatar'] ?? null);
+                    }
                 }
             }
         }
@@ -225,12 +245,23 @@ class SpecController extends Controller
 
     public function eliminateUsers(Request $request, $roundId)
     {
-        $request->validate(['user_ids' => 'required|array']);
+        $request->validate([
+            'user_ids' => 'required|array',
+            'user_ids.*' => 'exists:users,id',
+        ]);
+
         try {
             $result = $this->specService->eliminateUsers($request->user(), $roundId, $request->input('user_ids'));
             return $this->sendResponse($result, 'Users eliminated.');
         } catch (HttpException $e) {
             return $this->sendError($e->getMessage(), [], $e->getStatusCode());
         }
+    }
+
+    public function pendingRequests(Request $request)
+    {
+        return response()->json([
+            'data' => $this->specService->getPendingRequests($request->user())
+        ]);
     }
 }

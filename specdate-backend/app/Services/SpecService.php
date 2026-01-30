@@ -69,20 +69,46 @@ class SpecService
         return $specs;
     }
 
-    public function listMine($user)
+    public function listMine($user, $type = 'all')
     {
-        // Include specs the user owns OR has applied to.
-        return Spec::query()
-            ->with(['requirements', 'owner.profile'])
-            ->withCount('applications')
-            ->where(function ($q) use ($user) {
+        $query = Spec::query()
+            ->with(['requirements', 'owner.profile', 'owner.media'])
+            ->withCount('applications');
+
+        if ($type === 'owned') {
+            $query->where('user_id', $user->id);
+        } elseif ($type === 'joined') {
+            $query->whereHas('applications', function ($a) use ($user) {
+                $a->where('user_id', $user->id);
+            })->where('user_id', '!=', $user->id); // Ensure not picking own specs if joined logic is loose (though app prevents joining own)
+        } else {
+             // 'all'
+             $query->where(function ($q) use ($user) {
                 $q->where('user_id', $user->id)
                     ->orWhereHas('applications', function ($a) use ($user) {
                         $a->where('user_id', $user->id);
                     });
-            })
-            ->latest()
-            ->paginate(20);
+            });
+        }
+
+        $specs = $query->latest()->paginate(20);
+
+        // Inject owner avatar URL
+        $specs->getCollection()->transform(function ($spec) {
+            if ($spec->owner) {
+                // If owner is loaded, get avatar from media
+                $avatarMedia = $spec->owner->media->where('type', 'avatar')->sortByDesc('id')->first();
+                $url = $avatarMedia ? $avatarMedia->url : null;
+                
+                if (!$spec->owner->profile) {
+                    $spec->owner->profile = (object) []; // Dummy if missing
+                }
+                $spec->owner->profile->avatar = $url;
+            }
+            return $spec;
+        });
+
+        return $specs;
     }
 
     public function getOne($id, $user = null)
@@ -102,13 +128,42 @@ class SpecService
                 $q->where('user_id', $user->id);
             }]);
             
-             // Include my answer for the active round if any
+             // Include answers for the active round
             $query->with(['rounds.answers' => function($q) use ($user) {
-                $q->where('user_id', $user->id);
+                // If checking for "is owner", we need to know the spec's owner ID.
+                // But here we are building the query for the SPEC.
+                // We can't easily access the spec instance inside this closure before fetching.
+                // OPTION: Fetch spec first, then load? Or use conditional loading in Controller?
+                // OR: Spec::with ...
+                // Let's modify this to LOAD all answers, and we might filter in frontend?
+                // NO, privacy. 
+                // Better approach: In Controller/Service after fetching, if user==owner, load all answers.
+                // But here we attempt to do it in one query.
+                // Let's remove this specific constraint here and handle it better in getOne logic below.
             }]);
         }
 
-        return $query->find($id);
+        $spec = $query->find($id);
+
+        if ($spec && $user) {
+             // Privacy Logic for Answers:
+             // If User is Owner -> See ALL answers
+             // If User is Participant -> See ONLY OWN answer
+             
+             // We already applied a constraint above? No, I'm rewriting it.
+             // Let's do:
+             if ($spec->user_id === $user->id) {
+                 // Owner: Load all answers for active rounds
+                 $spec->load(['rounds.answers.user.profile', 'rounds.answers.user.media']); // Load user profile for display
+             } else {
+                 // Participant: Load only their answer
+                 $spec->load(['rounds.answers' => function($q) use ($user) {
+                     $q->where('user_id', $user->id);
+                 }]);
+             }
+        }
+
+        return $spec;
     }
 
 
@@ -330,6 +385,9 @@ class SpecService
             'elimination_count' => $eliminationCount,
         ]);
 
+        // Broadcast Real-time Event
+        \App\Events\RoundStarted::dispatch($round);
+
         // Notify all ACCEPTED participants
         $participants = $spec->applications()->where('status', 'ACCEPTED')->with('user')->get();
         foreach ($participants as $app) {
@@ -376,10 +434,15 @@ class SpecService
              throw new HttpException(400, 'You have already answered this question.');
         }
 
-        return $round->answers()->create([
+        $answerModel = $round->answers()->create([
             'user_id' => $user->id,
             'answer_text' => $answer,
         ]);
+
+        // Broadcast event
+        \App\Events\RoundAnswered::dispatch($answerModel);
+
+        return $answerModel;
     }
 
     /**
@@ -557,5 +620,34 @@ class SpecService
             '<' => $userValue < $reqValue,
             default => $userValue === $reqValue,
         };
+    }
+
+    /**
+     * Get pending join requests for all specs owned by the user.
+     */
+    public function getPendingRequests($user)
+    {
+        $applications = \App\Models\SpecApplication::query()
+            ->whereHas('spec', function ($q) use ($user) {
+                $q->where('user_id', $user->id);
+            })
+            ->where('status', 'PENDING')
+            ->with(['spec:id,title,user_id', 'user.profile', 'user.media']) // Load applicant profile and spec info
+            ->latest()
+            ->get();
+
+        // Inject avatar URL into each application's user profile
+        return $applications->map(function ($app) {
+            if ($app->user) {
+                $avatarMedia = $app->user->media->where('type', 'avatar')->sortByDesc('id')->first();
+                if ($app->user->profile) {
+                    $app->user->profile->avatar = $avatarMedia ? $avatarMedia->url : null;
+                } else {
+                     // Create a dummy profile object if missing so frontend doesn't crash
+                     $app->user->profile = (object) ['avatar' => $avatarMedia ? $avatarMedia->url : null, 'full_name' => $app->user->name, 'age' => null];
+                }
+            }
+            return $app;
+        });
     }
 }

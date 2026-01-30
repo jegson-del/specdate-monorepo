@@ -1,9 +1,10 @@
 import React, { useCallback, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, ImageBackground, Alert, TouchableOpacity } from 'react-native';
-import { Text, useTheme, IconButton, Button, Avatar, Surface, ActivityIndicator, Divider, Chip, TextInput } from 'react-native-paper';
+import { Text, useTheme, IconButton, Button, Avatar, Surface, ActivityIndicator, Chip, TextInput } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SpecService } from '../../services/specs';
@@ -107,13 +108,43 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
         }, [specId, refetchSpec])
     );
 
+    // --- Real-time Updates (Pusher/Echo WebSockets) ---
+    React.useEffect(() => {
+        if (!specId) return;
+        const { echo } = require('../../utils/echo'); // Lazy require to avoid cycle if any
+
+        // Public channel spec.{id} – backend broadcasts RoundStarted & RoundAnswered here
+        const channelName = `spec.${specId}`;
+        const channel = echo.channel(channelName);
+
+        channel.listen('.RoundStarted', () => {
+            refetchSpec();
+        });
+
+        channel.listen('.RoundAnswered', () => {
+            refetchSpec();
+        });
+
+        return () => {
+            channel.stopListening('.RoundStarted');
+            channel.stopListening('.RoundAnswered');
+            echo.leave(channelName);
+        };
+    }, [specId, refetchSpec]);
+
     const likeMutation = useMutation({
-        mutationFn: () => SpecService.toggleLike(specId),
+        mutationFn: () => {
+            if (!specId) throw new Error('Spec ID is required');
+            return SpecService.toggleLike(specId);
+        },
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['spec', specId] }),
     });
 
     const eliminateMutation = useMutation({
-        mutationFn: (appId: string) => SpecService.eliminateApplication(specId, appId),
+        mutationFn: (appId: string) => {
+            if (!specId) throw new Error('Spec ID is required');
+            return SpecService.eliminateApplication(specId, appId);
+        },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['spec', specId] });
             Alert.alert('Success', 'Participant eliminated.');
@@ -183,6 +214,29 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
         },
         onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to submit answer.'),
     });
+
+    // --- OWNER ACTIONS ---
+    const [newRoundQuestion, setNewRoundQuestion] = React.useState('');
+    const startRoundMutation = useMutation({
+        mutationFn: (question: string) => SpecService.startRound(String(specId), question),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['spec', specId] });
+            Alert.alert('Success', 'Round started!');
+            setNewRoundQuestion('');
+        },
+        onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to start round.'),
+    });
+
+    const eliminateUsersMutation = useMutation({
+        mutationFn: ({ roundId, userIds }: { roundId: number, userIds: number[] }) =>
+            SpecService.eliminateUsers(roundId, userIds),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['spec', specId] });
+            Alert.alert('Eliminated', 'Selected users have been eliminated.');
+        },
+        onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to eliminate users.'),
+    });
+
 
     const activeRound = useMemo(() => {
         if (!spec?.rounds || spec.rounds.length === 0) return null;
@@ -525,57 +579,160 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                     </Text>
                 </View>
 
-                {/* Active Round (Participant View) */}
-                {activeRound && myApplication && myApplication.status === 'ACCEPTED' ? (
+
+
+                {/* Owner Controls (Start Round) — glass card */}
+                {isOwner && !activeRound && (
                     <View style={styles.section}>
-                        <Surface style={[styles.roundCard, { backgroundColor: theme.colors.elevation.level2 }]} elevation={2}>
-                            <View style={styles.roundHeader}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                    <MaterialCommunityIcons name="clock-fast" size={20} color={theme.colors.primary} />
-                                    <Text style={[styles.roundTitle, { color: theme.colors.primary }]}>
-                                        Round {activeRound.round_number}
-                                    </Text>
+                        <View style={[styles.glassCard, { borderColor: theme.dark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.5)', shadowColor: theme.colors.primary }]}>
+                            <BlurView intensity={64} tint={theme.dark ? 'dark' : 'light'} style={StyleSheet.absoluteFillObject} />
+                            <View style={styles.glassCardInner}>
+                                <View style={styles.glassHeader}>
+                                    <MaterialCommunityIcons name="gavel" size={18} color={theme.colors.primary} />
+                                    <Text style={[styles.glassLabel, { color: theme.colors.primary }]}>Host Round</Text>
                                 </View>
-                                {myAnswer ? (
-                                    <Chip compact icon="check" style={{ backgroundColor: '#10B981' }} textStyle={{ color: '#fff', fontWeight: '800', fontSize: 10 }}>Answered</Chip>
+                                <Text style={[styles.glassSubtext, { color: theme.colors.onSurfaceVariant }]}>
+                                    Ask a question to eliminate 10% of participants.
+                                </Text>
+                                <TextInput
+                                    mode="outlined"
+                                    placeholder="e.g. What's your controversial food opinion?"
+                                    value={newRoundQuestion}
+                                    onChangeText={setNewRoundQuestion}
+                                    multiline
+                                    style={[styles.glassInput, { backgroundColor: theme.dark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.7)' }]}
+                                />
+                                <Button
+                                    mode="contained"
+                                    onPress={() => startRoundMutation.mutate(newRoundQuestion)}
+                                    loading={startRoundMutation.isPending}
+                                    disabled={!newRoundQuestion.trim() || startRoundMutation.isPending || participants.filter((p: any) => p.status === 'ACCEPTED').length < 1}
+                                    style={styles.glassBtn}
+                                >
+                                    Start Round {participants.filter((p: any) => p.status === 'ACCEPTED').length < 1 ? '(Need accepted users)' : ''}
+                                </Button>
+                            </View>
+                        </View>
+                    </View>
+                )}
+
+                {/* Owner Monitor (Active Round) — glass card */}
+                {isOwner && activeRound && (
+                    <View style={styles.section}>
+                        <View style={[styles.glassCard, { borderColor: theme.dark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.5)', shadowColor: theme.colors.primary }]}>
+                            <BlurView intensity={64} tint={theme.dark ? 'dark' : 'light'} style={StyleSheet.absoluteFillObject} />
+                            <View style={styles.glassCardInner}>
+                                <View style={styles.glassHeaderRow}>
+                                    <View style={styles.glassHeader}>
+                                        <MaterialCommunityIcons name="broadcast" size={18} color={theme.colors.primary} />
+                                        <Text style={[styles.glassLabel, { color: theme.colors.primary }]}>
+                                            Round {activeRound.round_number} · Live
+                                        </Text>
+                                    </View>
+                                    <View style={[styles.statusPill, { backgroundColor: theme.colors.primary + '18' }]}>
+                                    <View style={[styles.statusDot, { backgroundColor: theme.colors.primary }]} />
+                                    <Text style={[styles.statusPillText, { color: theme.colors.primary }]}>Waiting</Text>
+                                </View>
+                                </View>
+                                <Text style={[styles.glassQuestion, { color: theme.colors.onSurface }]}>
+                                    {activeRound.question_text}
+                                </Text>
+                                <View style={[styles.glassDivider, { backgroundColor: theme.colors.outlineVariant }]} />
+                                {activeRound.answers && activeRound.answers.length > 0 ? (
+                                    <View style={styles.ownerAnswersList}>
+                                        <Text style={[styles.ownerAnswersTitle, { color: theme.colors.onSurfaceVariant }]}>
+                                            Answers ({activeRound.answers.length})
+                                        </Text>
+                                        {activeRound.answers.map((a: any) => {
+                                            const displayName = a.user?.profile?.full_name || a.user?.name || 'Participant';
+                                            const avatarUri = toImageUri(a.user?.profile?.avatar) || (a.user?.profile?.full_name || a.user?.name
+                                                ? `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&size=128&background=6750A4&color=ffffff`
+                                                : undefined);
+                                            return (
+                                                <View key={a.id} style={[styles.ownerAnswerRow, { borderColor: theme.colors.outlineVariant }]}>
+                                                    <Avatar.Image size={36} source={{ uri: avatarUri }} style={styles.ownerAnswerAvatar} />
+                                                    <View style={styles.ownerAnswerBody}>
+                                                        <Text style={[styles.ownerAnswerName, { color: theme.colors.onSurface }]} numberOfLines={1}>
+                                                            {displayName}
+                                                        </Text>
+                                                        <Text style={[styles.ownerAnswerText, { color: theme.colors.onSurface }]}>
+                                                            {a.answer_text}
+                                                        </Text>
+                                                    </View>
+                                                </View>
+                                            );
+                                        })}
+                                    </View>
                                 ) : (
-                                    <Chip compact icon="alert-circle-outline" style={{ backgroundColor: '#F59E0B' }} textStyle={{ color: '#fff', fontWeight: '800', fontSize: 10 }}>Action Required</Chip>
+                                    <Text style={[styles.glassSubtext, { color: theme.colors.onSurfaceVariant }]}>
+                                        Answers will appear here once everyone has submitted.
+                                    </Text>
                                 )}
                             </View>
+                        </View>
+                    </View>
+                )}
 
-                            <Text style={[styles.roundQuestion, { color: theme.colors.onSurface }]}>
-                                {activeRound.question_text}
-                            </Text>
+                {/* Active Round (Participant View) — glass card */}
+                {activeRound && myApplication && myApplication.status === 'ACCEPTED' && !isOwner ? (
+                    <View style={styles.section}>
+                        <View style={[styles.glassCard, { borderColor: theme.dark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.5)', shadowColor: theme.colors.primary }]}>
+                            <BlurView intensity={64} tint={theme.dark ? 'dark' : 'light'} style={StyleSheet.absoluteFillObject} />
+                            <View style={styles.glassCardInner}>
+                                <View style={styles.glassHeaderRow}>
+                                    <View style={styles.glassHeader}>
+                                        <MaterialCommunityIcons
+                                            name={myAnswer ? 'check-circle' : 'clock-fast'}
+                                            size={18}
+                                            color={theme.colors.primary}
+                                        />
+                                        <Text style={[styles.glassLabel, { color: theme.colors.primary }]}>
+                                            Round {activeRound.round_number}
+                                        </Text>
+                                    </View>
+                                    <View style={[styles.statusPill, myAnswer ? styles.statusPillAnswered : styles.statusPillAction]}>
+                                        <View style={[styles.statusDot, myAnswer ? styles.statusDotAnswered : styles.statusDotAction]} />
+                                        <Text style={[styles.statusPillText, { color: myAnswer ? '#059669' : '#B45309' }]}>
+                                            {myAnswer ? 'Answered' : 'Action required'}
+                                        </Text>
+                                    </View>
+                                </View>
 
-                            {myAnswer ? (
-                                <View style={[styles.answerBox, { backgroundColor: 'rgba(16, 185, 129, 0.1)', borderColor: '#10B981' }]}>
-                                    <Text style={{ fontStyle: 'italic', color: theme.colors.onSurface }}>"{myAnswer.answer_text}"</Text>
-                                </View>
-                            ) : (
-                                <View style={{ gap: 10, marginTop: 10 }}>
-                                    <TextInput
-                                        mode="outlined"
-                                        placeholder="Type your answer..."
-                                        value={answerText}
-                                        onChangeText={setAnswerText}
-                                        multiline
-                                        numberOfLines={2}
-                                        style={{ backgroundColor: theme.colors.surface }}
-                                        outlineColor={theme.colors.outline}
-                                        activeOutlineColor={theme.colors.primary}
-                                    />
-                                    <Button
-                                        mode="contained"
-                                        onPress={() => submitAnswerMutation.mutate({ roundId: activeRound.id, text: answerText })}
-                                        loading={submitAnswerMutation.isPending}
-                                        disabled={!answerText.trim() || submitAnswerMutation.isPending}
-                                        buttonColor={theme.colors.primary}
-                                    >
-                                        Submit Answer
-                                    </Button>
-                                </View>
-                            )}
-                        </Surface>
+                                <Text style={[styles.glassQuestion, { color: theme.colors.onSurface }]}>
+                                    {activeRound.question_text}
+                                </Text>
+
+                                {myAnswer ? (
+                                    <View style={[styles.glassAnswerBox, { borderColor: 'rgba(5,150,105,0.5)' }]}>
+                                        <Text style={[styles.glassAnswerText, { color: theme.colors.onSurface }]}>"{myAnswer.answer_text}"</Text>
+                                    </View>
+                                ) : (
+                                    <View style={styles.glassForm}>
+                                        <TextInput
+                                            mode="outlined"
+                                            placeholder="Type your answer..."
+                                            value={answerText}
+                                            onChangeText={setAnswerText}
+                                            multiline
+                                            numberOfLines={5}
+                                            style={[styles.glassInput, styles.glassTextArea, { backgroundColor: theme.dark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.7)' }]}
+                                            outlineColor={theme.colors.outline}
+                                            activeOutlineColor={theme.colors.primary}
+                                        />
+                                        <Button
+                                            mode="contained"
+                                            onPress={() => submitAnswerMutation.mutate({ roundId: activeRound.id, text: answerText })}
+                                            loading={submitAnswerMutation.isPending}
+                                            disabled={!answerText.trim() || submitAnswerMutation.isPending}
+                                            buttonColor={theme.colors.primary}
+                                            style={styles.glassBtn}
+                                        >
+                                            Submit Answer
+                                        </Button>
+                                    </View>
+                                )}
+                            </View>
+                        </View>
                     </View>
                 ) : null}
 
@@ -737,7 +894,18 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
 
             {/* Footer CTA */}
             <Surface style={[styles.footer, { paddingBottom: insets.bottom + 10, backgroundColor: theme.colors.surface }]} elevation={3}>
-                {myApplication ? (
+                {isOwner ? (
+                    <Button
+                        mode="contained"
+                        disabled
+                        style={[styles.footerBtn, { backgroundColor: theme.colors.elevation.level2 }]}
+                        textColor={theme.colors.onSurface}
+                        labelStyle={{ fontSize: 16, fontWeight: '800' }}
+                        icon="crown"
+                    >
+                        You are the Host
+                    </Button>
+                ) : myApplication ? (
                     <Button
                         mode="outlined"
                         disabled
@@ -898,32 +1066,147 @@ const styles = StyleSheet.create({
     },
     footerBtn: { borderRadius: 999, paddingVertical: 6 },
 
-    // Round Styles
-    roundCard: {
-        borderRadius: 16,
-        padding: 16,
-        gap: 12,
+    // Glass round card – frosted, minimal, sophisticated
+    glassCard: {
+        borderRadius: 24,
+        overflow: 'hidden',
+        position: 'relative',
+        borderWidth: 1,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 20,
+        elevation: 4,
     },
-    roundHeader: {
+    glassCardInner: {
+        paddingHorizontal: 20,
+        paddingVertical: 20,
+        gap: 14,
+    },
+    glassHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    glassHeaderRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: 8,
     },
-    roundTitle: {
-        fontSize: 14,
-        fontWeight: '900',
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-    },
-    roundQuestion: {
-        fontSize: 18,
+    glassLabel: {
+        fontSize: 13,
         fontWeight: '700',
-        lineHeight: 24,
+        letterSpacing: 0.4,
     },
-    answerBox: {
-        padding: 12,
-        borderRadius: 8,
-        borderWidth: 1,
+    glassSubtext: {
+        fontSize: 14,
+        lineHeight: 20,
+        opacity: 0.88,
+        paddingHorizontal: 12,
+    },
+    glassQuestion: {
+        fontSize: 17,
+        fontWeight: '600',
+        lineHeight: 24,
+        paddingHorizontal: 12,
+    },
+    glassDivider: {
+        height: 1,
+        opacity: 0.4,
+        marginHorizontal: 12,
+    },
+    glassChipText: {
+        fontSize: 14,
+        fontWeight: '700',
+        letterSpacing: 0.3,
+    },
+    statusPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 20,
+    },
+    statusPillAnswered: {
+        backgroundColor: 'rgba(5,150,105,0.12)',
+    },
+    statusPillAction: {
+        backgroundColor: 'rgba(217,119,6,0.1)',
+    },
+    statusDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+    },
+    statusDotAnswered: {
+        backgroundColor: '#059669',
+    },
+    statusDotAction: {
+        backgroundColor: '#D97706',
+    },
+    statusPillText: {
+        fontSize: 12,
+        fontWeight: '600',
+        letterSpacing: 0.35,
+    },
+    glassInput: {
+        marginBottom: 4,
+    },
+    glassTextArea: {
+        minHeight: 120,
+        textAlignVertical: 'top',
+        paddingTop: 12,
+    },
+    glassBtn: {
+        borderRadius: 14,
+    },
+    glassForm: {
+        gap: 12,
+        marginTop: 4,
+    },
+    glassAnswerBox: {
+        padding: 16,
+        borderRadius: 14,
+        borderWidth: 1.5,
         marginTop: 6,
+        backgroundColor: 'rgba(5,150,105,0.14)',
+    },
+    glassAnswerText: {
+        fontSize: 17,
+        fontWeight: '600',
+        lineHeight: 26,
+    },
+    ownerAnswersList: {
+        gap: 10,
+    },
+    ownerAnswersTitle: {
+        fontSize: 13,
+        fontWeight: '700',
+        letterSpacing: 0.3,
+        marginBottom: 4,
+        paddingHorizontal: 12,
+    },
+    ownerAnswerRow: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: 12,
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        borderRadius: 12,
+        borderWidth: 1,
+    },
+    ownerAnswerAvatar: {},
+    ownerAnswerBody: { flex: 1, minWidth: 0 },
+    ownerAnswerName: {
+        fontSize: 13,
+        fontWeight: '700',
+        marginBottom: 4,
+    },
+    ownerAnswerText: {
+        fontSize: 15,
+        lineHeight: 22,
+        opacity: 0.9,
     },
 });

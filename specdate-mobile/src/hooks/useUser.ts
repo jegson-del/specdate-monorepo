@@ -27,6 +27,7 @@ export type User = {
     profile_gallery_media?: ProfileGallerySlot[];
     /** When true, profile is hidden and user cannot create specs. */
     is_paused?: boolean;
+    unread_notifications_count?: number;
 };
 
 async function fetchUser(): Promise<User> {

@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, StyleSheet, FlatList, TouchableOpacity, ImageBackground, ScrollView, Image } from 'react-native';
-import { ActivityIndicator, Text, useTheme, IconButton, Surface, Searchbar, Avatar, Portal, Modal, SegmentedButtons } from 'react-native-paper';
+import { View, StyleSheet, FlatList, TouchableOpacity, Image, Dimensions, ScrollView, Modal as RNModal } from 'react-native';
+import { ActivityIndicator, Text, useTheme, IconButton, Surface, Searchbar, Avatar, SegmentedButtons } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -11,6 +11,8 @@ import { toImageUri } from '../../utils/imageUrl';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import SpecCard from './components/SpecCard';
 import PersonCard from './components/PersonCard';
+import RequestCard from './components/RequestCard';
+import { useMutation } from '@tanstack/react-query';
 
 type SpecCardItem = {
   id: string;
@@ -135,7 +137,7 @@ function withAlpha(color: string, alpha: number) {
   const r = parseInt(full.slice(0, 2), 16);
   const g = parseInt(full.slice(2, 4), 16);
   const b = parseInt(full.slice(4, 6), 16);
-  return `rgba(${r},${g},${b},${alpha})`;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 export default function HomeScreen({ navigation }: any) {
@@ -164,7 +166,7 @@ export default function HomeScreen({ navigation }: any) {
       const now = new Date();
       const diffMs = end.getTime() - now.getTime();
       const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-      const expiresText = diffDays > 0 ? `Ends in ${diffDays}d` : 'Ending soon';
+      const expiresText = diffDays > 0 ? `Ends in ${diffDays} d` : 'Ending soon';
 
       return {
         id: String(s.id),
@@ -190,12 +192,57 @@ export default function HomeScreen({ navigation }: any) {
     queryFn: () => fetchSpecsForFeed(feed),
   });
 
+  const [specTab, setSpecTab] = useState<'Owned' | 'Joined'>('Owned');
+
+  // Queries for other tabs
+  const { data: mySpecsData, refetch: refetchMySpecs, isLoading: isLoadingMySpecs } = useQuery({
+    queryKey: ['my-specs', specTab],
+    queryFn: () => SpecService.getMySpecs(specTab.toLowerCase() as 'owned' | 'joined'),
+    enabled: bottomTab === 'Specs',
+  });
+
+  const { data: requestsData, refetch: refetchRequests } = useQuery({
+    queryKey: ['pending-requests'],
+    queryFn: SpecService.getPendingRequests,
+    enabled: bottomTab === 'Requests',
+    refetchInterval: bottomTab === 'Requests' ? 15000 : false, // Poll every 15s when on Requests tab
+  });
+
+  // Mutations
+  const approveMutation = useMutation({
+    mutationFn: ({ specId, applicationId }: { specId: string, applicationId: string }) =>
+      SpecService.approveApplication(specId, applicationId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pending-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['my-specs'] });
+    }
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: ({ specId, applicationId }: { specId: string, applicationId: string }) =>
+      SpecService.rejectApplication(specId, applicationId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pending-requests'] });
+    }
+  });
+
+  const mySpecs = useMemo(() => {
+    // response is { data: { data: [...] } } or just data: [...] depending on pagination
+    const rawData = mySpecsData?.data;
+    return Array.isArray(rawData) ? rawData : (rawData?.data || []);
+  }, [mySpecsData]);
+
+  const requests = useMemo(() => requestsData?.data || [], [requestsData]);
+
   const feedKeys: FeedKey[] = ['LIVE', 'ONGOING', 'POPULAR', 'HOTTEST'];
 
   // When Home is focused: refetch current feed and prefetch other feeds so tab clicks show data quickly
   useFocusEffect(
     useCallback(() => {
       refetch();
+      // Also refresh user data (and notification counts) when landing on home
+      queryClient.invalidateQueries({ queryKey: ['user'] });
+
       feedKeys.forEach((f) => {
         if (f !== feed) {
           queryClient.prefetchQuery({ queryKey: ['specs', f], queryFn: () => fetchSpecsForFeed(f) });
@@ -203,6 +250,36 @@ export default function HomeScreen({ navigation }: any) {
       });
     }, [refetch, feed, queryClient, fetchSpecsForFeed])
   );
+
+  // Real-time Notifications Listener
+  React.useEffect(() => {
+    if (!user?.id) return;
+    const { echo } = require('../../utils/echo');
+    const { Audio } = require('expo-av');
+
+    // Private channel: App.Models.User.{id}
+    const channel = echo.private(`App.Models.User.${user.id}`);
+
+    channel.listen('.NotificationCreated', async (e: any) => {
+      // Refresh user to update notification count badge
+      queryClient.invalidateQueries({ queryKey: ['user'] });
+      console.log('New notification received!', e);
+
+      // Play sound
+      try {
+        const { sound } = await Audio.Sound.createAsync(
+          require('../../../assets/sounds/notification.wav')
+        );
+        await sound.playAsync();
+      } catch (err) {
+        console.log('Error playing sound', err);
+      }
+    });
+
+    return () => {
+      channel.stopListening('.NotificationCreated');
+    };
+  }, [user?.id, queryClient]);
 
   const specsErrorText = useMemo(() => {
     if (!isError) return '';
@@ -338,242 +415,359 @@ export default function HomeScreen({ navigation }: any) {
               style={styles.topIconButton}
               onPress={() => navigation.navigate('Messages')}
             />
+            {/* TODO: Real message count */}
             <View
               style={[
                 styles.countBadge,
-                { borderColor: theme.colors.elevation.level2, backgroundColor: '#EF4444' },
+                { borderColor: theme.colors.elevation.level2, backgroundColor: '#EF4444', opacity: 0 },
               ]}
             >
-              <Text style={styles.countBadgeText}>2</Text>
+              <Text style={styles.countBadgeText}>0</Text>
             </View>
           </View>
 
           <View style={styles.iconWithBadge}>
-            <IconButton
-              icon="bell-outline"
-              size={26}
-              iconColor={homeColors.text}
-              containerColor={theme.colors.elevation.level2}
-              style={styles.topIconButton}
-              onPress={() => navigation.navigate('Notifications')}
-            />
+            <TouchableOpacity onPress={() => navigation.navigate('Notifications')} activeOpacity={0.7} style={{ padding: 4 }}>
+              <MaterialCommunityIcons name="bell-outline" size={28} color={homeColors.text} />
+            </TouchableOpacity>
+            {(user?.unread_notifications_count || 0) > 0 && (
+              <View
+                style={[
+                  styles.countBadge,
+                  { borderColor: theme.colors.elevation.level2, backgroundColor: '#EF4444' },
+                ]}
+              >
+                <Text style={styles.countBadgeText}>
+                  {user!.unread_notifications_count! > 99 ? '99+' : user!.unread_notifications_count}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </View>
+
+      {/* Main Content Area based on Bottom Tab */}
+      <View style={{ flex: 1 }}>
+        {bottomTab === 'Home' ? (
+          <>
+            {/* Controls row: search icon + tabs + providers */}
             <View
               style={[
-                styles.countBadge,
-                { borderColor: theme.colors.elevation.level2, backgroundColor: '#EF4444' },
+                styles.controlsWrap,
+                { paddingLeft: insets.left + 16, paddingRight: insets.right + 16 },
               ]}
             >
-              <Text style={styles.countBadgeText}>5</Text>
+              <View
+                style={[
+                  styles.controlsBar,
+                  {
+                    backgroundColor: theme.colors.elevation.level2,
+                  },
+                ]}
+              >
+                {/* Search icon (opens modal) */}
+                <IconButton
+                  icon="magnify"
+                  size={22}
+                  iconColor={theme.colors.primary}
+                  onPress={() => setSearchOpen(true)}
+                  style={styles.controlsIcon}
+                />
+
+                {/* Specs/People segmented control (original design) */}
+                <View style={{ flex: 1 }}>
+                  <SegmentedButtons
+                    value={tab}
+                    onValueChange={(v) => setTab(v as HomeTab)}
+                    buttons={[
+                      { value: 'Specs', label: 'Specs', icon: 'view-grid' },
+                      { value: 'People', label: 'People', icon: 'account-multiple' },
+                    ]}
+                    style={styles.segmentedTabs}
+                  />
+                </View>
+
+                {/* Provider icon last */}
+                <IconButton
+                  icon="silverware-fork-knife"
+                  size={22}
+                  iconColor={theme.colors.primary}
+                  onPress={() => navigation.navigate('Providers', { source: 'home' })}
+                  style={styles.controlsIcon}
+                />
+              </View>
             </View>
-          </View>
-        </View>
-      </View>
 
-      {/* Controls row: search icon + tabs + providers */}
-      <View
-        style={[
-          styles.controlsWrap,
-          { paddingLeft: insets.left + 16, paddingRight: insets.right + 16 },
-        ]}
-      >
-        <View
-          style={[
-            styles.controlsBar,
-            {
-              backgroundColor: theme.colors.elevation.level2,
-            },
-          ]}
-        >
-          {/* Search icon (opens modal) */}
-          <IconButton
-            icon="magnify"
-            size={22}
-            iconColor={theme.colors.primary}
-            onPress={() => setSearchOpen(true)}
-            style={styles.controlsIcon}
-          />
-
-          {/* Specs/People segmented control (original design) */}
-          <View style={{ flex: 1 }}>
-            <SegmentedButtons
-              value={tab}
-              onValueChange={(v) => setTab(v as HomeTab)}
-              buttons={[
-                { value: 'Specs', label: 'Specs', icon: 'view-grid' },
-                { value: 'People', label: 'People', icon: 'account-multiple' },
-              ]}
-              style={styles.segmentedTabs}
-            />
-          </View>
-
-          {/* Provider icon last */}
-          <IconButton
-            icon="silverware-fork-knife"
-            size={22}
-            iconColor={theme.colors.primary}
-            onPress={() => navigation.navigate('Providers', { source: 'home' })}
-            style={styles.controlsIcon}
-          />
-        </View>
-      </View>
-
-      {/* Search modal */}
-      <Portal>
-        <Modal
-          visible={searchOpen}
-          onDismiss={() => setSearchOpen(false)}
-          contentContainerStyle={[
-            styles.searchModal,
-            {
-              // Pin to top (react-native-paper Modal centers by default)
-              position: 'absolute',
-              top: insets.top + 12,
-              left: insets.left + 16,
-              right: insets.right + 16,
-              backgroundColor: theme.colors.surface,
-              borderColor: theme.colors.outline,
-            },
-          ]}
-        >
-          <Searchbar
-            // Make it a clean "box only" input (no magnify / clear icons)
-            icon={() => null}
-            clearIcon={() => null}
-            placeholder={tab === 'People' ? 'Search people…' : 'Search specs…'}
-            value={query}
-            onChangeText={setQuery}
-            autoCapitalize="none"
-            autoFocus
-            style={[
-              styles.searchBar,
-              {
-                backgroundColor: theme.colors.elevation.level2,
-                borderWidth: 1,
-                borderColor: theme.colors.primary,
-              },
-            ]}
-            inputStyle={{ color: homeColors.text }}
-            placeholderTextColor={homeColors.subtext}
-          />
-        </Modal>
-      </Portal>
-
-      {/* Feed selector */}
-      {tab === 'Specs' ? (
-        <View style={[styles.feedWrap, { paddingLeft: insets.left + 16, paddingRight: insets.right + 16 }]}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.feedScroll}>
-            {feedKeys.map((k) => {
-              const active = feed === k;
-              return (
-                <TouchableOpacity
-                  key={k}
-                  onPress={() => {
-                    setFeed(k);
-                    queryClient.refetchQueries({ queryKey: ['specs', k] });
-                  }}
+            {/* Search modal */}
+            <RNModal
+              visible={searchOpen}
+              transparent
+              animationType="fade"
+              onRequestClose={() => setSearchOpen(false)}
+            >
+              <TouchableOpacity
+                style={[styles.searchModalBackdrop, { paddingTop: insets.top + 12 }]}
+                activeOpacity={1}
+                onPress={() => setSearchOpen(false)}
+              >
+                <View
                   style={[
-                    styles.feedPill,
+                    styles.searchModal,
                     {
-                      backgroundColor: active ? tagColor(k) : theme.colors.elevation.level2,
-                      borderColor: active ? tagColor(k) : theme.colors.outline,
+                      backgroundColor: theme.colors.surface,
+                      borderColor: theme.colors.outline,
                     },
                   ]}
-                  activeOpacity={0.9}
                 >
-                  <View
+                  <Searchbar
+                    icon={() => null}
+                    clearIcon={() => null}
+                    placeholder={tab === 'People' ? 'Search people…' : 'Search specs…'}
+                    value={query}
+                    onChangeText={setQuery}
+                    autoCapitalize="none"
+                    autoFocus
                     style={[
-                      styles.feedDot,
-                      { backgroundColor: active ? 'rgba(255,255,255,0.95)' : tagColor(k) },
+                      styles.searchBar,
+                      {
+                        backgroundColor: theme.colors.elevation.level2,
+                        borderWidth: 1,
+                        borderColor: theme.colors.primary,
+                      },
                     ]}
+                    inputStyle={{ color: homeColors.text }}
+                    placeholderTextColor={homeColors.subtext}
                   />
-                  <Text style={[styles.feedPillText, { color: active ? '#FFFFFF' : theme.colors.onSurface }]}>
-                    {k}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
-      ) : null}
-
-      {tab === 'Specs' ? (
-        <FlatList
-          data={filteredItems}
-          keyExtractor={(item) => item.id}
-          numColumns={2}
-          columnWrapperStyle={styles.gridRow}
-          contentContainerStyle={[
-            styles.listContent,
-            {
-              paddingLeft: insets.left + 16,
-              paddingRight: insets.right + 16,
-              paddingBottom: insets.bottom + bottomNavHeight + 24,
-            },
-          ]}
-          onRefresh={onRefresh}
-          refreshing={isLoading || isRefetching}
-          // Pagination can be added later
-          onEndReachedThreshold={0.6}
-          // Pagination can be added later
-
-
-          ListEmptyComponent={
-            <View style={{ paddingTop: 30 }}>
-              {isLoading || isRefetching ? (
-                <View style={{ alignItems: 'center', gap: 10 }}>
-                  <ActivityIndicator animating color={theme.colors.primary} />
-                  <Text style={{ color: theme.colors.outline, textAlign: 'center' }}>Loading specs…</Text>
                 </View>
-              ) : isError ? (
-                <View style={{ alignItems: 'center', gap: 10 }}>
-                  <Text style={{ color: theme.colors.error, textAlign: 'center', fontWeight: '800' }}>
-                    Couldn’t load specs
-                  </Text>
-                  <Text style={{ color: theme.colors.outline, textAlign: 'center' }}>{specsErrorText}</Text>
-                </View>
-              ) : (
-                <Text style={{ color: theme.colors.outline, textAlign: 'center' }}>
-                  No specs found.
-                </Text>
+              </TouchableOpacity>
+            </RNModal>
+
+            {/* Feed selector */}
+            {tab === 'Specs' ? (
+              <View style={[styles.feedWrap, { paddingLeft: insets.left + 16, paddingRight: insets.right + 16 }]}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.feedScroll}>
+                  {feedKeys.map((k) => {
+                    const active = feed === k;
+                    return (
+                      <TouchableOpacity
+                        key={k}
+                        onPress={() => {
+                          setFeed(k);
+                          queryClient.refetchQueries({ queryKey: ['specs', k] });
+                        }}
+                        style={[
+                          styles.feedPill,
+                          {
+                            backgroundColor: active ? tagColor(k) : theme.colors.elevation.level2,
+                            borderColor: active ? tagColor(k) : theme.colors.outline,
+                          },
+                        ]}
+                        activeOpacity={0.9}
+                      >
+                        <View
+                          style={[
+                            styles.feedDot,
+                            { backgroundColor: active ? 'rgba(255,255,255,0.95)' : tagColor(k) },
+                          ]}
+                        />
+                        <Text style={[styles.feedPillText, { color: active ? '#FFFFFF' : theme.colors.onSurface }]}>
+                          {k}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            ) : null}
+
+            {tab === 'Specs' ? (
+              <FlatList
+                data={filteredItems}
+                keyExtractor={(item) => item.id}
+                numColumns={2}
+                columnWrapperStyle={styles.gridRow}
+                contentContainerStyle={[
+                  styles.listContent,
+                  {
+                    paddingLeft: insets.left + 16,
+                    paddingRight: insets.right + 16,
+                    paddingBottom: insets.bottom + bottomNavHeight + 24,
+                  },
+                ]}
+                onRefresh={onRefresh}
+                refreshing={isLoading || isRefetching}
+                onEndReachedThreshold={0.6}
+                ListEmptyComponent={
+                  <View style={{ paddingTop: 30 }}>
+                    {isLoading || isRefetching ? (
+                      <View style={{ alignItems: 'center', gap: 10 }}>
+                        <ActivityIndicator animating color={theme.colors.primary} />
+                        <Text style={{ color: theme.colors.outline, textAlign: 'center' }}>Loading specs…</Text>
+                      </View>
+                    ) : isError ? (
+                      <View style={{ alignItems: 'center', gap: 10 }}>
+                        <Text style={{ color: theme.colors.error, textAlign: 'center', fontWeight: '800' }}>
+                          Couldn’t load specs
+                        </Text>
+                        <Text style={{ color: theme.colors.outline, textAlign: 'center' }}>{specsErrorText}</Text>
+                      </View>
+                    ) : (
+                      <Text style={{ color: theme.colors.outline, textAlign: 'center' }}>
+                        No specs found.
+                      </Text>
+                    )}
+                  </View>
+                }
+                renderItem={({ item }) => (
+                  <SpecCard
+                    item={item}
+                    theme={theme}
+                    homeColors={homeColors}
+                    tagColor={tagColor}
+                    withAlpha={withAlpha}
+                    onPress={() => {
+                      queryClient.prefetchQuery({ queryKey: ['spec', item.id], queryFn: () => SpecService.getOne(item.id) });
+                      navigation.navigate('SpecDetails', { specId: item.id });
+                    }}
+                  />
+                )}
+              />
+            ) : (
+              <FlatList
+                data={filteredPeople}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={[
+                  styles.listContent,
+                  {
+                    paddingLeft: insets.left + 16,
+                    paddingRight: insets.right + 16,
+                    paddingBottom: insets.bottom + bottomNavHeight + 24,
+                  },
+                ]}
+                renderItem={({ item }) => (
+                  <PersonCard item={item} theme={theme} />
+                )}
+                ListEmptyComponent={
+                  <View style={{ paddingTop: 30 }}>
+                    <Text style={{ color: theme.colors.outline, textAlign: 'center' }}>No people found.</Text>
+                  </View>
+                }
+              />
+            )}
+          </>
+        ) : bottomTab === 'Specs' ? (
+          <View style={{ flex: 1, paddingTop: 10 }}>
+            <View style={{ marginHorizontal: 16, marginBottom: 10 }}>
+              <SegmentedButtons
+                value={specTab}
+                onValueChange={(v) => setSpecTab(v as 'Owned' | 'Joined')}
+                buttons={[
+                  {
+                    value: 'Owned',
+                    label: 'My Specs',
+                    checkedColor: theme.colors.primary,
+                    uncheckedColor: homeColors.subtext,
+                    style: { borderColor: theme.colors.primary }
+                  },
+                  {
+                    value: 'Joined',
+                    label: 'My Quest',
+                    checkedColor: theme.colors.primary,
+                    uncheckedColor: homeColors.subtext,
+                    style: { borderColor: theme.colors.primary }
+                  },
+                ]}
+                theme={{ colors: { secondaryContainer: 'rgba(124, 58, 237, 0.12)' } }} // Light purple bg for active
+              />
+            </View>
+            <FlatList
+              data={mySpecs}
+              keyExtractor={(item) => String(item.id)}
+              numColumns={2}
+              columnWrapperStyle={styles.gridRow}
+              contentContainerStyle={[
+                styles.listContent,
+                {
+                  paddingLeft: insets.left + 16,
+                  paddingRight: insets.right + 16,
+                  paddingBottom: insets.bottom + bottomNavHeight + 24,
+                },
+              ]}
+              onRefresh={refetchMySpecs}
+              refreshing={isLoadingMySpecs}
+              ListEmptyComponent={
+                isLoadingMySpecs ? (
+                  <View style={{ paddingTop: 30, alignItems: 'center' }}>
+                    <ActivityIndicator animating color={theme.colors.primary} />
+                  </View>
+                ) : (
+                  <View style={{ paddingTop: 30, alignItems: 'center' }}>
+                    <Text style={{ color: theme.colors.outline }}>
+                      {specTab === 'Owned' ? 'You haven\'t created any specs yet.' : 'You haven\'t joined any specs yet.'}
+                    </Text>
+                  </View>
+                )
+              }
+              renderItem={({ item }) => (
+                <SpecCard
+                  item={{
+                    id: String(item.id),
+                    title: item.title,
+                    owner: item.owner?.profile?.full_name || item.owner?.name || 'Unknown',
+                    expiresIn: new Date(item.expires_at) > new Date() ? 'Active' : 'Ended',
+                    joinCount: item.applications_count || 0,
+                    maxParticipants: item.max_participants,
+                    eliminatedCount: 0,
+                    firstDateProvider: '—',
+                    likesCount: 0,
+                    tag: item.status === 'OPEN' ? 'LIVE' : 'ONGOING',
+                    ownerAvatar: item.owner?.profile?.avatar, // Use the injected avatar
+                  }}
+                  theme={theme}
+                  homeColors={homeColors}
+                  tagColor={tagColor}
+                  withAlpha={withAlpha}
+                  onPress={() => {
+                    queryClient.prefetchQuery({ queryKey: ['spec', String(item.id)], queryFn: () => SpecService.getOne(String(item.id)) });
+                    navigation.navigate('SpecDetails', { specId: String(item.id) });
+                  }}
+                />
               )}
-            </View>
-          }
-          renderItem={({ item }) => (
-            <SpecCard
-              item={item}
-              theme={theme}
-              homeColors={homeColors}
-              tagColor={tagColor}
-              withAlpha={withAlpha}
-              onPress={() => {
-                queryClient.prefetchQuery({ queryKey: ['spec', item.id], queryFn: () => SpecService.getOne(item.id) });
-                navigation.navigate('SpecDetails', { specId: item.id });
-              }}
             />
-          )}
-        />
-      ) : (
-        <FlatList
-          data={filteredPeople}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={[
-            styles.listContent,
-            {
-              paddingLeft: insets.left + 16,
-              paddingRight: insets.right + 16,
-              paddingBottom: insets.bottom + bottomNavHeight + 24,
-            },
-          ]}
-          renderItem={({ item }) => (
-            <PersonCard item={item} theme={theme} />
-          )}
-          ListEmptyComponent={
-            <View style={{ paddingTop: 30 }}>
-              <Text style={{ color: theme.colors.outline, textAlign: 'center' }}>No people found.</Text>
-            </View>
-          }
-        />
-      )}
+          </View>
+        ) : bottomTab === 'Requests' ? (
+          <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 10 }}>
+            <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 12, color: theme.colors.onSurface }}>
+              Pending Requests
+            </Text>
+            <FlatList
+              data={requests}
+              keyExtractor={(item) => String(item.id)}
+              contentContainerStyle={{ paddingBottom: bottomNavHeight + 24 }}
+              onRefresh={refetchRequests}
+              refreshing={isLoading}
+              ListEmptyComponent={
+                <View style={{ paddingTop: 30, alignItems: 'center' }}>
+                  <Text style={{ color: theme.colors.outline }}>No pending application requests.</Text>
+                </View>
+              }
+              renderItem={({ item }) => (
+                <RequestCard
+                  item={item}
+                  isProcessing={approveMutation.isPending || rejectMutation.isPending}
+                  onAccept={(sid, appId) => approveMutation.mutate({ specId: sid, applicationId: appId })}
+                  onReject={(sid, appId) => rejectMutation.mutate({ specId: sid, applicationId: appId })}
+                />
+              )}
+            />
+          </View>
+        ) : (
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <MaterialCommunityIcons name="timeline-clock-outline" size={64} color={theme.colors.outline} />
+            <Text style={{ marginTop: 16, color: theme.colors.outline }}>Date timeline coming soon!</Text>
+          </View>
+        )}
+      </View>
 
       {/* Bottom nav (UI only for now) */}
       <Surface
@@ -591,11 +785,31 @@ export default function HomeScreen({ navigation }: any) {
       >
         <View style={styles.bottomNavRow}>
           <TouchableOpacity onPress={() => setBottomTab('Home')} style={styles.bottomNavItem} activeOpacity={0.7}>
-            <MaterialCommunityIcons
-              name="home-variant"
-              size={24}
-              color={bottomTab === 'Home' ? theme.colors.primary : homeColors.subtext}
-            />
+            {bottomTab === 'Home' ? (
+              <View style={{
+                shadowColor: theme.colors.primary,
+                shadowRadius: 8,
+                shadowOpacity: 0.5,
+                shadowOffset: { width: 0, height: 0 },
+                backgroundColor: 'rgba(255,255,255,0.1)',
+                borderRadius: 16,
+                padding: 6
+              }}>
+                <MaterialCommunityIcons
+                  name="home"
+                  size={24}
+                  color={theme.colors.primary}
+                  style={{ textShadowColor: theme.colors.primary, textShadowRadius: 10 }}
+                />
+              </View>
+            ) : (
+              <MaterialCommunityIcons
+                name="home-outline"
+                size={28}
+                color={theme.colors.primary}
+                style={{ opacity: 0.5 }}
+              />
+            )}
             <Text
               style={[
                 styles.bottomNavLabel,
@@ -792,6 +1006,11 @@ const styles = StyleSheet.create({
   },
   searchBar: {
     borderRadius: 50,
+  },
+  searchModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    paddingHorizontal: 16,
   },
   searchModal: {
     borderRadius: 16,

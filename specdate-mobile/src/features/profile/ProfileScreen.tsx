@@ -88,18 +88,6 @@ export default function ProfileScreen({ navigation }: any) {
     const [images, setImages] = useState<(string | null)[]>(new Array(6).fill(null));
     const [viewerVisible, setViewerVisible] = useState(false);
     const [viewerInitialIndex, setViewerInitialIndex] = useState(0);
-    // Cache-bust avatar and gallery URIs so Image components refetch when profile/avatar updates (same URL, new content)
-    const profileUpdatedAt = user?.profile?.updated_at ?? null;
-    const avatarUri = useMemo(
-        () => imageUriWithCacheBust(toImageUri(user?.profile?.avatar), profileUpdatedAt) ||
-            `https://ui-avatars.com/api/?name=${encodeURIComponent(form?.full_name || user?.name || 'User')}&size=512&background=7C3AED&color=ffffff`,
-        [user?.profile?.avatar, profileUpdatedAt, form?.full_name, user?.name]
-    );
-    const imagesWithCacheBust = useMemo(
-        () => images.map((u) => (u ? (imageUriWithCacheBust(u, profileUpdatedAt) ?? u) : null)),
-        [images, profileUpdatedAt]
-    );
-    const imagesFilled = useMemo(() => imagesWithCacheBust.filter(Boolean) as string[], [imagesWithCacheBust]);
 
     const [form, setForm] = useState<Partial<ProfileFormData>>({
         full_name: '',
@@ -121,6 +109,19 @@ export default function ProfileScreen({ navigation }: any) {
         ethnicity: '',
     });
     const [errors, setErrors] = useState<Record<string, string>>({});
+
+    // Cache-bust avatar and gallery URIs so Image components refetch when profile/avatar updates (same URL, new content)
+    const profileUpdatedAt = user?.profile?.updated_at ?? null;
+    const avatarUri = useMemo(
+        () => imageUriWithCacheBust(toImageUri(user?.profile?.avatar), profileUpdatedAt) ||
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(form?.full_name || user?.name || 'User')}&size=512&background=7C3AED&color=ffffff`,
+        [user?.profile?.avatar, profileUpdatedAt, form?.full_name, user?.name]
+    );
+    const imagesWithCacheBust = useMemo(
+        () => images.map((u) => (u ? (imageUriWithCacheBust(u, profileUpdatedAt) ?? u) : null)),
+        [images, profileUpdatedAt]
+    );
+    const imagesFilled = useMemo(() => imagesWithCacheBust.filter(Boolean) as string[], [imagesWithCacheBust]);
     type ConfirmAction = 'pause' | 'unpause' | 'delete' | null;
     const [confirmModal, setConfirmModal] = useState<ConfirmAction>(null);
     const [accountActionLoading, setAccountActionLoading] = useState(false);
@@ -182,7 +183,7 @@ export default function ProfileScreen({ navigation }: any) {
             Array.isArray(user.images) && user.images.length > 0
                 ? (user.images as string[])
                 : (user as any).profile_gallery_media?.map((m: { url?: string }) => m?.url).filter(Boolean) ?? [];
-        const valid = urlList.map((u) => toImageUri(u) ?? null).filter(Boolean) as string[];
+        const valid = urlList.map((u: string) => toImageUri(u) ?? null).filter(Boolean) as string[];
         const newImages = [...valid, ...new Array(6 - valid.length).fill(null)].slice(0, 6);
         setImages(newImages);
     }, [user]);
@@ -531,9 +532,18 @@ export default function ProfileScreen({ navigation }: any) {
                         <View style={[styles.walletCard, { backgroundColor: theme.colors.errorContainer }]}>
                             <View style={[styles.walletIconWrap, { backgroundColor: 'rgba(239,68,68,0.2)' }]}>
                                 {/* Red Spark (Life) */}
-                                <Image
-                                    source={require('../../../assets/images/spark_red.png')}
-                                    style={{ width: 34, height: 34, resizeMode: 'contain' }}
+                                {/* Red Spark (Life) */}
+                                <MaterialCommunityIcons
+                                    name="lightning-bolt"
+                                    size={34}
+                                    color={theme.colors.error}
+                                    style={{
+                                        shadowColor: theme.colors.error,
+                                        shadowOffset: { width: 0, height: 0 },
+                                        shadowOpacity: 0.8,
+                                        shadowRadius: 8,
+                                        elevation: 5, // Android glow
+                                    }}
                                 />
                             </View>
                             <Text variant="headlineSmall" style={[styles.walletAmount, { color: theme.colors.onSurface }]}>
@@ -546,9 +556,18 @@ export default function ProfileScreen({ navigation }: any) {
                         <View style={[styles.walletCard, { backgroundColor: theme.colors.primaryContainer }]}>
                             <View style={[styles.walletIconWrap, { backgroundColor: 'rgba(124,58,237,0.2)' }]}>
                                 {/* Blue Spark (Credit) */}
-                                <Image
-                                    source={require('../../../assets/images/spark_blue.png')}
-                                    style={{ width: 34, height: 34, resizeMode: 'contain' }}
+                                {/* Blue Spark (Credit) */}
+                                <MaterialCommunityIcons
+                                    name="lightning-bolt"
+                                    size={34}
+                                    color={theme.colors.primary}
+                                    style={{
+                                        shadowColor: theme.colors.primary,
+                                        shadowOffset: { width: 0, height: 0 },
+                                        shadowOpacity: 0.8,
+                                        shadowRadius: 8,
+                                        elevation: 5, // Android glow
+                                    }}
                                 />
                             </View>
                             <Text variant="headlineSmall" style={[styles.walletAmount, { color: theme.colors.onSurface }]}>

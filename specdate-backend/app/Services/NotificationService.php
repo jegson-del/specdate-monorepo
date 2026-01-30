@@ -28,7 +28,10 @@ class NotificationService
             'data' => $data,
         ]);
 
-        // 2. Send Expo Push Notification (if token exists)
+        // 2. Broadcast via Pusher/Echo
+        event(new \App\Events\NotificationCreated($notification));
+
+        // 3. Send Expo Push Notification (if token exists)
         if ($user->expo_push_token) {
             $this->sendExpoPush($user->expo_push_token, $title ?? 'New Notification', $body ?? 'You have a new notification', $data);
         }
