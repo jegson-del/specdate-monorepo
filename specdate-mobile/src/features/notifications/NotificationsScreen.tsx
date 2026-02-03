@@ -40,14 +40,15 @@ export default function NotificationsScreen() {
         }
 
         const type = item.type; // 'round_started', 'eliminated', etc.
-        const data = item.data; // { spec_id, round_id, question }
+        const navData = item.data; // { spec_id, round_id, question }
 
-        if (type === 'round_started' && data?.spec_id) {
-            navigation.navigate('SpecDetails', { specId: data.spec_id });
-        } else if (type === 'eliminated' && data?.spec_id) {
-            navigation.navigate('SpecDetails', { specId: data.spec_id });
-        } else if (type === 'application_accepted' && data?.spec_id) {
-            navigation.navigate('SpecDetails', { specId: data.spec_id });
+        if (navData?.spec_id) {
+            // Invalidate the cache for this spec to ensure fresh data (e.g. new round) is fetched
+            queryClient.invalidateQueries({ queryKey: ['spec', String(navData.spec_id)] });
+
+            if (type === 'round_started' || type === 'eliminated' || type === 'application_accepted' || type === 'round_answer') {
+                navigation.navigate('SpecDetails', { specId: navData.spec_id });
+            }
         }
     };
 
@@ -71,6 +72,10 @@ export default function NotificationsScreen() {
             iconName = 'handshake-outline';
             color = '#10B981';
             bgColor = 'rgba(16, 185, 129, 0.15)';
+        } else if (type === 'round_answer') {
+            iconName = 'comment-check-outline';
+            color = '#3B82F6'; // Blue
+            bgColor = 'rgba(59, 130, 246, 0.15)';
         }
 
         const timeText = item.created_at ? formatDistanceToNow(new Date(item.created_at), { addSuffix: true }) : '';

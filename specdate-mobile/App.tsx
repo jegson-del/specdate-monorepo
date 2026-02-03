@@ -21,9 +21,7 @@ import NotificationsScreen from './src/features/notifications/NotificationsScree
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const queryClient = new QueryClient();
-
 const Stack = createNativeStackNavigator();
-
 
 export default function App() {
   const [booting, setBooting] = useState(true);

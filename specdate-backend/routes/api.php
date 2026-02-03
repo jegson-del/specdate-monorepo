@@ -48,6 +48,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Rounds
     Route::post('/specs/{id}/rounds', [\App\Http\Controllers\SpecController::class, 'startRound']);
     Route::post('/rounds/{roundId}/answer', [\App\Http\Controllers\SpecController::class, 'submitAnswer']);
+    Route::post('/rounds/{roundId}/close', [\App\Http\Controllers\SpecController::class, 'closeRound']);
+    Route::post('/rounds/{roundId}/eliminate/{userId}', [\App\Http\Controllers\SpecController::class, 'eliminateUser']);
     Route::post('/rounds/{roundId}/eliminate', [\App\Http\Controllers\SpecController::class, 'eliminateUsers']);
 
     // Notifications

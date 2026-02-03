@@ -52,8 +52,7 @@ class SpecService
                 break;
             case 'LIVE':
             default:
-                // Newly created specs
-                $query->where('created_at', '>=', now()->subDays(2));
+                // All active specs (default)
                 $query->latest();
                 break;
         }
@@ -374,6 +373,12 @@ class SpecService
 
         // Calculate 10% elimination (minimum 1 if there are participants)
         $eliminationCount = max(1, (int) ceil($activeCount * 0.1));
+
+        // Check for any existing active/reviewing round and close/complete it
+        $latestRound = $spec->rounds()->latest('id')->first();
+        if ($latestRound && ($latestRound->status === 'ACTIVE' || $latestRound->status === 'REVIEWING')) {
+            $latestRound->update(['status' => 'COMPLETED']);
+        }
         
         // Find next round number
         $nextRoundNumber = $spec->rounds()->max('round_number') + 1;
@@ -439,16 +444,41 @@ class SpecService
             'answer_text' => $answer,
         ]);
 
+        // Notify Spec Owner (if not the answerer, which should be guaranteed by role checks but safe to check)
+        if ($round->spec->user_id !== $user->id) {
+            $this->notificationService->notify(
+                $round->spec->owner,
+                'round_answer',
+                [
+                    'spec_id' => $round->spec->id, 
+                    'round_id' => $round->id, 
+                    'answer_id' => $answerModel->id,
+                    'title' => 'New Answer Submitted',
+                    'message' => "{$user->username} has answered your question."
+                ],
+                'New Answer Submitted',
+                "{$user->username} has answered your question."
+            );
+        }
+
         // Broadcast event
         \App\Events\RoundAnswered::dispatch($answerModel);
+
+        // Check for Auto-Close Trigger (All participants have answered)
+        $participantCount = $round->spec->applications()->where('status', 'ACCEPTED')->count();
+        $answerCount = $round->answers()->count();
+
+        if ($answerCount >= $participantCount) {
+             $this->closeRound($round->spec->user, $roundId); // Simulate owner closing it
+        }
 
         return $answerModel;
     }
 
     /**
-     * Eliminate users in a round.
+     * Close the current round and move to REVIEWING status.
      */
-    public function eliminateUsers($user, $roundId, array $userIdsToEliminate)
+    public function closeRound($user, $roundId)
     {
         $round = SpecRound::with('spec')->findOrFail($roundId);
 
@@ -460,52 +490,87 @@ class SpecService
             throw new HttpException(400, 'Round is not active.');
         }
 
-        // Validate count
-        // Allow eliminating LESS than target but warn? Enforce MAX limit.
-        if (count($userIdsToEliminate) > $round->elimination_count) {
-             throw new HttpException(400, "You can eliminate a maximum of {$round->elimination_count} participants.");
+        $round->update(['status' => 'REVIEWING']);
+        
+        // Broadcast Event
+        // \App\Events\RoundStatusUpdated::dispatch($round);
+
+        return $round;
+    }
+
+    /**
+     * Eliminate a single user (Owner only).
+     */
+    public function eliminateUser($user, $roundId, $userIdToEliminate)
+    {
+        $round = SpecRound::with('spec')->findOrFail($roundId);
+
+        if ($round->spec->user_id !== $user->id) {
+            throw new HttpException(403, 'Unauthorized.');
         }
 
-        DB::transaction(function () use ($round, $userIdsToEliminate) {
-            foreach ($userIdsToEliminate as $uid) {
-                // 1. Mark answer as eliminated (if exists)
-                $round->answers()->where('user_id', $uid)->update(['is_eliminated' => true]);
+        // Allow elimination in REVIEWING state (and technically ACTIVE too if desired)
+        if ($round->status !== 'REVIEWING' && $round->status !== 'ACTIVE') {
+             throw new HttpException(400, 'Round must be Active or In Review to eliminate participants.');
+        }
 
-                // 2. Update Application Status to ELIMINATED
-                $round->spec->applications()
-                    ->where('user_id', $uid)
-                    ->update(['status' => 'ELIMINATED']);
-                
-                // 3. Log Spark Loss (Red Spark) - "Spark Extinguished"
-                $victim = User::find($uid);
-                if ($victim) {
-                     $victim->balance()->decrement('red_sparks'); // Lose a life
-                     
-                     // Log Transaction
-                     $victim->transactions()->create([
-                        'type' => 'DEBIT',
-                        'item_type' => 'red_spark',
-                        'quantity' => 1,
-                        'amount' => 0,
-                        'currency' => 'GBP',
-                        'purpose' => "Eliminated from Spec: {$round->spec->title}",
-                        'metadata' => ['spec_id' => $round->spec->id, 'round_id' => $round->id],
-                    ]);
+        DB::transaction(function () use ($round, $userIdToEliminate) {
+            // 1. Mark answer as eliminated (if exists)
+            $round->answers()->where('user_id', $userIdToEliminate)->update(['is_eliminated' => true]);
 
-                    // Notify
-                    $this->notificationService->notify(
-                        $victim,
-                        'eliminated',
-                        ['spec_id' => $round->spec->id],
-                        'Spark Extinguished',
-                         "You have been eliminated from '{$round->spec->title}'."
-                    );
-                }
+            // 2. Update Application Status to ELIMINATED
+            $round->spec->applications()
+                ->where('user_id', $userIdToEliminate)
+                ->update(['status' => 'ELIMINATED']);
+            
+            // 3. Log Spark Loss (Red Spark) - "Spark Extinguished"
+            $victim = User::find($userIdToEliminate);
+            if ($victim) {
+                 $victim->balance()->decrement('red_sparks'); // Lose a life
+                 
+                 // Log Transaction
+                 $victim->transactions()->create([
+                    'type' => 'DEBIT',
+                    'item_type' => 'red_spark',
+                    'quantity' => 1,
+                    'amount' => 0,
+                    'currency' => 'GBP',
+                    'purpose' => "Eliminated from Spec: {$round->spec->title}",
+                    'metadata' => ['spec_id' => $round->spec->id, 'round_id' => $round->id],
+                ]);
+
+                // Notify
+                $this->notificationService->notify(
+                    $victim,
+                    'eliminated',
+                    ['spec_id' => $round->spec->id],
+                    'Spark Extinguished',
+                     "You have been eliminated from '{$round->spec->title}'."
+                );
             }
-
-            // Close the round
-            $round->update(['status' => 'COMPLETED']);
         });
+
+        return ['message' => 'User eliminated.'];
+    }
+
+    /**
+     * Eliminate users in a round (Bulk - Legacy/Fallback).
+     */
+    public function eliminateUsers($user, $roundId, array $userIdsToEliminate)
+    {
+        // ... Reusing logic or deprecating. For now, let's keep it but wrap the new single logic?
+        // Or just keep as is for backward compat if needed.
+        // But for "Modern Flow", we use eliminateUser singular.
+        
+        // Let's repurpose this to Loop eliminateUser for simplicity if bulk is ever needed again
+        foreach($userIdsToEliminate as $uid) {
+            $this->eliminateUser($user, $roundId, $uid);
+        }
+        
+        // And then close? Modern flow says explicit close. 
+        // If this old endpoint is called, it implied closing.
+        $round = SpecRound::findOrFail($roundId);
+        $round->update(['status' => 'COMPLETED']);
 
         return ['message' => 'Round completed and users eliminated.'];
     }

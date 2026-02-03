@@ -258,6 +258,26 @@ class SpecController extends Controller
         }
     }
 
+    public function closeRound(Request $request, $roundId)
+    {
+        try {
+            $round = $this->specService->closeRound($request->user(), $roundId);
+            return $this->sendResponse($round, 'Round closed for review.');
+        } catch (HttpException $e) {
+            return $this->sendError($e->getMessage(), [], $e->getStatusCode());
+        }
+    }
+
+    public function eliminateUser(Request $request, $roundId, $userId)
+    {
+        try {
+            $result = $this->specService->eliminateUser($request->user(), $roundId, $userId);
+            return $this->sendResponse($result, 'User eliminated.');
+        } catch (HttpException $e) {
+            return $this->sendError($e->getMessage(), [], $e->getStatusCode());
+        }
+    }
+
     public function pendingRequests(Request $request)
     {
         return response()->json([

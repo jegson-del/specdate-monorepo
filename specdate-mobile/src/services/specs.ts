@@ -87,6 +87,16 @@ export const SpecService = {
         return response.data;
     },
 
+    async closeRound(roundId: number) {
+        const response = await api.post(`/rounds/${roundId}/close`);
+        return response.data;
+    },
+
+    async eliminateUser(roundId: number, userId: number) {
+        const response = await api.post(`/rounds/${roundId}/eliminate/${userId}`);
+        return response.data;
+    },
+
     async toggleLike(specId: string) {
         const response = await api.post(`/specs/${specId}/like`);
         return response.data;

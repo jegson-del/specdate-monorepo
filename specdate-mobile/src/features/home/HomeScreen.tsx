@@ -187,8 +187,7 @@ export default function HomeScreen({ navigation }: any) {
   const { data: specs = [], isLoading, error, isError, refetch, isRefetching } = useQuery({
     queryKey: ['specs', feed],
     retry: false,
-    staleTime: 60 * 1000,
-    placeholderData: (previousData) => previousData,
+    staleTime: 0, // Always fetch fresh
     queryFn: () => fetchSpecsForFeed(feed),
   });
 
