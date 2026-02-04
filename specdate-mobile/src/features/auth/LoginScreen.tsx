@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { View, StyleSheet, KeyboardAvoidingView, Platform, Alert, Image as RNImage } from 'react-native';
 import { Text, TextInput, Button, IconButton, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import axios from 'axios';
@@ -90,10 +90,12 @@ export default function LoginScreen({ navigation }: any) {
           />
         </View>
 
-        <Text variant="headlineMedium" style={{ color: theme.colors.primary, fontWeight: 'bold' }}>
-          Welcome back
-        </Text>
-        <Text variant="bodyMedium" style={{ color: theme.colors.secondary, marginTop: 6 }}>
+
+        <RNImage
+          source={require('../../../assets/logo_v2.png')}
+          style={{ width: 300, height: 95, resizeMode: 'contain', marginBottom: 20, alignSelf: 'center', backgroundColor: 'transparent' }}
+        />
+        <Text variant="bodyMedium" style={{ color: theme.colors.secondary }}>
           Login to continue.
         </Text>
 

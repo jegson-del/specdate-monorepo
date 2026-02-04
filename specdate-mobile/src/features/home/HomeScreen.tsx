@@ -13,6 +13,7 @@ import SpecCard from './components/SpecCard';
 import PersonCard from './components/PersonCard';
 import RequestCard from './components/RequestCard';
 import { useMutation } from '@tanstack/react-query';
+import { useAudioPlayer } from 'expo-audio';
 
 type SpecCardItem = {
   id: string;
@@ -251,10 +252,11 @@ export default function HomeScreen({ navigation }: any) {
   );
 
   // Real-time Notifications Listener
+  const player = useAudioPlayer(require('../../../assets/sounds/notification.wav'));
+
   React.useEffect(() => {
     if (!user?.id) return;
     const { echo } = require('../../utils/echo');
-    const { Audio } = require('expo-av');
 
     // Private channel: App.Models.User.{id}
     const channel = echo.private(`App.Models.User.${user.id}`);
@@ -265,20 +267,13 @@ export default function HomeScreen({ navigation }: any) {
       console.log('New notification received!', e);
 
       // Play sound
-      try {
-        const { sound } = await Audio.Sound.createAsync(
-          require('../../../assets/sounds/notification.wav')
-        );
-        await sound.playAsync();
-      } catch (err) {
-        console.log('Error playing sound', err);
-      }
+      player.play();
     });
 
     return () => {
       channel.stopListening('.NotificationCreated');
     };
-  }, [user?.id, queryClient]);
+  }, [user?.id, queryClient, player]);
 
   const specsErrorText = useMemo(() => {
     if (!isError) return '';
@@ -400,8 +395,11 @@ export default function HomeScreen({ navigation }: any) {
           />
         )}
 
-        <View style={styles.titleWrap}>
-          <Text style={[styles.title, { color: theme.colors.primary }]}>Spec A Date</Text>
+        <View style={styles.titleWrap} pointerEvents="none">
+          <Image
+            source={require('../../../assets/logo_v2.png')}
+            style={{ width: 360, height: 95, resizeMode: 'contain', backgroundColor: 'transparent' }}
+          />
         </View>
 
         <View style={styles.rightIcons}>
@@ -426,9 +424,14 @@ export default function HomeScreen({ navigation }: any) {
           </View>
 
           <View style={styles.iconWithBadge}>
-            <TouchableOpacity onPress={() => navigation.navigate('Notifications')} activeOpacity={0.7} style={{ padding: 4 }}>
-              <MaterialCommunityIcons name="bell-outline" size={28} color={homeColors.text} />
-            </TouchableOpacity>
+            <IconButton
+              icon="bell-outline"
+              size={26}
+              iconColor={homeColors.text}
+              containerColor={theme.colors.elevation.level2}
+              style={styles.topIconButton}
+              onPress={() => navigation.navigate('Notifications')}
+            />
             {(user?.unread_notifications_count || 0) > 0 && (
               <View
                 style={[
@@ -581,6 +584,7 @@ export default function HomeScreen({ navigation }: any) {
 
             {tab === 'Specs' ? (
               <FlatList
+                key="home-specs"
                 data={filteredItems}
                 keyExtractor={(item) => item.id}
                 numColumns={2}
@@ -633,6 +637,7 @@ export default function HomeScreen({ navigation }: any) {
               />
             ) : (
               <FlatList
+                key="home-people"
                 data={filteredPeople}
                 keyExtractor={(item) => item.id}
                 contentContainerStyle={[
@@ -680,6 +685,7 @@ export default function HomeScreen({ navigation }: any) {
               />
             </View>
             <FlatList
+              key="my-specs"
               data={mySpecs}
               keyExtractor={(item) => String(item.id)}
               numColumns={2}
@@ -740,6 +746,7 @@ export default function HomeScreen({ navigation }: any) {
               Pending Requests
             </Text>
             <FlatList
+              key="requests"
               data={requests}
               keyExtractor={(item) => String(item.id)}
               contentContainerStyle={{ paddingBottom: bottomNavHeight + 24 }}
@@ -947,8 +954,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   titleWrap: {
-    flex: 1,
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
     fontSize: 18,
@@ -1135,12 +1147,11 @@ const styles = StyleSheet.create({
   bottomNavRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    justifyContent: 'space-between',
   },
   bottomNavItem: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    width: 62,
     gap: 4,
   },
   bottomNavCenterWrap: {

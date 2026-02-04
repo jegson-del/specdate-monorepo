@@ -118,8 +118,9 @@ class SpecService
                 // Return all applications so we can see statuses; load user profile + media for avatar from media table
                 $q->with('user.profile', 'user.media');
             }])
+            // Load all rounds (history + active), newest first for list UX
             ->with(['rounds' => function($q) {
-                $q->where('status', 'ACTIVE');
+                $q->orderBy('round_number', 'desc');
             }]);
 
         if ($user) {
@@ -404,8 +405,8 @@ class SpecService
                     'round_id' => $round->id,
                     'question' => $question
                 ],
-                'New Round Started!',
-                "Round {$nextRoundNumber}: {$question}"
+                'New Question Asked',
+                "{$user->username} asked a question"
             );
         }
 

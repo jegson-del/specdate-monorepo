@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
-import { View, StyleSheet, ScrollView, ImageBackground, Alert, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView, ImageBackground, Alert, TouchableOpacity, Image } from 'react-native';
 import { Text, useTheme, IconButton, Button, Avatar, Surface, ActivityIndicator, Chip, TextInput } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -89,22 +89,27 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
     const queryClient = useQueryClient();
     const { data: user } = useUser();
 
-    const { data: spec, isLoading, error, refetch: refetchSpec } = useQuery({
+    const { data: spec, isLoading, isFetching, error, refetch: refetchSpec } = useQuery({
         queryKey: ['spec', specId],
         queryFn: async () => {
             if (!specId) throw new Error('Spec ID is required');
             return SpecService.getOne(specId);
         },
-        retry: false,
+        retry: 1,
         enabled: !!specId,
-        staleTime: 0, // Refetch on focus so we always have fresh data when landing on page
+        staleTime: 0,
+        gcTime: 60 * 1000,
+        refetchOnMount: 'always',
+        placeholderData: (previousData) => previousData,
     });
 
-    // When Spec Details gains focus, refetch so we have fresh data; placeholderData keeps current data visible during refetch
+    // When we land (e.g. from notifications or returning from Round Details), always refetch from API so we have fresh data
     useFocusEffect(
         useCallback(() => {
-            if (specId) refetchSpec();
-        }, [specId, refetchSpec])
+            if (specId) {
+                queryClient.refetchQueries({ queryKey: ['spec', specId] });
+            }
+        }, [specId, queryClient])
     );
 
     // --- Real-time Updates (Pusher/Echo WebSockets) ---
@@ -120,9 +125,8 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
             refetchSpec();
         });
 
-        channel.listen('.RoundAnswered', () => {
-            refetchSpec();
-        });
+        channel.listen('.RoundAnswered', () => refetchSpec());
+        channel.listen('.RoundStarted', () => refetchSpec());
 
         return () => {
             channel.stopListening('.RoundStarted');
@@ -235,38 +239,6 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
         },
         onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to eliminate users.'),
     });
-
-    const closeRoundMutation = useMutation({
-        mutationFn: (roundId: number) => SpecService.closeRound(roundId),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['spec', specId] });
-            // Alert.alert('Review', 'Round closed. You can now review answers and eliminate users.');
-        },
-        onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to close round.'),
-    });
-
-    const eliminateUserMutation = useMutation({
-        mutationFn: ({ roundId, userId }: { roundId: number, userId: number }) =>
-            SpecService.eliminateUser(roundId, userId),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['spec', specId] });
-            // Alert.alert('Eliminated', 'User eliminated.');
-        },
-        onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to eliminate user.'),
-    });
-
-
-    const activeRound = useMemo(() => {
-        if (!spec?.rounds || spec.rounds.length === 0) return null;
-        // The backend returns rounds filtered by ACTIVE, or we find the active one.
-        // Also assuming backend appends 'answers' (filtered by user) to the round.
-        return spec.rounds.find((r: any) => r.status === 'ACTIVE' || r.status === 'REVIEWING');
-    }, [spec]);
-
-    const myAnswer = useMemo(() => {
-        if (!activeRound?.answers || activeRound.answers.length === 0) return null;
-        return activeRound.answers[0]; // User's answer
-    }, [activeRound]);
 
     const handleJoin = () => {
         // 1. Frontend check: profile must be complete to join (matches backend gate)
@@ -453,7 +425,8 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
         );
     }
 
-    if (isLoading) {
+    // Show spinner until API returns data (first load; returning from Round Details uses cached data + refetch)
+    if (!spec && !error) {
         return (
             <View style={[styles.loadingContainer, { backgroundColor: theme.colors.background }]}>
                 <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -566,6 +539,30 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                     </ImageBackground>
                 </View>
 
+                {/* Host First/New Round Action */}
+                {isOwner && (!spec.rounds || !spec.rounds.some((r: any) => r.status === 'ACTIVE' || r.status === 'REVIEWING')) && (
+                    <View style={styles.section}>
+                        <Surface style={[styles.glassCard, { backgroundColor: theme.colors.elevation.level2, padding: 16 }]} elevation={2}>
+                            <Text variant="titleMedium" style={{ fontWeight: 'bold', marginBottom: 8, color: theme.colors.primary }}>Start New Round</Text>
+                            <TextInput
+                                mode="outlined"
+                                placeholder="e.g. What's your hidden talent?"
+                                value={newRoundQuestion}
+                                onChangeText={setNewRoundQuestion}
+                                style={{ backgroundColor: theme.colors.surface, marginBottom: 12 }}
+                            />
+                            <Button
+                                mode="contained"
+                                onPress={() => startRoundMutation.mutate(newRoundQuestion)}
+                                loading={startRoundMutation.isPending}
+                                disabled={!newRoundQuestion.trim() || startRoundMutation.isPending || participants.filter((p: any) => p.status === 'ACCEPTED').length < 1}
+                            >
+                                Start Round {participants.filter((p: any) => p.status === 'ACCEPTED').length < 1 ? '(Need accepted users)' : ''}
+                            </Button>
+                        </Surface>
+                    </View>
+                )}
+
                 {/* Actions */}
                 <View style={styles.actionsRow}>
                     <TouchableOpacity onPress={() => likeMutation.mutate()} activeOpacity={0.9}>
@@ -599,241 +596,51 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
 
 
 
-                {/* Owner Controls (Start Round / Review) — glass card */}
-                {isOwner && (
-                    <>
-                        {/* Start New Round Card (Only if no active round) */}
-                        {!activeRound && (
-                            <View style={styles.section}>
-                                <View style={[styles.glassCard, { borderColor: theme.dark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.5)', shadowColor: theme.colors.primary }]}>
-                                    <BlurView intensity={64} tint={theme.dark ? 'dark' : 'light'} style={StyleSheet.absoluteFillObject} />
-                                    <View style={styles.glassCardInner}>
-                                        <View style={styles.glassHeader}>
-                                            <MaterialCommunityIcons name="gavel" size={18} color={theme.colors.primary} />
-                                            <Text style={[styles.glassLabel, { color: theme.colors.primary }]}>Host Round</Text>
-                                        </View>
-                                        <Text style={[styles.glassSubtext, { color: theme.colors.onSurfaceVariant }]}>
-                                            Ask a question to eliminate 10% of participants.
-                                        </Text>
-                                        <TextInput
-                                            mode="outlined"
-                                            placeholder="e.g. What's your controversial food opinion?"
-                                            value={newRoundQuestion}
-                                            onChangeText={setNewRoundQuestion}
-                                            style={{ backgroundColor: theme.colors.surface, marginBottom: 12 }}
-                                        />
-                                        <Button
-                                            mode="contained"
-                                            onPress={() => startRoundMutation.mutate(newRoundQuestion)}
-                                            loading={startRoundMutation.isPending}
-                                            disabled={!newRoundQuestion.trim() || startRoundMutation.isPending || participants.filter((p: any) => p.status === 'ACCEPTED').length < 1}
-                                        >
-                                            Start Round {participants.filter((p: any) => p.status === 'ACCEPTED').length < 1 ? '(Need accepted users)' : ''}
-                                        </Button>
-                                    </View>
-                                </View>
-                            </View>
-                        )}
 
-                        {/* Active Round Controls */}
-                        {activeRound && activeRound.status === 'ACTIVE' && (
-                            <View style={[styles.section, { marginBottom: 10 }]}>
-                                <Surface style={{ padding: 16, borderRadius: 12, backgroundColor: theme.colors.elevation.level2 }} elevation={2}>
-                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <View style={{ flex: 1 }}>
-                                            <Text variant="titleMedium" style={{ color: theme.colors.primary, fontWeight: '700' }}>Round #{activeRound.round_number} Active</Text>
-                                            <Text variant="bodySmall" style={{ opacity: 0.7 }}>Waiting for answers...</Text>
-                                        </View>
-                                        <Button
-                                            mode="outlined"
-                                            compact
-                                            textColor={theme.colors.error}
-                                            style={{ borderColor: theme.colors.error }}
-                                            onPress={() => Alert.alert('Close Round?', 'Stop accepting answers and start reviewing?', [
-                                                { text: 'Cancel', style: 'cancel' },
-                                                { text: 'Close & Review', onPress: () => closeRoundMutation.mutate(activeRound.id) }
-                                            ])}
-                                            loading={closeRoundMutation.isPending}
-                                        >
-                                            Close Round
-                                        </Button>
-                                    </View>
-                                </Surface>
-                            </View>
-                        )}
-
-                        {/* Reviewing Mode Controls */}
-                        {activeRound && activeRound.status === 'REVIEWING' && (
-                            <View style={styles.section}>
-                                <View style={[styles.glassCard, { borderColor: theme.colors.primary, borderWidth: 1 }]}>
-                                    <BlurView intensity={40} tint={theme.dark ? 'dark' : 'light'} style={StyleSheet.absoluteFillObject} />
-                                    <View style={styles.glassCardInner}>
-                                        <View style={styles.glassHeader}>
-                                            <MaterialCommunityIcons name="eye-check" size={20} color={theme.colors.primary} />
-                                            <Text style={[styles.glassLabel, { color: theme.colors.primary, fontSize: 16 }]}>Reviewing Answers</Text>
-                                        </View>
-                                        <Text style={{ marginBottom: 12, color: theme.colors.onSurface }}>
-                                            Eliminate participants below. When done, start the next round.
-                                        </Text>
-                                        <TextInput
-                                            mode="outlined"
-                                            placeholder="Next Question (e.g. Best travel story?)"
-                                            value={newRoundQuestion}
-                                            onChangeText={setNewRoundQuestion}
-                                            style={{ backgroundColor: theme.colors.surface, marginBottom: 12 }}
-                                        />
-                                        <Button
-                                            mode="contained"
-                                            icon="fast-forward"
-                                            onPress={() => startRoundMutation.mutate(newRoundQuestion)}
-                                            loading={startRoundMutation.isPending}
-                                            disabled={!newRoundQuestion.trim() || startRoundMutation.isPending}
-                                        >
-                                            Start Next Round
-                                        </Button>
-                                    </View>
-                                </View>
-                            </View>
-                        )}
-
-                        {/* Owner Monitor (Active/Reviewing Answers List) */}
-                        {activeRound && (
-                            <View style={styles.section}>
-                                <View style={[styles.glassCard, { borderColor: theme.dark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.5)', shadowColor: theme.colors.primary }]}>
-                                    <BlurView intensity={64} tint={theme.dark ? 'dark' : 'light'} style={StyleSheet.absoluteFillObject} />
-                                    <View style={styles.glassCardInner}>
-                                        <View style={styles.glassHeaderRow}>
-                                            <View style={styles.glassHeader}>
-                                                <MaterialCommunityIcons name="broadcast" size={18} color={theme.colors.primary} />
-                                                <Text style={[styles.glassLabel, { color: theme.colors.primary }]}>
-                                                    Round {activeRound.round_number} · {activeRound.status === 'REVIEWING' ? 'Reviewing' : 'Live'}
-                                                </Text>
-                                            </View>
-                                            <View style={[styles.statusPill, { backgroundColor: theme.colors.primary + '18' }]}>
-                                                <View style={[styles.statusDot, { backgroundColor: theme.colors.primary }]} />
-                                                <Text style={[styles.statusPillText, { color: theme.colors.primary }]}>
-                                                    {activeRound.status === 'REVIEWING' ? 'Action' : 'Waiting'}
-                                                </Text>
-                                            </View>
-                                        </View>
-                                        <Text style={[styles.glassQuestion, { color: theme.colors.onSurface }]}>
-                                            {activeRound.question_text}
-                                        </Text>
-                                        <View style={[styles.glassDivider, { backgroundColor: theme.colors.outlineVariant }]} />
-                                        {activeRound.answers && activeRound.answers.length > 0 ? (
-                                            <View style={styles.ownerAnswersList}>
-                                                <Text style={[styles.ownerAnswersTitle, { color: theme.colors.onSurfaceVariant }]}>
-                                                    Answers ({activeRound.answers.length})
-                                                </Text>
-                                                {activeRound.answers.map((a: any) => {
-                                                    const displayName = a.user?.profile?.full_name || a.user?.name || 'Participant';
-                                                    const avatarUri = toImageUri(a.user?.profile?.avatar) || (a.user?.profile?.full_name || a.user?.name
-                                                        ? `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&size=128&background=6750A4&color=ffffff`
-                                                        : undefined);
-                                                    const isEliminated = a.is_eliminated; // backend should return this
-
-                                                    return (
-                                                        <View key={a.id} style={[styles.ownerAnswerRow, { borderColor: theme.colors.outlineVariant, opacity: isEliminated ? 0.5 : 1 }]}>
-                                                            <Avatar.Image size={36} source={{ uri: avatarUri }} style={styles.ownerAnswerAvatar} />
-                                                            <View style={styles.ownerAnswerBody}>
-                                                                <Text style={[styles.ownerAnswerName, { color: theme.colors.onSurface, textDecorationLine: isEliminated ? 'line-through' : 'none' }]} numberOfLines={1}>
-                                                                    {displayName}
-                                                                </Text>
-                                                                <Text style={[styles.ownerAnswerText, { color: theme.colors.onSurface }]}>
-                                                                    {a.answer_text}
-                                                                </Text>
-                                                            </View>
-                                                            {/* Eliminate Button (Only in REVIEWING and not eliminated) */}
-                                                            {activeRound.status === 'REVIEWING' && !isEliminated && (
-                                                                <IconButton
-                                                                    icon="close-circle-outline"
-                                                                    iconColor={theme.colors.error}
-                                                                    size={24}
-                                                                    onPress={() => eliminateUserMutation.mutate({ roundId: activeRound.id, userId: a.user?.id })}
-                                                                    disabled={eliminateUserMutation.isPending}
-                                                                />
-                                                            )}
-                                                            {isEliminated && (
-                                                                <Text style={{ color: theme.colors.error, fontSize: 10, fontWeight: 'bold' }}>ELIMINATED</Text>
-                                                            )}
-                                                        </View>
-                                                    );
-                                                })}
-                                            </View>
-                                        ) : (
-                                            <Text style={[styles.glassSubtext, { color: theme.colors.onSurfaceVariant }]}>
-                                                Answers will appear here once everyone has submitted.
-                                            </Text>
-                                        )}
-                                    </View>
-                                </View>
-                            </View>
-                        )}
-                    </>
-                )}
-
-                {/* Active Round (Participant View) — glass card */}
-                {activeRound && myApplication && myApplication.status === 'ACCEPTED' && !isOwner ? (
+                {/* ROUNDS LIST – flat vertical list, minimal cards */}
+                {spec.rounds && spec.rounds.length > 0 && (
                     <View style={styles.section}>
-                        <View style={[styles.glassCard, { borderColor: theme.dark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.5)', shadowColor: theme.colors.primary }]}>
-                            <BlurView intensity={64} tint={theme.dark ? 'dark' : 'light'} style={StyleSheet.absoluteFillObject} />
-                            <View style={styles.glassCardInner}>
-                                <View style={styles.glassHeaderRow}>
-                                    <View style={styles.glassHeader}>
-                                        <MaterialCommunityIcons
-                                            name={myAnswer ? 'check-circle' : 'clock-fast'}
-                                            size={18}
-                                            color={theme.colors.primary}
-                                        />
-                                        <Text style={[styles.glassLabel, { color: theme.colors.primary }]}>
-                                            Round {activeRound.round_number}
-                                        </Text>
-                                    </View>
-                                    <View style={[styles.statusPill, myAnswer ? styles.statusPillAnswered : styles.statusPillAction]}>
-                                        <View style={[styles.statusDot, myAnswer ? styles.statusDotAnswered : styles.statusDotAction]} />
-                                        <Text style={[styles.statusPillText, { color: myAnswer ? '#059669' : '#B45309' }]}>
-                                            {myAnswer ? 'Answered' : 'Action required'}
-                                        </Text>
-                                    </View>
-                                </View>
-
-                                <Text style={[styles.glassQuestion, { color: theme.colors.onSurface }]}>
-                                    {activeRound.question_text}
-                                </Text>
-
-                                {myAnswer ? (
-                                    <View style={[styles.glassAnswerBox, { borderColor: 'rgba(5,150,105,0.5)' }]}>
-                                        <Text style={[styles.glassAnswerText, { color: theme.colors.onSurface }]}>"{myAnswer.answer_text}"</Text>
-                                    </View>
-                                ) : (
-                                    <View style={styles.glassForm}>
-                                        <TextInput
-                                            mode="outlined"
-                                            placeholder="Type your answer..."
-                                            value={answerText}
-                                            onChangeText={setAnswerText}
-                                            multiline
-                                            numberOfLines={5}
-                                            style={[styles.glassInput, styles.glassTextArea, { backgroundColor: theme.dark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.7)' }]}
-                                            outlineColor={theme.colors.outline}
-                                            activeOutlineColor={theme.colors.primary}
-                                        />
-                                        <Button
-                                            mode="contained"
-                                            onPress={() => submitAnswerMutation.mutate({ roundId: activeRound.id, text: answerText })}
-                                            loading={submitAnswerMutation.isPending}
-                                            disabled={!answerText.trim() || submitAnswerMutation.isPending}
-                                            buttonColor={theme.colors.primary}
-                                            style={styles.glassBtn}
-                                        >
-                                            Submit Answer
-                                        </Button>
-                                    </View>
-                                )}
-                            </View>
+                        <View style={styles.sectionTitleRow}>
+                            <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Rounds</Text>
+                            <Text style={[styles.sectionSubtitle, { color: theme.colors.onSurfaceVariant }]}>{spec.rounds.length} round{spec.rounds.length !== 1 ? 's' : ''}</Text>
+                        </View>
+                        <View style={styles.roundsFlatList}>
+                            {spec.rounds.map((r: any) => {
+                                const answers = r.answers || [];
+                                const eliminated = answers.filter((a: any) => a.is_eliminated).length;
+                                const remaining = answers.length - eliminated;
+                                const statusColor = r.status === 'ACTIVE' ? '#16a34a' : r.status === 'REVIEWING' ? '#ca8a04' : theme.colors.outline;
+                                return (
+                                    <TouchableOpacity
+                                        key={r.id}
+                                        activeOpacity={0.7}
+                                        onPress={() => navigation.navigate('RoundDetails', { specId: spec.id, roundId: r.id })}
+                                        style={[styles.roundCardFlat, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant || theme.colors.outline + '40' }]}
+                                    >
+                                        <View style={[styles.roundCardFlatNum, { backgroundColor: theme.colors.surfaceVariant }]}>
+                                            <Text style={[styles.roundCardFlatNumText, { color: theme.colors.onSurface }]}>{r.round_number}</Text>
+                                        </View>
+                                        <View style={styles.roundCardFlatBody}>
+                                            <Text numberOfLines={2} style={[styles.roundCardFlatQuestion, { color: theme.colors.onSurface }]}>{r.question_text}</Text>
+                                            <View style={styles.roundCardFlatMeta}>
+                                                <Text style={[styles.roundCardFlatStat, { color: theme.colors.onSurfaceVariant }]}>
+                                                    {eliminated} out · {remaining} left
+                                                </Text>
+                                                <View style={[styles.roundCardFlatPill, { backgroundColor: r.status === 'ACTIVE' ? 'rgba(22,163,74,0.12)' : r.status === 'REVIEWING' ? 'rgba(202,138,4,0.12)' : theme.colors.surfaceVariant }]}>
+                                                    <View style={[styles.roundCardFlatPillDot, { backgroundColor: statusColor }]} />
+                                                    <Text style={[styles.roundCardFlatPillText, { color: theme.colors.onSurface }]}>{r.status}</Text>
+                                                </View>
+                                            </View>
+                                        </View>
+                                        <MaterialCommunityIcons name="chevron-right" size={22} color={theme.colors.onSurfaceVariant} />
+                                    </TouchableOpacity>
+                                );
+                            })}
                         </View>
                     </View>
-                ) : null}
+                )}
+
+
 
                 {/* Requirements */}
                 <View style={styles.section}>
@@ -1125,6 +932,7 @@ const styles = StyleSheet.create({
     section: { paddingHorizontal: 16, paddingTop: 18 },
     sectionTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
     sectionTitle: { fontSize: 16, fontWeight: '900' },
+    sectionSubtitle: { fontSize: 13 },
     sectionBody: { fontSize: 14, lineHeight: 21 },
 
     reqGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
@@ -1308,4 +1116,29 @@ const styles = StyleSheet.create({
         lineHeight: 22,
         opacity: 0.9,
     },
+    roundsFlatList: { gap: 10 },
+    roundCardFlat: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 14,
+        paddingHorizontal: 14,
+        borderRadius: 12,
+        borderWidth: 1,
+        gap: 14,
+    },
+    roundCardFlatNum: {
+        width: 36,
+        height: 36,
+        borderRadius: 10,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    roundCardFlatNumText: { fontSize: 15, fontWeight: '800' },
+    roundCardFlatBody: { flex: 1, minWidth: 0 },
+    roundCardFlatQuestion: { fontSize: 15, fontWeight: '600', lineHeight: 20 },
+    roundCardFlatMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, gap: 8 },
+    roundCardFlatStat: { fontSize: 12 },
+    roundCardFlatPill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+    roundCardFlatPillDot: { width: 6, height: 6, borderRadius: 3 },
+    roundCardFlatPillText: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3 },
 });

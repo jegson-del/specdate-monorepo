@@ -1,10 +1,10 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { View, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
 import { Text, useTheme, IconButton } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { api } from '../../services/api';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -18,9 +18,17 @@ export default function NotificationsScreen() {
         queryKey: ['notifications'],
         queryFn: async () => {
             const res = await api.get('/notifications');
-            return res.data; // { success, message, data: [...] }
+            return res.data; // Laravel pagination: { data: [...], current_page, ... }
         },
+        staleTime: 0,
     });
+
+    // Refetch when screen gains focus so list (and each item's data/spec_id) is fresh when user taps
+    useFocusEffect(
+        useCallback(() => {
+            refetch();
+        }, [refetch])
+    );
 
     const notifications = useMemo(() => {
         return Array.isArray(data?.data) ? data.data : [];
@@ -40,14 +48,26 @@ export default function NotificationsScreen() {
         }
 
         const type = item.type; // 'round_started', 'eliminated', etc.
-        const navData = item.data; // { spec_id, round_id, question }
+        let navData = item.data;
+        if (typeof navData === 'string') {
+            try {
+                navData = JSON.parse(navData);
+            } catch {
+                navData = null;
+            }
+        }
+        const specId = navData?.spec_id != null ? String(navData.spec_id) : null;
 
-        if (navData?.spec_id) {
-            // Invalidate the cache for this spec to ensure fresh data (e.g. new round) is fetched
-            queryClient.invalidateQueries({ queryKey: ['spec', String(navData.spec_id)] });
-
-            if (type === 'round_started' || type === 'eliminated' || type === 'application_accepted' || type === 'round_answer') {
-                navigation.navigate('SpecDetails', { specId: navData.spec_id });
+        if (specId) {
+            const navigatesToSpec =
+                type === 'round_started' ||
+                type === 'eliminated' ||
+                type === 'application_accepted' ||
+                type === 'round_answer';
+            if (navigatesToSpec) {
+                // Clear any cached spec so Spec Details always fetches fresh data when we land
+                queryClient.removeQueries({ queryKey: ['spec', specId] });
+                navigation.navigate('SpecDetails', { specId });
             }
         }
     };

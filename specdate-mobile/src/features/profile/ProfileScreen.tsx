@@ -19,6 +19,7 @@ import { MediaService } from '../../services/media';
 import { AuthService } from '../../services/auth';
 import { AccountService } from '../../services/account';
 import { toImageUri, imageUriWithCacheBust } from '../../utils/imageUrl';
+import { BalloonIcon } from '../../components/BalloonIcons';
 
 // --- OPTIONS & CONSTANTS ---
 const OTHER_VALUE = '__other__';
@@ -531,50 +532,26 @@ export default function ProfileScreen({ navigation }: any) {
                     <View style={styles.walletRow}>
                         <View style={[styles.walletCard, { backgroundColor: theme.colors.errorContainer }]}>
                             <View style={[styles.walletIconWrap, { backgroundColor: 'rgba(239,68,68,0.2)' }]}>
-                                {/* Red Spark (Life) */}
-                                {/* Red Spark (Life) */}
-                                <MaterialCommunityIcons
-                                    name="lightning-bolt"
-                                    size={34}
-                                    color={theme.colors.error}
-                                    style={{
-                                        shadowColor: theme.colors.error,
-                                        shadowOffset: { width: 0, height: 0 },
-                                        shadowOpacity: 0.8,
-                                        shadowRadius: 8,
-                                        elevation: 5, // Android glow
-                                    }}
-                                />
+                                {/* Red Balloon (Life) */}
+                                <BalloonIcon size={40} color={theme.colors.error} />
                             </View>
                             <Text variant="headlineSmall" style={[styles.walletAmount, { color: theme.colors.onSurface }]}>
                                 {user?.balance?.red_sparks ?? 0}
                             </Text>
                             <Text variant="bodySmall" numberOfLines={1} adjustsFontSizeToFit style={{ color: theme.colors.onSurfaceVariant, fontWeight: '600' }}>
-                                Red Sparks
+                                Red Balloons
                             </Text>
                         </View>
                         <View style={[styles.walletCard, { backgroundColor: theme.colors.primaryContainer }]}>
                             <View style={[styles.walletIconWrap, { backgroundColor: 'rgba(124,58,237,0.2)' }]}>
-                                {/* Blue Spark (Credit) */}
-                                {/* Blue Spark (Credit) */}
-                                <MaterialCommunityIcons
-                                    name="lightning-bolt"
-                                    size={34}
-                                    color={theme.colors.primary}
-                                    style={{
-                                        shadowColor: theme.colors.primary,
-                                        shadowOffset: { width: 0, height: 0 },
-                                        shadowOpacity: 0.8,
-                                        shadowRadius: 8,
-                                        elevation: 5, // Android glow
-                                    }}
-                                />
+                                {/* Blue Balloon (Credit) */}
+                                <BalloonIcon size={40} color={theme.colors.primary} />
                             </View>
                             <Text variant="headlineSmall" style={[styles.walletAmount, { color: theme.colors.onSurface }]}>
                                 {user?.balance?.blue_sparks ?? 0}
                             </Text>
                             <Text variant="bodySmall" numberOfLines={1} adjustsFontSizeToFit style={{ color: theme.colors.onSurfaceVariant, fontWeight: '600' }}>
-                                Blue Sparks
+                                Blue Balloons
                             </Text>
                         </View>
                     </View>

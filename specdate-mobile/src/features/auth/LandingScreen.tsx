@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Image as RNImage } from 'react-native';
 import { Text, Button, useTheme } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MotiView } from 'moti';
@@ -85,7 +85,6 @@ export default function LandingScreen({ navigation }: any) {
                     },
                 ]}
             >
-                {/* CENTER CONTENT: Logo / App Name */}
                 <View style={styles.centerContent}>
                     <MotiView
                         from={{ opacity: 0, scale: 0.5 }}
@@ -93,17 +92,11 @@ export default function LandingScreen({ navigation }: any) {
                         transition={{ type: 'spring', damping: 15 }}
                         style={styles.logoContainer}
                     >
-                        {/* Placeholder for actual Logo Image */}
-                        <View style={[styles.logoCircle, { backgroundColor: theme.colors.primary }]}>
-                            <HeartLetter letter="A" size={56} heartColor={HEART_EMOJI_RED} letterColor="#FFFFFF" />
-                        </View>
-                        <View style={styles.appNameRow}>
-                            <Text style={[styles.appName, { color: theme.colors.onBackground }]}>Spec</Text>
-                            <View style={styles.appNameHeart}>
-                                <HeartLetter letter="A" size={36} heartColor={HEART_EMOJI_RED} letterColor="#FFFFFF" />
-                            </View>
-                            <Text style={[styles.appName, { color: theme.colors.onBackground }]}>Date</Text>
-                        </View>
+                        {/* Actual Logo Image */}
+                        <RNImage
+                            source={require('../../../assets/logo.png')}
+                            style={{ width: 280, height: 120, resizeMode: 'contain' }}
+                        />
                         <Text style={[styles.tagline, { color: theme.colors.outline }]}>
                             Quest for Love. Pop the Balloon.
                         </Text>

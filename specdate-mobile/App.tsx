@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import AnimatedSplashScreen from './src/features/splash/AnimatedSplashScreen';
 import { ActivityIndicator, PaperProvider } from 'react-native-paper';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
@@ -17,6 +18,7 @@ import HomeScreen from './src/features/home/HomeScreen';
 import ProvidersScreen from './src/features/providers/ProvidersScreen';
 import CreateSpecScreen from './src/features/specs/CreateSpecScreen';
 import SpecDetailsScreen from './src/features/specs/SpecDetailsScreen';
+import RoundDetailsScreen from './src/features/specs/RoundDetailsScreen';
 import NotificationsScreen from './src/features/notifications/NotificationsScreen';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
@@ -25,6 +27,7 @@ const Stack = createNativeStackNavigator();
 
 export default function App() {
   const [booting, setBooting] = useState(true);
+  const [splashAnimationDone, setSplashAnimationDone] = useState(false);
   const [initialRoute, setInitialRoute] = useState<'Landing' | 'Home' | 'Profile'>('Landing');
 
   useEffect(() => {
@@ -67,13 +70,12 @@ export default function App() {
     };
   }, []);
 
-  if (booting) {
+  // Show splash until both auth check (booting) AND animation are done.
+  if (booting || !splashAnimationDone) {
     return (
       <SafeAreaProvider>
         <PaperProvider theme={theme}>
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.background }}>
-            <ActivityIndicator animating color={theme.colors.primary} />
-          </View>
+          <AnimatedSplashScreen onAnimationFinish={() => setSplashAnimationDone(true)} />
         </PaperProvider>
       </SafeAreaProvider>
     );
@@ -98,6 +100,7 @@ export default function App() {
               <Stack.Screen name="Notifications" component={NotificationsScreen} />
               <Stack.Screen name="Messages" component={HomeScreen} />
               <Stack.Screen name="SpecDetails" component={SpecDetailsScreen} />
+              <Stack.Screen name="RoundDetails" component={RoundDetailsScreen} />
               <Stack.Screen
                 name="CreateSpec"
                 component={CreateSpecScreen}

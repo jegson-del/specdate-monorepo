@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, Image as RNImage } from 'react-native';
 import { Text, TextInput, Button, IconButton, useTheme, RadioButton, SegmentedButtons } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MotiView } from 'moti';
@@ -200,9 +200,10 @@ export default function RegisterScreen({ navigation }: any) {
                     animate={{ opacity: 1, translateY: 0 }}
                     style={styles.header}
                 >
-                    <Text variant="headlineMedium" style={{ color: theme.colors.primary, fontWeight: 'bold' }}>
-                        {step === 1 ? "Create Profile" : "Verify Identity"}
-                    </Text>
+                    <RNImage
+                        source={require('../../../assets/logo_v2.png')}
+                        style={{ width: 300, height: 95, resizeMode: 'contain', marginBottom: 20, alignSelf: 'center', backgroundColor: 'transparent' }}
+                    />
                     <Text variant="bodyMedium" style={{ color: theme.colors.outline }}>
                         {step === 1 ? "Join the quest for your perfect spec." : "Where should we send your code?"}
                     </Text>
