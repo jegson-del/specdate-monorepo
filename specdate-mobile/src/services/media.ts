@@ -6,7 +6,7 @@ export interface MediaItem {
     user_id: number;
     file_path: string;
     url: string;
-    type: 'avatar' | 'profile_gallery' | 'chat' | 'proof';
+    type: 'avatar' | 'profile_gallery' | 'chat' | 'proof' | 'round_answer_image';
     mime_type: string;
     size: number;
     created_at: string;
@@ -21,7 +21,7 @@ export interface MediaItem {
  */
 export async function uploadMedia(
     uri: string,
-    type: 'avatar' | 'profile_gallery' | 'chat' | 'proof',
+    type: 'avatar' | 'profile_gallery' | 'chat' | 'proof' | 'round_answer_image',
     mediaId?: number | null
 ): Promise<MediaItem> {
     const formData = new FormData();

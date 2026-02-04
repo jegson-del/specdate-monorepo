@@ -23,11 +23,11 @@ export default function NotificationsScreen() {
         staleTime: 0,
     });
 
-    // Refetch when screen gains focus so list (and each item's data/spec_id) is fresh when user taps
+    // When landing on Notifications (e.g. from Spec Details or anywhere), refetch all notifications for this user
     useFocusEffect(
         useCallback(() => {
-            refetch();
-        }, [refetch])
+            queryClient.refetchQueries({ queryKey: ['notifications'] });
+        }, [queryClient])
     );
 
     const notifications = useMemo(() => {
@@ -57,6 +57,7 @@ export default function NotificationsScreen() {
             }
         }
         const specId = navData?.spec_id != null ? String(navData.spec_id) : null;
+        const roundId = navData?.round_id != null ? navData.round_id : null;
 
         if (specId) {
             const navigatesToSpec =
@@ -65,9 +66,14 @@ export default function NotificationsScreen() {
                 type === 'application_accepted' ||
                 type === 'round_answer';
             if (navigatesToSpec) {
-                // Clear any cached spec so Spec Details always fetches fresh data when we land
+                // Clear spec cache so Spec Details refetches and shows spinner until data loads (no stale cache)
                 queryClient.removeQueries({ queryKey: ['spec', specId] });
-                navigation.navigate('SpecDetails', { specId });
+                queryClient.removeQueries({ queryKey: ['spec', specId, 'round_details'] });
+                if (type === 'eliminated' && roundId != null) {
+                    navigation.navigate('RoundDetails', { specId, roundId });
+                } else {
+                    navigation.navigate('SpecDetails', { specId, fromNotification: true });
+                }
             }
         }
     };

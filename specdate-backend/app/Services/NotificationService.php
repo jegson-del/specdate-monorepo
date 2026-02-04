@@ -21,6 +21,14 @@ class NotificationService
      */
     public function notify(User $user, string $type, array $data, ?string $title = null, ?string $body = null): Notification
     {
+        // Ensure title and message are persisted in the data payload for in-app display
+        if ($title && !isset($data['title'])) {
+            $data['title'] = $title;
+        }
+        if ($body && !isset($data['message'])) {
+            $data['message'] = $body;
+        }
+
         // 1. Store in Database
         $notification = Notification::create([
             'user_id' => $user->id,

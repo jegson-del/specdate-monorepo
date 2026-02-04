@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { View, StyleSheet, ScrollView, Alert, ImageBackground, TouchableOpacity, TextInput } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, ImageBackground, TouchableOpacity, TextInput, Image } from 'react-native';
 import { Text, useTheme, Button, ActivityIndicator, Avatar, IconButton } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -8,8 +8,9 @@ import { useFocusEffect } from '@react-navigation/native';
 import { SpecService } from '../../services/specs';
 import { useUser } from '../../hooks/useUser';
 import { toImageUri } from '../../utils/imageUrl';
-import { BalloonIcon, PoppedBalloonIcon } from '../../components/BalloonIcons';
-import ConfettiCannon from 'react-native-confetti-cannon';
+import { BalloonIcon } from '../../components/BalloonIcons';
+import * as ImagePicker from 'expo-image-picker';
+import { MediaService } from '../../services/media';
 import { BlurView } from 'expo-blur';
 import { MotiView } from 'moti';
 
@@ -20,12 +21,11 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
     const insets = useSafeAreaInsets();
     const queryClient = useQueryClient();
     const { data: user } = useUser();
-    const confettiRef = useRef<any>(null);
     const lastRoundRef = useRef<any>(null);
 
-    // Fetch Spec (which includes rounds). Keep cache so returning to Spec Details has data; keep previous data during refetch.
+    // Fetch Spec (which includes rounds). Keep previous data during refetch so UI doesn't disappear (e.g. after elimination).
     const { data: spec, isLoading, isFetching, error, refetch: refetchSpec } = useQuery({
-        queryKey: ['spec', specId],
+        queryKey: ['spec', specId, 'round_details'],
         queryFn: () => SpecService.getOne(specId!),
         enabled: !!specId,
         staleTime: 0,
@@ -34,11 +34,13 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
         placeholderData: (previousData) => previousData,
     });
 
-    // Refetch when screen gains focus so round/answers are fresh
+    // Refetch when screen gains focus (no reset – reset was clearing cache and making data disappear after elimination alert)
     useFocusEffect(
         useCallback(() => {
-            if (specId) refetchSpec();
-        }, [specId, refetchSpec])
+            if (specId) {
+                queryClient.refetchQueries({ queryKey: ['spec', String(specId), 'round_details'] });
+            }
+        }, [specId, queryClient])
     );
 
     // Real-time: RoundAnswered and RoundStarted (e.g. owner starts next round)
@@ -82,11 +84,21 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
     // --- Mutations ---
 
     const submitAnswerMutation = useMutation({
-        mutationFn: ({ rId, text }: { rId: number, text: string }) => SpecService.submitAnswer(rId, text),
-        onSuccess: () => {
+        mutationFn: async ({ rId, text }: { rId: number, text: string }) => {
+            let mediaId: number | undefined;
+            if (answerImage) {
+                // Upload logic
+                const uploaded = await MediaService.upload(answerImage, 'round_answer_image');
+                mediaId = uploaded.id;
+            }
+            return SpecService.submitAnswer(rId, text, mediaId);
+        },
+        onSuccess: async () => {
             queryClient.invalidateQueries({ queryKey: ['spec', String(specId)] });
-            Alert.alert('Success', 'Answer submitted!');
+            await refetchSpec();
             setAnswerText('');
+            setAnswerImage(null);
+            Alert.alert('Success', 'Answer submitted!');
         },
         onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to submit answer.'),
     });
@@ -99,19 +111,46 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
         onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to close round.'),
     });
 
+    // No confetti on elimination – it was causing the view to re-render and data to disappear
     const eliminateUserMutation = useMutation({
         mutationFn: ({ rId, userId }: { rId: number, userId: number }) =>
             SpecService.eliminateUser(rId, userId),
-        onSuccess: () => {
+        onSuccess: async () => {
             queryClient.invalidateQueries({ queryKey: ['spec', String(specId)] });
-            confettiRef.current?.start();
+            queryClient.invalidateQueries({ queryKey: ['spec', String(specId), 'round_details'] });
+            await refetchSpec();
+            Alert.alert('Success', 'Participant eliminated.');
         },
         onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to eliminate user.'),
     });
 
     // --- State ---
     const [answerText, setAnswerText] = useState('');
+    const [answerImage, setAnswerImage] = useState<string | null>(null);
     const [nextRoundQuestion, setNextRoundQuestion] = useState('');
+
+    const pickImage = async () => {
+        try {
+            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (status !== 'granted') {
+                Alert.alert('Permission Required', 'Pending permissions to access your photos.');
+                return;
+            }
+
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: 'images',
+                allowsEditing: true,
+                aspect: [4, 3],
+                quality: 0.8,
+            });
+
+            if (!result.canceled) {
+                setAnswerImage(result.assets[0].uri);
+            }
+        } catch (e: any) {
+            Alert.alert('Error picking image', e.message || String(e));
+        }
+    };
 
     const startRoundMutation = useMutation({
         mutationFn: (question: string) => SpecService.startRound(String(specId), question),
@@ -144,6 +183,7 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
         );
     }
 
+    // Spinner until spec is loaded (e.g. from notification or Spec Details)
     if (!spec) {
         lastRoundRef.current = null;
         return (
@@ -154,17 +194,17 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
         );
     }
 
-    // Use last-known round when refetch returns spec without this round, or when refetch returns COMPLETED
+    // Resolve round: use refetch result, or last-known round to avoid "Round not found" flash during refetch / COMPLETED overwrite
     // but we were showing ACTIVE/REVIEWING (so Close button and balloons don't disappear after a few seconds)
     const resolvedRound =
         roundFromSpec ??
         (lastRoundRef.current && String(lastRoundRef.current.id) === String(roundId) ? lastRoundRef.current : null);
     const roundToShow =
         resolvedRound &&
-        roundFromSpec?.status === 'COMPLETED' &&
-        lastRoundRef.current &&
-        String(lastRoundRef.current.id) === String(roundId) &&
-        lastRoundRef.current.status !== 'COMPLETED'
+            roundFromSpec?.status === 'COMPLETED' &&
+            lastRoundRef.current &&
+            String(lastRoundRef.current.id) === String(roundId) &&
+            lastRoundRef.current.status !== 'COMPLETED'
             ? lastRoundRef.current
             : resolvedRound;
 
@@ -276,18 +316,30 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                     </View>
                 )}
 
-                {/* PARTICIPANT – Your Answer */}
-                {!isOwner && myApplication && myApplication.status === 'ACCEPTED' && roundToShow.status === 'ACTIVE' && (
+                {/* PARTICIPANT – Your Answer (show when they have an answer in this round, or when ACCEPTED + ACTIVE for form) */}
+                {!isOwner && (myAnswer || (myApplication?.status === 'ACCEPTED' && roundToShow.status === 'ACTIVE')) && (
                     <View style={styles.section}>
                         <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Your answer</Text>
 
                         {myAnswer ? (
-                            <View style={[styles.answerSubmitted, { backgroundColor: 'rgba(22,163,74,0.08)', borderColor: 'rgba(22,163,74,0.3)' }]}>
+                            <View style={[styles.answerSubmitted, { backgroundColor: myAnswer.is_eliminated ? 'rgba(239,68,68,0.08)' : 'rgba(22,163,74,0.08)', borderColor: myAnswer.is_eliminated ? 'rgba(239,68,68,0.3)' : 'rgba(22,163,74,0.3)' }]}>
                                 <Text style={[styles.answerSubmittedText, { color: theme.colors.onSurface }]}>"{myAnswer.answer_text}"</Text>
                                 <View style={styles.answerSubmittedBadge}>
-                                    <MaterialCommunityIcons name="check-circle" color="#16a34a" size={18} />
-                                    <Text style={styles.answerSubmittedBadgeText}>Submitted</Text>
+                                    {myAnswer.is_eliminated ? (
+                                        <>
+                                            <MaterialCommunityIcons name="close-circle" color="#EF4444" size={18} />
+                                            <Text style={[styles.answerSubmittedBadgeText, { color: '#EF4444' }]}>Eliminated</Text>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <MaterialCommunityIcons name="check-circle" color="#16a34a" size={18} />
+                                            <Text style={styles.answerSubmittedBadgeText}>Submitted</Text>
+                                        </>
+                                    )}
                                 </View>
+                                {myAnswer.media && (
+                                    <Image source={{ uri: myAnswer.media?.url }} style={{ width: 100, height: 100, borderRadius: 8, marginTop: 12 }} />
+                                )}
                             </View>
                         ) : (
                             <View style={[styles.flatBlock, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant || theme.colors.outline + '40' }]}>
@@ -300,90 +352,115 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                                     onChangeText={setAnswerText}
                                     style={[styles.flatTextArea, { color: theme.colors.onSurface, borderColor: theme.colors.outlineVariant || theme.colors.outline + '50' }]}
                                 />
-                                <TouchableOpacity
-                                    activeOpacity={0.8}
-                                    style={[styles.primaryButton, { backgroundColor: theme.colors.primary }]}
-                                    onPress={() => submitAnswerMutation.mutate({ rId: roundToShow.id, text: answerText })}
-                                    disabled={!answerText.trim() || submitAnswerMutation.isPending}
-                                >
-                                    {submitAnswerMutation.isPending ? (
-                                        <ActivityIndicator size="small" color="#fff" />
-                                    ) : (
-                                        <Text style={styles.primaryButtonText}>Submit answer</Text>
-                                    )}
-                                </TouchableOpacity>
+                                {answerImage && (
+                                    <View style={{ marginBottom: 12, position: 'relative', alignSelf: 'flex-start' }}>
+                                        <Image source={{ uri: answerImage }} style={{ width: 100, height: 100, borderRadius: 8 }} />
+                                        <TouchableOpacity
+                                            style={{ position: 'absolute', top: -8, right: -8, backgroundColor: theme.colors.error, borderRadius: 12 }}
+                                            onPress={() => setAnswerImage(null)}
+                                        >
+                                            <MaterialCommunityIcons name="close" size={16} color="#fff" />
+                                        </TouchableOpacity>
+                                    </View>
+                                )}
+                                <View style={{ flexDirection: 'row', gap: 10 }}>
+                                    <TouchableOpacity
+                                        onPress={pickImage}
+                                        style={{
+                                            borderWidth: 1, borderColor: theme.colors.outlineVariant, borderRadius: 10,
+                                            width: 48, alignItems: 'center', justifyContent: 'center'
+                                        }}
+                                    >
+                                        <MaterialCommunityIcons name="camera-plus" size={24} color={theme.colors.primary} />
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        activeOpacity={0.8}
+                                        style={[styles.primaryButton, { backgroundColor: theme.colors.primary, flex: 1 }]}
+                                        onPress={() => submitAnswerMutation.mutate({ rId: roundToShow.id, text: answerText })}
+                                        disabled={!answerText.trim() || submitAnswerMutation.isPending}
+                                    >
+                                        {submitAnswerMutation.isPending ? (
+                                            <ActivityIndicator size="small" color="#fff" />
+                                        ) : (
+                                            <Text style={styles.primaryButtonText}>Submit answer</Text>
+                                        )}
+                                    </TouchableOpacity>
+                                </View>
                             </View>
                         )}
                     </View>
                 )}
 
                 {/* Responses list – flat rows, high contrast */}
-                <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Responses</Text>
-                    <Text style={[styles.sectionSubtitle, { color: theme.colors.onSurfaceVariant }]}>{answers.length} answer{answers.length !== 1 ? 's' : ''}</Text>
+                {
+                    isOwner && (
+                        <View style={styles.section}>
+                            <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Responses</Text>
+                            <Text style={[styles.sectionSubtitle, { color: theme.colors.onSurfaceVariant }]}>{answers.length} answer{answers.length !== 1 ? 's' : ''}</Text>
 
-                    {answers.length === 0 && (
-                        <Text style={[styles.hintText, { color: theme.colors.onSurfaceVariant }]}>No answers yet.</Text>
-                    )}
+                            {answers.length === 0 && (
+                                <Text style={[styles.hintText, { color: theme.colors.onSurfaceVariant }]}>No answers yet.</Text>
+                            )}
 
-                    <View style={styles.answersList}>
-                        {answers.map((a: any) => {
-                            const displayName = a.user?.profile?.full_name || a.user?.name || 'User';
-                            const avatarUri = toImageUri(a.user?.profile?.avatar) || undefined;
-                            const isEliminated = a.is_eliminated;
+                            <View style={styles.answersList}>
+                                {answers.map((a: any) => {
+                                    const displayName = a.user?.profile?.full_name || a.user?.name || 'User';
+                                    const avatarUri = toImageUri(a.user?.profile?.avatar) || undefined;
+                                    const isEliminated = a.is_eliminated;
 
-                            return (
-                                <View
-                                    key={a.id}
-                                    style={[
-                                        styles.answerRow,
-                                        { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant || theme.colors.outline + '30' },
-                                        isEliminated && styles.answerRowEliminated
-                                    ]}
-                                >
-                                    <Avatar.Image size={44} source={{ uri: avatarUri }} style={styles.answerAvatar} />
-                                    <View style={styles.answerBody}>
-                                        <Text style={[styles.answerName, { color: theme.colors.onSurface }]} numberOfLines={1}>{displayName}</Text>
-                                        <Text style={[styles.answerText, { color: theme.colors.onSurfaceVariant }]} numberOfLines={3}>{a.answer_text}</Text>
-                                    </View>
-                                    {(isOwner && (String(roundToShow.status).toUpperCase() === 'REVIEWING' || String(roundToShow.status).toUpperCase() === 'ACTIVE') && !isEliminated) ? (
-                                        <TouchableOpacity
-                                            onPress={() => {
-                                                Alert.alert('Eliminate?', `Eliminate ${displayName}?`, [
-                                                    { text: 'Cancel' },
-                                                    { text: 'Eliminate', style: 'destructive', onPress: () => eliminateUserMutation.mutate({ rId: roundToShow.id, userId: a.user_id }) }
-                                                ]);
-                                            }}
-                                            style={styles.balloonTouch}
-                                            accessibilityLabel="Eliminate participant"
+                                    return (
+                                        <View
+                                            key={a.id}
+                                            style={[
+                                                styles.answerRow,
+                                                { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant || theme.colors.outline + '30' },
+                                                isEliminated && styles.answerRowEliminated
+                                            ]}
                                         >
-                                            <BalloonIcon size={28} color={theme.colors.primary} />
-                                        </TouchableOpacity>
-                                    ) : null}
-                                    {isEliminated && (
-                                        <View style={styles.balloonTouch}>
-                                            <PoppedBalloonIcon size={28} color="#ca8a04" />
+                                            <Avatar.Image size={44} source={{ uri: avatarUri }} style={styles.answerAvatar} />
+                                            <View style={styles.answerBody}>
+                                                <Text style={[styles.answerName, { color: theme.colors.onSurface }]} numberOfLines={1}>{displayName}</Text>
+                                                <Text style={[styles.answerText, { color: theme.colors.onSurfaceVariant }]} numberOfLines={3}>{a.answer_text}</Text>
+                                                {a.media && (
+                                                    <TouchableOpacity onPress={() => {/* Maybe open lightbox? For now just show */ }}>
+                                                        <Image
+                                                            source={{ uri: a.media.url }}
+                                                            style={{ width: 120, height: 120, borderRadius: 8, marginTop: 8, backgroundColor: theme.colors.surfaceVariant }}
+                                                        />
+                                                    </TouchableOpacity>
+                                                )}
+                                            </View>
+                                            {(isOwner && (String(roundToShow.status).toUpperCase() === 'REVIEWING' || String(roundToShow.status).toUpperCase() === 'ACTIVE') && !isEliminated) ? (
+                                                <TouchableOpacity
+                                                    onPress={() => {
+                                                        Alert.alert('Eliminate?', `Eliminate ${displayName}?`, [
+                                                            { text: 'Cancel' },
+                                                            { text: 'Eliminate', style: 'destructive', onPress: () => eliminateUserMutation.mutate({ rId: roundToShow.id, userId: a.user_id }) }
+                                                        ]);
+                                                    }}
+                                                    style={styles.balloonTouch}
+                                                    accessibilityLabel="Eliminate participant"
+                                                >
+                                                    <BalloonIcon size={28} color={theme.colors.primary} />
+                                                </TouchableOpacity>
+                                            ) : null}
+                                            {isEliminated && (
+                                                <View style={[styles.balloonTouch, { justifyContent: 'center', alignItems: 'center' }]}>
+                                                    <Text style={{ color: '#EF4444', fontWeight: '800', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>Eliminated</Text>
+                                                </View>
+                                            )}
                                         </View>
-                                    )}
-                                </View>
-                            );
-                        })}
-                    </View>
-                </View>
+                                    );
+                                })}
+                            </View>
+                        </View>
+                    )
+                }
 
             </ScrollView>
 
-            {/* Confetti Overlay */}
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: 'transparent', zIndex: 1000 }]} pointerEvents="none">
-                <ConfettiCannon
-                    ref={confettiRef}
-                    count={70}
-                    origin={{ x: -10, y: 0 }}
-                    autoStart={false}
-                    fadeOut={true}
-                />
-            </View>
         </View>
+
     );
 }
 

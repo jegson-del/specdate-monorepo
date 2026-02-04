@@ -28,7 +28,7 @@ class MediaController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'file' => 'required|file|max:10240', // Max 10MB
-            'type' => 'required|string|in:avatar,profile_gallery,chat,proof',
+            'type' => 'required|string|in:avatar,profile_gallery,chat,proof,round_answer_image',
             'media_id' => 'nullable|integer|exists:media,id',
         ]);
 

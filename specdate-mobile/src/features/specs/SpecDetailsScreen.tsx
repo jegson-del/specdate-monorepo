@@ -98,12 +98,22 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
         retry: 1,
         enabled: !!specId,
         staleTime: 0,
-        gcTime: 60 * 1000,
+        gcTime: 0,
         refetchOnMount: 'always',
-        placeholderData: (previousData) => previousData,
+        placeholderData: undefined, // never show stale cache when we want fresh data
     });
 
-    // When we land (e.g. from notifications or returning from Round Details), always refetch from API so we have fresh data
+    // When landing from notification: clear cache so we refetch and show spinner until data loads
+    useFocusEffect(
+        useCallback(() => {
+            if (specId && route.params?.fromNotification) {
+                queryClient.removeQueries({ queryKey: ['spec', specId] });
+                navigation.setParams({ fromNotification: undefined });
+            }
+        }, [specId, queryClient, navigation, route.params?.fromNotification])
+    );
+
+    // On every focus, refetch so data is fresh (after first load we still want latest when returning)
     useFocusEffect(
         useCallback(() => {
             if (specId) {
@@ -425,11 +435,12 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
         );
     }
 
-    // Show spinner until API returns data (first load; returning from Round Details uses cached data + refetch)
+    // Spinner until spec data is loaded (from notification we clear cache so this shows until fetch completes)
     if (!spec && !error) {
         return (
             <View style={[styles.loadingContainer, { backgroundColor: theme.colors.background }]}>
                 <ActivityIndicator size="large" color={theme.colors.primary} />
+                <Text style={{ marginTop: 12, color: theme.colors.onSurfaceVariant }}>Loading spec...</Text>
             </View>
         );
     }
@@ -821,6 +832,16 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                         icon="check-circle"
                     >
                         {myApplication.status === 'ACCEPTED' ? 'Joined' : 'Applied'}
+                    </Button>
+                ) : (spec.expires_at && new Date(spec.expires_at) <= new Date()) ? (
+                    <Button
+                        mode="contained"
+                        disabled
+                        style={[styles.footerBtn, { backgroundColor: theme.colors.surfaceVariant }]}
+                        textColor={theme.colors.onSurfaceVariant}
+                        labelStyle={{ fontSize: 16, fontWeight: '800' }}
+                    >
+                        Applications Closed
                     </Button>
                 ) : (
                     <Button

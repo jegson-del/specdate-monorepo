@@ -234,9 +234,17 @@ class SpecController extends Controller
 
     public function submitAnswer(Request $request, $roundId)
     {
-        $request->validate(['answer' => 'required|string']);
+        $request->validate([
+            'answer' => 'required|string',
+            'media_id' => 'nullable|exists:media,id',
+        ]);
         try {
-            $answer = $this->specService->submitAnswer($request->user(), $roundId, $request->input('answer'));
+            $answer = $this->specService->submitAnswer(
+                $request->user(),
+                $roundId,
+                $request->input('answer'),
+                $request->input('media_id')
+            );
             return $this->sendResponse($answer, 'Answer submitted.');
         } catch (HttpException $e) {
             return $this->sendError($e->getMessage(), [], $e->getStatusCode());

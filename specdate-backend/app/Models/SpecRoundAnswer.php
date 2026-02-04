@@ -11,6 +11,7 @@ class SpecRoundAnswer extends Model
         'user_id',
         'answer_text',
         'is_eliminated',
+        'media_id',
     ];
 
     protected $casts = [
@@ -25,5 +26,10 @@ class SpecRoundAnswer extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function media()
+    {
+        return $this->belongsTo(Media::class);
     }
 }

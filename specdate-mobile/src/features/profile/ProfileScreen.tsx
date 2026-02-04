@@ -533,7 +533,7 @@ export default function ProfileScreen({ navigation }: any) {
                         <View style={[styles.walletCard, { backgroundColor: theme.colors.errorContainer }]}>
                             <View style={[styles.walletIconWrap, { backgroundColor: 'rgba(239,68,68,0.2)' }]}>
                                 {/* Red Balloon (Life) */}
-                                <BalloonIcon size={40} color={theme.colors.error} />
+                                <BalloonIcon size={40} variant="red" />
                             </View>
                             <Text variant="headlineSmall" style={[styles.walletAmount, { color: theme.colors.onSurface }]}>
                                 {user?.balance?.red_sparks ?? 0}
@@ -545,7 +545,7 @@ export default function ProfileScreen({ navigation }: any) {
                         <View style={[styles.walletCard, { backgroundColor: theme.colors.primaryContainer }]}>
                             <View style={[styles.walletIconWrap, { backgroundColor: 'rgba(124,58,237,0.2)' }]}>
                                 {/* Blue Balloon (Credit) */}
-                                <BalloonIcon size={40} color={theme.colors.primary} />
+                                <BalloonIcon size={40} variant="blue" />
                             </View>
                             <Text variant="headlineSmall" style={[styles.walletAmount, { color: theme.colors.onSurface }]}>
                                 {user?.balance?.blue_sparks ?? 0}

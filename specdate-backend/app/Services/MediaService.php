@@ -35,12 +35,14 @@ class MediaService
                 throw new \InvalidArgumentException('media_id is only supported for avatar or profile_gallery.');
             }
             $media = Media::where('id', $mediaId)->where('user_id', $user->id)->where('type', $type)->firstOrFail();
-            Storage::disk('s3')->delete($media->file_path);
-            Storage::disk('s3')->putFileAs($path, $file, $filename, [
+            /** @var \Illuminate\Contracts\Filesystem\Cloud $disk */
+            $disk = Storage::disk('s3');
+            $disk->delete($media->file_path);
+            $disk->putFileAs($path, $file, $filename, [
                 'visibility' => 'public',
                 'ACL' => 'public-read',
             ]);
-            $url = Storage::disk('s3')->url($fullPath);
+            $url = $disk->url($fullPath);
             $media->update([
                 'file_path' => $fullPath,
                 'url' => $url,
@@ -66,11 +68,13 @@ class MediaService
             }
         }
 
-        Storage::disk('s3')->putFileAs($path, $file, $filename, [
+        /** @var \Illuminate\Contracts\Filesystem\Cloud $disk */
+        $disk = Storage::disk('s3');
+        $disk->putFileAs($path, $file, $filename, [
             'visibility' => 'public',
             'ACL' => 'public-read',
         ]);
-        $url = Storage::disk('s3')->url($fullPath);
+        $url = $disk->url($fullPath);
 
         return Media::create([
             'user_id' => $user->id,

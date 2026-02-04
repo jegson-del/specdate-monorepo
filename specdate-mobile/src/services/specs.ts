@@ -82,8 +82,10 @@ export const SpecService = {
         return response.data;
     },
 
-    async submitAnswer(roundId: number, answer: string) {
-        const response = await api.post(`/rounds/${roundId}/answer`, { answer });
+    async submitAnswer(roundId: number, answer: string, mediaId?: number) {
+        const payload: any = { answer };
+        if (mediaId) payload.media_id = mediaId;
+        const response = await api.post(`/rounds/${roundId}/answer`, payload);
         return response.data;
     },
 

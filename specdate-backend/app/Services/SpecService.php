@@ -129,18 +129,7 @@ class SpecService
             }]);
             
              // Include answers for the active round
-            $query->with(['rounds.answers' => function($q) use ($user) {
-                // If checking for "is owner", we need to know the spec's owner ID.
-                // But here we are building the query for the SPEC.
-                // We can't easily access the spec instance inside this closure before fetching.
-                // OPTION: Fetch spec first, then load? Or use conditional loading in Controller?
-                // OR: Spec::with ...
-                // Let's modify this to LOAD all answers, and we might filter in frontend?
-                // NO, privacy. 
-                // Better approach: In Controller/Service after fetching, if user==owner, load all answers.
-                // But here we attempt to do it in one query.
-                // Let's remove this specific constraint here and handle it better in getOne logic below.
-            }]);
+
         }
 
         $spec = $query->find($id);
@@ -148,18 +137,31 @@ class SpecService
         if ($spec && $user) {
              // Privacy Logic for Answers:
              // If User is Owner -> See ALL answers
-             // If User is Participant -> See ONLY OWN answer
-             
-             // We already applied a constraint above? No, I'm rewriting it.
-             // Let's do:
+             // If User is Participant -> See ONLY OWN answer; if ELIMINATED, only show rounds up to the round they were eliminated in
              if ($spec->user_id === $user->id) {
                  // Owner: Load all answers for active rounds
-                 $spec->load(['rounds.answers.user.profile', 'rounds.answers.user.media']); // Load user profile for display
+                 $spec->load(['rounds.answers.user.profile', 'rounds.answers.user.media', 'rounds.answers.media']);
              } else {
-                 // Participant: Load only their answer
-                 $spec->load(['rounds.answers' => function($q) use ($user) {
+                 // Participant: maybe restrict rounds to "up until eliminated"
+                 $application = $spec->applications->firstWhere('user_id', $user->id);
+                 if ($application && $application->status === 'ELIMINATED') {
+                     // Find the round in which they were eliminated (their answer has is_eliminated = true)
+                     $eliminatedRound = SpecRoundAnswer::where('user_id', $user->id)
+                         ->where('is_eliminated', true)
+                         ->whereHas('round', fn ($q) => $q->where('spec_id', $spec->id))
+                         ->with('round')
+                         ->first();
+                     if ($eliminatedRound && $eliminatedRound->round) {
+                         $maxRoundNumber = $eliminatedRound->round->round_number;
+                         // Keep only rounds up to and including the elimination round
+                         $spec->setRelation('rounds', $spec->rounds->filter(fn ($r) => $r->round_number <= $maxRoundNumber)->values());
+                     }
+                 }
+                 // Load only their answers on the rounds collection
+                 $spec->rounds->load(['answers' => function ($q) use ($user) {
                      $q->where('user_id', $user->id);
                  }]);
+                 $spec->rounds->load(['answers.media']);
              }
         }
 
@@ -171,6 +173,14 @@ class SpecService
     public function join($user, $id): void
     {
         $spec = Spec::with('requirements')->findOrFail($id);
+
+        if ($spec->expires_at && $spec->expires_at <= now()) {
+            throw new HttpException(400, 'This spec has already started (applications closed).');
+        }
+
+        if ($spec->status !== 'OPEN') {
+            throw new HttpException(400, 'This spec is not open for applications.');
+        }
 
         // Compare as integers so string/int from DB or auth never causes a false positive
         $ownerId = (int) $spec->getAttribute('user_id');
@@ -416,7 +426,7 @@ class SpecService
     /**
      * Submit answer for a round.
      */
-    public function submitAnswer($user, $roundId, string $answer): SpecRoundAnswer
+    public function submitAnswer($user, $roundId, string $answer, $mediaId = null): SpecRoundAnswer
     {
         $round = SpecRound::findOrFail($roundId);
         
@@ -443,6 +453,7 @@ class SpecService
         $answerModel = $round->answers()->create([
             'user_id' => $user->id,
             'answer_text' => $answer,
+            'media_id' => $mediaId,
         ]);
 
         // Notify Spec Owner (if not the answerer, which should be guaranteed by role checks but safe to check)
@@ -540,13 +551,16 @@ class SpecService
                     'metadata' => ['spec_id' => $round->spec->id, 'round_id' => $round->id],
                 ]);
 
-                // Notify
+                // Notify (title: Balloon popped)
                 $this->notificationService->notify(
                     $victim,
                     'eliminated',
-                    ['spec_id' => $round->spec->id],
-                    'Spark Extinguished',
-                     "You have been eliminated from '{$round->spec->title}'."
+                    [
+                        'spec_id' => $round->spec->id,
+                        'round_id' => $round->id,
+                    ],
+                    'Balloon popped',
+                    "You have been eliminated from '{$round->spec->title}'."
                 );
             }
         });
