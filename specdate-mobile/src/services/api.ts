@@ -1,9 +1,43 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 
-// Replace with your local IP if running on device (e.g., http://192.168.1.5:8000/api)
-// For emulator 10.0.2.2 usually maps to localhost
-const API_URL = 'http://10.0.2.2:8000/api';
+import Constants from 'expo-constants';
+
+// API base URL. On a physical device, 127.0.0.1/localhost = the device itself, so backend is unreachable.
+// Set EXPO_PUBLIC_API_URL in .env to your PC's LAN IP (e.g. http://192.168.1.5:8000/api) when using a real device.
+const getBaseUrl = (): string => {
+    const override = process.env.EXPO_PUBLIC_API_URL?.trim();
+    if (override) {
+        const base = override.replace(/\/$/, '');
+        return base.endsWith('/api') ? base : base + '/api';
+    }
+
+    const debuggerHost = Constants.expoConfig?.hostUri;
+    const androidEmulatorHost = '10.0.2.2'; // Only works on Android emulator
+
+    if (debuggerHost) {
+        const ip = debuggerHost.split(':')[0];
+        // On a physical device, 127.0.0.1/localhost = the phone, not your PC. Never use it for API.
+        if (ip === '127.0.0.1' || ip === 'localhost') {
+            if (__DEV__) {
+                console.warn(
+                    '[API] hostUri is 127.0.0.1/localhost – on a physical device this points to the device itself. ' +
+                    'Set EXPO_PUBLIC_API_URL in .env to your PC IP (e.g. http://192.168.1.5:8000/api) and restart Expo.'
+                );
+            }
+            return `http://${androidEmulatorHost}:8000/api`;
+        }
+        return `http://${ip}:8000/api`;
+    }
+
+    return `http://${androidEmulatorHost}:8000/api`;
+};
+
+const API_URL = getBaseUrl();
+
+if (__DEV__) {
+    console.log('[API] baseURL:', API_URL);
+}
 const AUTH_TOKEN_KEY = 'specdate.authToken';
 
 export function getApiBaseUrl(): string {
@@ -11,6 +45,7 @@ export function getApiBaseUrl(): string {
 }
 
 export const api = axios.create({
+
     baseURL: API_URL,
     headers: {
         'Content-Type': 'application/json',

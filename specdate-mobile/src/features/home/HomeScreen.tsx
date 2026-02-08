@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { View, StyleSheet, FlatList, TouchableOpacity, Image, Dimensions, ScrollView, Modal as RNModal } from 'react-native';
-import { ActivityIndicator, Text, useTheme, IconButton, Surface, Searchbar, Avatar, SegmentedButtons } from 'react-native-paper';
+import { ActivityIndicator, Text, useTheme, IconButton, Surface, Searchbar, Avatar, SegmentedButtons, Button, TextInput } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -10,10 +10,12 @@ import { useUser } from '../../hooks/useUser';
 import { toImageUri } from '../../utils/imageUrl';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import SpecCard from './components/SpecCard';
-import PersonCard from './components/PersonCard';
+import PersonCard, { UserItem } from './components/PersonCard';
 import RequestCard from './components/RequestCard';
+import SearchModal from './components/SearchModal';
 import { useMutation } from '@tanstack/react-query';
 import { useAudioPlayer } from 'expo-audio';
+import { UserService } from '../../services/user';
 
 type SpecCardItem = {
   id: string;
@@ -154,6 +156,33 @@ export default function HomeScreen({ navigation }: any) {
   const [searchOpen, setSearchOpen] = useState(false);
   const bottomNavHeight = 64;
   const [bottomTab, setBottomTab] = useState<'Home' | 'Dates' | 'Specs' | 'Requests'>('Home');
+  const [sexFilter, setSexFilter] = useState<string>('All');
+  const [cityFilter, setCityFilter] = useState<string>('');
+  const [cityQuery, setCityQuery] = useState<string>(''); // debounced value sent to API
+
+  // Debounce city filter (400ms) so we don't refetch on every keystroke
+  React.useEffect(() => {
+    const t = setTimeout(() => setCityQuery(cityFilter.trim()), 400);
+    return () => clearTimeout(t);
+  }, [cityFilter]);
+
+  // Fetch users query (sex + city filters)
+  const { data: usersData, refetch: refetchUsers, isLoading: isLoadingUsers } = useQuery({
+    queryKey: ['users', sexFilter, cityQuery, query],
+    queryFn: () => UserService.getAll({
+      sex: sexFilter,
+      city: cityQuery || undefined,
+      query: query,
+      page: 1,
+    }),
+    enabled: tab === 'People',
+  });
+
+  const usersList = useMemo(() => {
+    const raw = usersData?.data;
+    const list = Array.isArray(raw) ? raw : (raw?.data || []);
+    return list as UserItem[];
+  }, [usersData]);
 
 
 
@@ -344,30 +373,10 @@ export default function HomeScreen({ navigation }: any) {
     return source.filter((s) => (s.title + ' ' + s.owner).toLowerCase().includes(q));
   }, [query, specs]);
 
-  type PersonItem = {
-    id: string;
-    name: string;
-    age: number;
-    city: string;
-    occupation: string;
-  };
 
-  const people = useMemo<PersonItem[]>(
-    () => [
-      { id: 'u1', name: 'Ada N.', age: 26, city: 'Lagos', occupation: 'Product Designer' },
-      { id: 'u2', name: 'Musa A.', age: 29, city: 'Abuja', occupation: 'Software Engineer' },
-      { id: 'u3', name: 'Chi O.', age: 28, city: 'Lagos', occupation: 'Entrepreneur' },
-      { id: 'u4', name: 'Zainab K.', age: 25, city: 'Kano', occupation: 'Student' },
-      { id: 'u5', name: 'Tomi J.', age: 30, city: 'Port Harcourt', occupation: 'Marketing' },
-    ],
-    []
-  );
 
-  const filteredPeople = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return people;
-    return people.filter((p) => (p.name + ' ' + p.city + ' ' + p.occupation).toLowerCase().includes(q));
-  }, [people, query]);
+  // Remove old dummy people logic
+
 
   return (
     <View style={[styles.container, { backgroundColor: homeColors.bg }]}>
@@ -376,9 +385,11 @@ export default function HomeScreen({ navigation }: any) {
         style={[
           styles.topBar,
           {
-            paddingTop: insets.top + 6,
+            paddingTop: insets.top + 10,
+            paddingBottom: 10, // Added space for bigger logo
             paddingLeft: insets.left + 10,
             paddingRight: insets.right + 10,
+            minHeight: 80, // Forced height for bigger logo
           },
         ]}
       >
@@ -398,53 +409,61 @@ export default function HomeScreen({ navigation }: any) {
         <View style={styles.titleWrap} pointerEvents="none">
           <Image
             source={require('../../../assets/logo_v2.png')}
-            style={{ width: 360, height: 95, resizeMode: 'contain', backgroundColor: 'transparent' }}
+            style={{ width: 400, height: 120, resizeMode: 'contain', backgroundColor: 'transparent' }}
           />
         </View>
 
         <View style={styles.rightIcons}>
-          <View style={styles.iconWithBadge}>
-            <IconButton
-              icon="message-outline"
-              size={26}
-              iconColor={homeColors.text}
-              containerColor={theme.colors.elevation.level2}
-              style={styles.topIconButton}
-              onPress={() => navigation.navigate('Messages')}
-            />
-            {/* TODO: Real message count */}
-            <View
-              style={[
-                styles.countBadge,
-                { borderColor: theme.colors.elevation.level2, backgroundColor: '#EF4444', opacity: 0 },
-              ]}
-            >
-              <Text style={styles.countBadgeText}>0</Text>
-            </View>
-          </View>
-
-          <View style={styles.iconWithBadge}>
-            <IconButton
-              icon="bell-outline"
-              size={26}
-              iconColor={homeColors.text}
-              containerColor={theme.colors.elevation.level2}
-              style={styles.topIconButton}
-              onPress={() => navigation.navigate('Notifications')}
-            />
-            {(user?.unread_notifications_count || 0) > 0 && (
+          <TouchableOpacity
+            style={styles.topIconBtn}
+            onPress={() => navigation.navigate('Messages')}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <View style={styles.iconWithBadge}>
+              <MaterialCommunityIcons
+                name="message-outline"
+                size={28}
+                color={homeColors.text}
+                style={{ textShadowColor: homeColors.text, textShadowRadius: 8 }}
+              />
+              {/* TODO: Real message count */}
               <View
                 style={[
                   styles.countBadge,
-                  { borderColor: theme.colors.elevation.level2, backgroundColor: '#EF4444' },
+                  { borderColor: theme.colors.elevation.level2, backgroundColor: '#EF4444', opacity: 0 },
                 ]}
               >
-                <Text style={styles.countBadgeText}>
-                  {user!.unread_notifications_count! > 99 ? '99+' : user!.unread_notifications_count}
-                </Text>
+                <Text style={styles.countBadgeText}>0</Text>
               </View>
-            )}
-          </View>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.topIconBtn}
+            onPress={() => navigation.navigate('Notifications')}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <View style={styles.iconWithBadge}>
+              <MaterialCommunityIcons
+                name="bell-outline"
+                size={28}
+                color={homeColors.text}
+                style={{ textShadowColor: homeColors.text, textShadowRadius: 8 }}
+              />
+              {(user?.unread_notifications_count || 0) > 0 && (
+                <View
+                  style={[
+                    styles.countBadge,
+                    { borderColor: theme.colors.elevation.level2, backgroundColor: '#EF4444' },
+                  ]}
+                >
+                  <Text style={styles.countBadgeText}>
+                    {user!.unread_notifications_count! > 99 ? '99+' : user!.unread_notifications_count}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -468,15 +487,19 @@ export default function HomeScreen({ navigation }: any) {
                 ]}
               >
                 {/* Search icon (opens modal) */}
-                <IconButton
-                  icon="magnify"
-                  size={22}
-                  iconColor={theme.colors.primary}
+                <TouchableOpacity
                   onPress={() => setSearchOpen(true)}
-                  style={styles.controlsIcon}
-                />
+                  style={styles.controlsIconBtn}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <MaterialCommunityIcons
+                    name="magnify"
+                    size={28}
+                    color={theme.colors.primary}
+                    style={{ textShadowColor: theme.colors.primary, textShadowRadius: 10 }}
+                  />
+                </TouchableOpacity>
 
-                {/* Specs/People segmented control (original design) */}
                 <View style={{ flex: 1 }}>
                   <SegmentedButtons
                     value={tab}
@@ -485,68 +508,40 @@ export default function HomeScreen({ navigation }: any) {
                       { value: 'Specs', label: 'Specs', icon: 'view-grid' },
                       { value: 'People', label: 'People', icon: 'account-multiple' },
                     ]}
+                    density="small"
                     style={styles.segmentedTabs}
                   />
                 </View>
 
                 {/* Provider icon last */}
-                <IconButton
-                  icon="silverware-fork-knife"
-                  size={22}
-                  iconColor={theme.colors.primary}
+                <TouchableOpacity
                   onPress={() => navigation.navigate('Providers', { source: 'home' })}
-                  style={styles.controlsIcon}
-                />
+                  style={styles.controlsIconBtn}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <MaterialCommunityIcons
+                    name="silverware-fork-knife"
+                    size={28}
+                    color={theme.colors.primary}
+                    style={{ textShadowColor: theme.colors.primary, textShadowRadius: 10 }}
+                  />
+                </TouchableOpacity>
               </View>
             </View>
 
             {/* Search modal */}
-            <RNModal
+            <SearchModal
               visible={searchOpen}
-              transparent
-              animationType="fade"
-              onRequestClose={() => setSearchOpen(false)}
-            >
-              <TouchableOpacity
-                style={[styles.searchModalBackdrop, { paddingTop: insets.top + 12 }]}
-                activeOpacity={1}
-                onPress={() => setSearchOpen(false)}
-              >
-                <View
-                  style={[
-                    styles.searchModal,
-                    {
-                      backgroundColor: theme.colors.surface,
-                      borderColor: theme.colors.outline,
-                    },
-                  ]}
-                >
-                  <Searchbar
-                    icon={() => null}
-                    clearIcon={() => null}
-                    placeholder={tab === 'People' ? 'Search people…' : 'Search specs…'}
-                    value={query}
-                    onChangeText={setQuery}
-                    autoCapitalize="none"
-                    autoFocus
-                    style={[
-                      styles.searchBar,
-                      {
-                        backgroundColor: theme.colors.elevation.level2,
-                        borderWidth: 1,
-                        borderColor: theme.colors.primary,
-                      },
-                    ]}
-                    inputStyle={{ color: homeColors.text }}
-                    placeholderTextColor={homeColors.subtext}
-                  />
-                </View>
-              </TouchableOpacity>
-            </RNModal>
+              onClose={() => setSearchOpen(false)}
+              tab={tab}
+              query={query}
+              setQuery={setQuery}
+            />
 
-            {/* Feed selector */}
+            {/* Feed selector or People Filters */}
             {tab === 'Specs' ? (
               <View style={[styles.feedWrap, { paddingLeft: insets.left + 16, paddingRight: insets.right + 16 }]}>
+                {/* ... existing feed scroll ... */}
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.feedScroll}>
                   {feedKeys.map((k) => {
                     const active = feed === k;
@@ -580,7 +575,47 @@ export default function HomeScreen({ navigation }: any) {
                   })}
                 </ScrollView>
               </View>
-            ) : null}
+            ) : (
+              // People filters: minimal row — Sex + City
+              <View style={[styles.peopleFiltersWrap, { paddingLeft: insets.left + 16, paddingRight: insets.right + 16 }]}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.peopleFiltersRow}>
+                  {['All', 'Male', 'Female'].map((s) => {
+                    const active = sexFilter === s;
+                    return (
+                      <TouchableOpacity
+                        key={s}
+                        onPress={() => setSexFilter(s)}
+                        style={[
+                          styles.peoplePill,
+                          {
+                            backgroundColor: active ? theme.colors.primary : theme.colors.elevation.level2,
+                          },
+                        ]}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[styles.peoplePillText, { color: active ? '#fff' : theme.colors.onSurface }]}>
+                          {s}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+                <View style={[styles.cityFilterWrap, { backgroundColor: theme.colors.elevation.level2 }]}>
+                  <MaterialCommunityIcons name="map-marker-outline" size={18} color={theme.colors.outline} />
+                  <TextInput
+                    placeholder="City"
+                    value={cityFilter}
+                    onChangeText={setCityFilter}
+                    mode="flat"
+                    dense
+                    style={styles.cityInput}
+                    contentStyle={{ fontSize: 14 }}
+                    placeholderTextColor={theme.colors.outline}
+                    textColor={theme.colors.onSurface}
+                  />
+                </View>
+              </View>
+            )}
 
             {tab === 'Specs' ? (
               <FlatList
@@ -638,22 +673,37 @@ export default function HomeScreen({ navigation }: any) {
             ) : (
               <FlatList
                 key="home-people"
-                data={filteredPeople}
-                keyExtractor={(item) => item.id}
+                data={usersList}
+                keyExtractor={(item) => String(item.id)}
+                numColumns={3}
+                columnWrapperStyle={styles.peopleGridRow}
                 contentContainerStyle={[
-                  styles.listContent,
+                  styles.peopleGridContent,
                   {
-                    paddingLeft: insets.left + 16,
-                    paddingRight: insets.right + 16,
+                    paddingLeft: insets.left + 12,
+                    paddingRight: insets.right + 12,
                     paddingBottom: insets.bottom + bottomNavHeight + 24,
                   },
                 ]}
+                onRefresh={() => refetchUsers()}
+                refreshing={isLoadingUsers}
                 renderItem={({ item }) => (
-                  <PersonCard item={item} theme={theme} />
+                  <PersonCard
+                    item={item}
+                    theme={theme}
+                    onPress={() => navigation.navigate('ProfileViewer', { userId: Number(item.id) })}
+                  />
                 )}
                 ListEmptyComponent={
-                  <View style={{ paddingTop: 30 }}>
-                    <Text style={{ color: theme.colors.outline, textAlign: 'center' }}>No people found.</Text>
+                  <View style={styles.peopleEmpty}>
+                    {isLoadingUsers ? (
+                      <>
+                        <ActivityIndicator animating color={theme.colors.primary} size="large" />
+                        <Text style={[styles.peopleEmptyText, { color: theme.colors.outline }]}>Loading people…</Text>
+                      </>
+                    ) : (
+                      <Text style={[styles.peopleEmptyText, { color: theme.colors.outline }]}>No people found. Try another city or filter.</Text>
+                    )}
                   </View>
                 }
               />
@@ -970,21 +1020,21 @@ const styles = StyleSheet.create({
   rightIcons: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
+    gap: 12, // Increased gap for better spacing
+  },
+  topIconBtn: {
+    padding: 6,
   },
   iconWithBadge: {
     position: 'relative',
   },
-  topIconButton: {
-    margin: 0,
-  },
   countBadge: {
     position: 'absolute',
-    top: -2,
-    right: -2,
-    minWidth: 18,
-    height: 18,
-    paddingHorizontal: 5,
+    top: -4,
+    right: -4,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 4,
     borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
@@ -992,44 +1042,31 @@ const styles = StyleSheet.create({
   },
   countBadgeText: {
     color: '#FFFFFF',
-    fontSize: 11,
+    fontSize: 9,
     fontWeight: '900',
-    lineHeight: 12,
+    lineHeight: 11,
   },
   controlsWrap: {
-    paddingTop: 10,
+    paddingTop: 20, // Increased spacing from top
+    paddingBottom: 8, // Added bottom padding to separate from feed/content
   },
   controlsBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
+    gap: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8, // Increased vertical padding
     borderRadius: 14,
-    // Keep the background, but remove the "box" border
     borderWidth: 0,
   },
-  controlsIcon: {
-    margin: 0,
+  controlsIconBtn: {
+    padding: 4,
   },
   segmentedTabs: {
     flex: 1,
   },
-  searchBar: {
-    borderRadius: 50,
-  },
-  searchModalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    paddingHorizontal: 16,
-  },
-  searchModal: {
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-  },
   feedWrap: {
-    paddingTop: 10,
+    paddingTop: 12, // Increased spacing from controls
     paddingBottom: 8,
   },
   feedScroll: {
@@ -1062,6 +1099,55 @@ const styles = StyleSheet.create({
   gridRow: {
     gap: 12,
     marginBottom: 12,
+  },
+  peopleFiltersWrap: {
+    paddingTop: 12,
+    paddingBottom: 12,
+    gap: 10,
+  },
+  peopleFiltersRow: {
+    gap: 8,
+    paddingRight: 12,
+  },
+  peoplePill: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+  },
+  peoplePillText: {
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  cityFilterWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    paddingLeft: 12,
+    paddingVertical: 4,
+    gap: 8,
+  },
+  cityInput: {
+    flex: 1,
+    backgroundColor: 'transparent',
+    height: 40,
+  },
+  peopleGridRow: {
+    gap: 6,
+    marginBottom: 6,
+  },
+  peopleGridContent: {
+    paddingTop: 8,
+  },
+  peopleEmpty: {
+    paddingTop: 48,
+    alignItems: 'center',
+    gap: 12,
+  },
+  peopleEmptyText: {
+    fontSize: 15,
+    textAlign: 'center',
+    paddingHorizontal: 24,
   },
   cardWrap: {
     flex: 1,

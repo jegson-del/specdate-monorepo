@@ -23,6 +23,10 @@ class RegisterRequest extends ApiFormRequest
             'state' => 'nullable|string|max:255',
             'country' => 'nullable|string|max:255',
             'continent' => 'nullable|string|max:255',
+            // OTP verification (required when using OTP flow; send via send-otp first)
+            'otp_code' => 'nullable|string|size:6',
+            'channel' => 'nullable|string|in:email,mobile',
+            'target' => 'nullable|string|max:255',
         ];
     }
 }

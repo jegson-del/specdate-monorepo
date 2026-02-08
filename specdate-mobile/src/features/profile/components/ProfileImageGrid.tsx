@@ -40,7 +40,6 @@ export function ProfileImageGrid({
                 source={{ uri }}
                 style={styles.gridImage}
                 resizeMode="cover"
-                pointerEvents="none"
             />
         ) : (
             <View style={[styles.placeholder, { backgroundColor: theme.colors.surfaceVariant }]}>
@@ -114,7 +113,6 @@ export function ProfileImageGrid({
                     activeOpacity={0.75}
                     onPress={() => onAddPress?.(index)}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    collapsable={false}
                     accessibilityRole="button"
                     accessibilityLabel="Add photo"
                 >
@@ -129,9 +127,9 @@ export function ProfileImageGrid({
     const row2 = slots.slice(3, 6).map((uri, i) => renderCell(uri, i + 3));
 
     return (
-        <View style={styles.container} collapsable={false}>
-            <View style={styles.row} collapsable={false}>{row1}</View>
-            <View style={styles.row} collapsable={false}>{row2}</View>
+        <View style={styles.container}>
+            <View style={styles.row}>{row1}</View>
+            <View style={styles.row}>{row2}</View>
         </View>
     );
 }

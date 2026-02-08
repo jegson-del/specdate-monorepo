@@ -4,6 +4,8 @@ import { Text, Button, IconButton, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import axios from 'axios';
 import { AuthService } from '../../services/auth';
+import { getApiBaseUrl } from '../../services/api';
+import { OneSignal } from 'react-native-onesignal';
 
 export default function OtpVerificationScreen({ navigation, route }: any) {
     const theme = useTheme();
@@ -29,35 +31,46 @@ export default function OtpVerificationScreen({ navigation, route }: any) {
 
         setLoading(true);
         try {
-            const response = await AuthService.register(formData);
+            const payload = {
+                ...formData,
+                otp_code: code.trim(),
+                channel,
+                target,
+            };
+            const response = await AuthService.register(payload);
 
             if (response.data.success || response.status === 201) {
+                // Should we enroll them in SMS?
+                if (payload.mobile) {
+                    OneSignal.User.addSms(payload.mobile);
+                }
+
                 Alert.alert("Success", "Account created! Welcome to SpecDate.", [
                     { text: "Continue", onPress: () => navigation.navigate("Profile") }
                 ]);
             }
         } catch (error) {
-            // Show Laravel validation errors (422) clearly
             if (axios.isAxiosError(error)) {
                 const status = error.response?.status;
                 const data: any = error.response?.data;
-                const errors = data?.errors;
-
+                // Laravel API puts validation errors in data.data.errors
+                const errors = data?.data?.errors ?? data?.errors;
                 const firstFieldError =
                     errors && typeof errors === 'object'
                         ? (Object.values(errors)[0] as any)?.[0]
                         : undefined;
-
-                Alert.alert(
-                    "Registration failed",
-                    firstFieldError || data?.message || `Request failed (${status ?? "no status"})`
-                );
-                console.error('Register error:', status, data);
+                const isNetworkError = error.response === undefined;
+                const apiUrl = getApiBaseUrl();
+                const message =
+                    firstFieldError ||
+                    data?.message ||
+                    (isNetworkError
+                        ? `Cannot reach backend at ${apiUrl}. On a physical device, set EXPO_PUBLIC_API_URL in .env to your PC IP (e.g. http://192.168.1.5:8000/api), same Wi‑Fi, then restart Expo.`
+                        : `Request failed (${status ?? 'no status'})`);
+                Alert.alert("Registration failed", message);
                 return;
             }
-
             Alert.alert("Error", "Registration failed.");
-            console.error(error);
         } finally {
             setLoading(false);
         }

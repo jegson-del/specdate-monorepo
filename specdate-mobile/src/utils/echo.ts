@@ -7,7 +7,7 @@ import Pusher from 'pusher-js';
 // Key and cluster must match backend .env (PUSHER_APP_KEY, PUSHER_APP_CLUSTER) for real-time RoundAnswered / RoundStarted
 export const echo = new Echo({
     broadcaster: 'pusher',
-    key: '7dc5e59b1d29871efb2a',
-    cluster: 'eu',
+    key: process.env.EXPO_PUBLIC_PUSHER_APP_KEY,
+    cluster: process.env.EXPO_PUBLIC_PUSHER_APP_CLUSTER,
     forceTLS: true,
 });

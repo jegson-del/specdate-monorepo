@@ -266,6 +266,17 @@ class SpecController extends Controller
         }
     }
 
+    public function updateRound(Request $request, $roundId)
+    {
+        $request->validate(['question' => 'required|string']);
+        try {
+            $round = $this->specService->updateRound($request->user(), $roundId, $request->input('question'));
+            return $this->sendResponse($round, 'Round updated.');
+        } catch (HttpException $e) {
+            return $this->sendError($e->getMessage(), [], $e->getStatusCode());
+        }
+    }
+
     public function closeRound(Request $request, $roundId)
     {
         try {

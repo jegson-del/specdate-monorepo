@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MotiView } from 'moti';
 import { z } from 'zod';
 import { AuthService } from '../../services/auth';
+import { getApiBaseUrl } from '../../services/api';
 import { registerSchema } from '../../utils/validation';
 import * as Location from 'expo-location';
 
@@ -150,23 +151,31 @@ export default function RegisterScreen({ navigation }: any) {
                 }
             }
         } else {
-            // Submit: for now we bypass OTP sending and just move to OTP screen
-            handleSubmit();
+            // Send OTP then navigate to OTP verification screen
+            await handleSubmit();
         }
     };
 
     const handleSubmit = async () => {
         setLoading(true);
         try {
-            // Navigate to OTP Screen, passing the form data to finalize there or just the next step
+            const target = otpChannel === 'email' ? form.email : form.mobile;
+            await AuthService.sendOtp(otpChannel as 'email' | 'mobile', target);
             navigation.navigate('OtpVerification', {
-                // Backend `users.name` is required; we default it to the username for now.
                 formData: { ...form, name: form.username },
                 channel: otpChannel,
-                target: otpChannel === 'email' ? form.email : form.mobile
+                target,
             });
-        } catch (error) {
-            Alert.alert("Error", "Could not initiate registration.");
+        } catch (error: any) {
+            const msg = error?.response?.data?.message ?? error?.message ?? 'Could not send code. Check backend and try again.';
+            const errs = error?.response?.data?.data?.errors;
+            const firstErr = errs && typeof errs === 'object' ? (Object.values(errs)[0] as string[])?.[0] : null;
+            const isNetworkError = !error?.response;
+            const apiUrl = isNetworkError ? getApiBaseUrl() : '';
+            const fullMsg = firstErr ?? (isNetworkError && apiUrl
+                ? `Cannot reach backend at ${apiUrl}. On a physical device, set EXPO_PUBLIC_API_URL in .env to your PC IP (e.g. http://192.168.1.5:8000/api), same Wi‑Fi, then restart Expo.`
+                : msg);
+            Alert.alert('Error', fullMsg);
         } finally {
             setLoading(false);
         }
@@ -204,7 +213,7 @@ export default function RegisterScreen({ navigation }: any) {
                         source={require('../../../assets/logo_v2.png')}
                         style={{ width: 300, height: 95, resizeMode: 'contain', marginBottom: 20, alignSelf: 'center', backgroundColor: 'transparent' }}
                     />
-                    <Text variant="bodyMedium" style={{ color: theme.colors.outline }}>
+                    <Text variant="bodyMedium" style={{ color: theme.colors.onBackground, textAlign: 'center', marginBottom: 10 }}>
                         {step === 1 ? "Join the quest for your perfect spec." : "Where should we send your code?"}
                     </Text>
                 </MotiView>
@@ -269,7 +278,7 @@ export default function RegisterScreen({ navigation }: any) {
                                     {locHint}
                                 </Text>
                             ) : (form.city || form.country) ? (
-                                <Text style={{ color: theme.colors.outline, marginTop: -6 }}>
+                                <Text style={{ color: theme.colors.onSurface, marginTop: -6, marginBottom: 10 }}>
                                     Detected location: {[form.city, form.state, form.country].filter(Boolean).join(', ')}
                                 </Text>
                             ) : null}

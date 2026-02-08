@@ -424,6 +424,29 @@ class SpecService
     }
 
     /**
+     * Update an active round question.
+     */
+    public function updateRound($user, $roundId, $question)
+    {
+        $round = SpecRound::with('spec')->findOrFail($roundId);
+
+        if ($round->spec->user_id !== $user->id) {
+            throw new HttpException(403, 'Unauthorized.');
+        }
+
+        if ($round->status !== 'ACTIVE') {
+            throw new HttpException(400, 'Can only edit active rounds.');
+        }
+
+        $round->update(['question_text' => $question]);
+
+        // Broadcast to update UI
+        \App\Events\RoundStarted::dispatch($round);
+
+        return $round;
+    }
+
+    /**
      * Submit answer for a round.
      */
     public function submitAnswer($user, $roundId, string $answer, $mediaId = null): SpecRoundAnswer

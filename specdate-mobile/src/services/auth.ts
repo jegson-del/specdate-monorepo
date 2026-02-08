@@ -1,6 +1,11 @@
 import { api, getAuthToken, setAuthToken } from './api';
 
 export const AuthService = {
+    sendOtp: async (channel: 'email' | 'mobile', target: string) => {
+        const resp = await api.post('/send-otp', { channel, target });
+        return resp;
+    },
+
     register: async (data: any) => {
         const resp = await api.post('/register', data);
         const token = resp?.data?.data?.token ?? resp?.data?.token;

@@ -129,6 +129,12 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
     const [answerImage, setAnswerImage] = useState<string | null>(null);
     const [nextRoundQuestion, setNextRoundQuestion] = useState('');
 
+    // Edit Question State
+    const [isEditing, setIsEditing] = useState(false);
+    const [editQuestionText, setEditQuestionText] = useState('');
+
+
+
     const pickImage = async () => {
         try {
             const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -162,6 +168,15 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
         onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to start round.'),
     });
 
+    const updateRoundMutation = useMutation({
+        mutationFn: ({ rId, text }: { rId: number, text: string }) => SpecService.updateRound(rId, text),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['spec', String(specId)] });
+            setIsEditing(false);
+            Alert.alert('Success', 'Question updated!');
+        },
+        onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to update question.'),
+    });
 
     // --- Render Helpers ---
 
@@ -253,8 +268,44 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
 
                 {/* Question – flat card, high contrast */}
                 <View style={[styles.questionCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant || theme.colors.outline + '40' }]}>
-                    <Text style={[styles.questionLabel, { color: theme.colors.onSurfaceVariant }]}>QUESTION</Text>
-                    <Text style={[styles.questionText, { color: theme.colors.onSurface }]}>{roundToShow.question_text}</Text>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <Text style={[styles.questionLabel, { color: theme.colors.onSurfaceVariant }]}>QUESTION</Text>
+                        {isOwner && roundToShow.status === 'ACTIVE' && !isEditing && (
+                            <TouchableOpacity onPress={() => {
+                                setEditQuestionText(roundToShow.question_text);
+                                setIsEditing(true);
+                            }}>
+                                <MaterialCommunityIcons name="pencil" size={20} color={theme.colors.primary} />
+                            </TouchableOpacity>
+                        )}
+                    </View>
+
+                    {isEditing ? (
+                        <View style={{ gap: 10, marginBottom: 10 }}>
+                            <TextInput
+                                value={editQuestionText}
+                                onChangeText={setEditQuestionText}
+                                style={[styles.flatInput, { color: theme.colors.onSurface, borderColor: theme.colors.primary, borderWidth: 2 }]}
+                                autoFocus
+                                multiline
+                            />
+                            <View style={{ flexDirection: 'row', gap: 10, justifyContent: 'flex-end' }}>
+                                <Button mode="text" onPress={() => setIsEditing(false)} compact>Cancel</Button>
+                                <Button
+                                    mode="contained"
+                                    onPress={() => updateRoundMutation.mutate({ rId: roundToShow.id, text: editQuestionText })}
+                                    loading={updateRoundMutation.isPending}
+                                    disabled={!editQuestionText.trim() || updateRoundMutation.isPending}
+                                    compact
+                                >
+                                    Save
+                                </Button>
+                            </View>
+                        </View>
+                    ) : (
+                        <Text style={[styles.questionText, { color: theme.colors.onSurface }]}>{roundToShow.question_text}</Text>
+                    )}
+
                     <View style={[styles.questionMeta, { borderTopColor: theme.colors.outlineVariant || theme.colors.outline + '30' }]}>
                         <Text style={[styles.questionMetaText, { color: theme.colors.onSurfaceVariant }]}>{answers.length} response{answers.length !== 1 ? 's' : ''}</Text>
                     </View>

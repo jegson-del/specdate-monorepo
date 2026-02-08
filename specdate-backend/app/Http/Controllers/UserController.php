@@ -17,6 +17,72 @@ class UserController extends Controller
      * Used when viewing another user's profile (e.g. spec creator).
      * Auth required; returns only public/safe fields.
      */
+    public function index(Request $request)
+    {
+        $query = User::with(['profile', 'media'])
+            ->where('id', '!=', $request->user()->id)
+            ->where('is_paused', false);
+
+        // Filter by Sex
+        if ($request->has('sex') && $request->sex !== 'All') {
+            $query->whereHas('profile', function ($q) use ($request) {
+                $q->where('sex', $request->sex);
+            });
+        }
+
+        // Filter by City (exact or partial)
+        if ($request->has('city')) {
+            $city = $request->city;
+            $query->whereHas('profile', function ($q) use ($city) {
+                $q->where('city', 'like', "%{$city}%");
+            });
+        }
+
+        // Search Query (Name, City, Occupation)
+        if ($request->has('query')) {
+            $search = $request->input('query');
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhereHas('profile', function ($pq) use ($search) {
+                      $pq->where('full_name', 'like', "%{$search}%")
+                         ->orWhere('city', 'like', "%{$search}%")
+                         ->orWhere('occupation', 'like', "%{$search}%");
+                  });
+            });
+        }
+
+        $users = $query->paginate(20);
+
+        // Format for public display
+        $data = $users->getCollection()->map(function ($user) {
+            $profile = $user->profile;
+            $avatarMedia = $user->media->where('type', 'avatar')->sortByDesc('id')->first();
+            $avatarUrl = $avatarMedia ? $avatarMedia->url : null;
+
+            return [
+                'id' => $user->id,
+                'name' => $profile->full_name ?? $user->name, // Prefer full name
+                'age' => $profile && $profile->dob ? $profile->dob->age : null,
+                'city' => $profile->city ?? 'Unknown',
+                'occupation' => $profile->occupation ?? '',
+                'avatar' => $avatarUrl ?? $profile->avatar ?? null,
+                'sex' => $profile->sex ?? null,
+            ];
+        });
+
+        return $this->sendResponse([
+            'data' => $data,
+            'current_page' => $users->currentPage(),
+            'last_page' => $users->lastPage(),
+            'total' => $users->total(),
+        ], 'Users retrieved successfully.');
+    }
+
+    /**
+     * Return public profile for a user (read-only).
+     * Used when viewing another user's profile (e.g. spec creator).
+     * Auth required; returns only public/safe fields.
+     */
     public function show(Request $request, int $id)
     {
         $user = User::with(['profile', 'media'])->find($id);

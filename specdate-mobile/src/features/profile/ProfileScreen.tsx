@@ -602,6 +602,48 @@ export default function ProfileScreen({ navigation }: any) {
 
                     <TextInput
                         mode="flat"
+                        label="City"
+                        value={form?.city}
+                        onChangeText={(t) => updateForm({ city: t })}
+                        style={styles.input}
+                        error={!!errors.city}
+                        contentStyle={styles.inputContent}
+                        underlineColor="transparent"
+                    />
+                    {!!errors.city && <HelperText type="error" visible>{errors.city}</HelperText>}
+
+                    <Divider style={styles.divider} />
+
+                    <TextInput
+                        mode="flat"
+                        label="State / Province"
+                        value={form?.state}
+                        onChangeText={(t) => updateForm({ state: t })}
+                        style={styles.input}
+                        error={!!errors.state}
+                        contentStyle={styles.inputContent}
+                        underlineColor="transparent"
+                    />
+                    {!!errors.state && <HelperText type="error" visible>{errors.state}</HelperText>}
+
+                    <Divider style={styles.divider} />
+
+                    <TextInput
+                        mode="flat"
+                        label="Country"
+                        value={form?.country}
+                        onChangeText={(t) => updateForm({ country: t })}
+                        style={styles.input}
+                        error={!!errors.country}
+                        contentStyle={styles.inputContent}
+                        underlineColor="transparent"
+                    />
+                    {!!errors.country && <HelperText type="error" visible>{errors.country}</HelperText>}
+
+                    <Divider style={styles.divider} />
+
+                    <TextInput
+                        mode="flat"
                         label="Date of Birth"
                         value={form.dob}
                         error={!!errors.dob}
