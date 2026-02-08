@@ -158,6 +158,7 @@ class AuthService
             'email' => $data['email'],
             'mobile' => $data['mobile'],
             'password' => Hash::make($data['password']),
+            'terms_accepted' => filter_var($data['terms_accepted'] ?? false, FILTER_VALIDATE_BOOLEAN),
         ]);
 
         // 2. Create Profile with Location (if provided)

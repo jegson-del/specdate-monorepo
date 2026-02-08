@@ -266,6 +266,21 @@ class SpecController extends Controller
         }
     }
 
+    public function nudgeUsers(Request $request, $roundId)
+    {
+        $request->validate([
+            'user_ids' => 'required|array',
+            'user_ids.*' => 'exists:users,id',
+        ]);
+
+        try {
+            $result = $this->specService->nudgeUsers($request->user(), $roundId, $request->input('user_ids'));
+            return $this->sendResponse($result, 'Users nudged.');
+        } catch (HttpException $e) {
+            return $this->sendError($e->getMessage(), [], $e->getStatusCode());
+        }
+    }
+
     public function updateRound(Request $request, $roundId)
     {
         $request->validate(['question' => 'required|string']);

@@ -27,6 +27,7 @@ class RegisterRequest extends ApiFormRequest
             'otp_code' => 'nullable|string|size:6',
             'channel' => 'nullable|string|in:email,mobile',
             'target' => 'nullable|string|max:255',
+            'terms_accepted' => 'required|accepted',
         ];
     }
 }

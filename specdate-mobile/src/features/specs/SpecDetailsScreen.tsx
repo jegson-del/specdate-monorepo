@@ -560,7 +560,14 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                                 placeholder="e.g. What's your hidden talent?"
                                 value={newRoundQuestion}
                                 onChangeText={setNewRoundQuestion}
-                                style={{ backgroundColor: theme.colors.surface, marginBottom: 12 }}
+                                multiline
+                                numberOfLines={4}
+                                style={{
+                                    backgroundColor: theme.colors.surface,
+                                    marginBottom: 12,
+                                    minHeight: 100, // Make it look like a textarea
+                                    textAlignVertical: 'top', // Ensure text starts at top
+                                }}
                             />
                             <Button
                                 mode="contained"

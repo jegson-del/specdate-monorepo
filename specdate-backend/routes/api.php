@@ -28,8 +28,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
         $gallery = $user->media->where('type', 'profile_gallery')->sortByDesc('id')->take(6)->values();
         $data['profile_gallery_media'] = $gallery->map(fn ($m) => ['id' => $m->id, 'url' => $m->url])->all();
 
-        // Unread count from our Notification model (User has custom notifications() hasMany, not Laravel's Notifiable DB notifications)
-        $data['unread_notifications_count'] = $user->notifications()->whereNull('read_at')->count();
+        // Unread counts: requests show on Request tab badge; other notifications on bell badge only.
+        $data['unread_requests_count'] = $user->notifications()->whereNull('read_at')->where('type', 'join_request')->count();
+        $data['unread_notifications_count'] = $user->notifications()->whereNull('read_at')->where('type', '!=', 'join_request')->count();
 
         return response()->json($data, 200, [], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
     });
@@ -53,6 +54,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/rounds/{roundId}/close', [\App\Http\Controllers\SpecController::class, 'closeRound']);
     Route::post('/rounds/{roundId}/eliminate/{userId}', [\App\Http\Controllers\SpecController::class, 'eliminateUser']);
     Route::post('/rounds/{roundId}/eliminate', [\App\Http\Controllers\SpecController::class, 'eliminateUsers']);
+    Route::post('/rounds/{roundId}/nudge', [\App\Http\Controllers\SpecController::class, 'nudgeUsers']);
     Route::post('/rounds/{roundId}/update', [\App\Http\Controllers\SpecController::class, 'updateRound']);
 
     // Notifications

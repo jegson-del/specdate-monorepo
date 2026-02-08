@@ -121,6 +121,7 @@ class UserController extends Controller
                 'hobbies' => $profile->hobbies,
                 'height' => $profile->height,
                 'ethnicity' => $profile->ethnicity,
+                'religion' => $profile->religion,
                 'is_smoker' => $profile->is_smoker,
                 'is_drug_user' => $profile->is_drug_user,
                 'sexual_orientation' => $profile->sexual_orientation,

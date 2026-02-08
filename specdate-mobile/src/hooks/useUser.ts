@@ -27,7 +27,10 @@ export type User = {
     profile_gallery_media?: ProfileGallerySlot[];
     /** When true, profile is hidden and user cannot create specs. */
     is_paused?: boolean;
+    /** Unread count for bell icon (excludes join_request). */
     unread_notifications_count?: number;
+    /** Unread join requests count (shown on Request tab badge). */
+    unread_requests_count?: number;
 };
 
 async function fetchUser(): Promise<User> {

@@ -6,7 +6,7 @@ import { MotiView } from 'moti';
 import { useCreateSpec, CreateSpecPayload } from '../../hooks/useSpecs';
 import { Dropdown } from 'react-native-paper-dropdown';
 import { useUser } from '../../hooks/useUser';
-import { OCCUPATION_OPTIONS, QUALIFICATION_OPTIONS, SEX_OPTIONS } from '../../constants/profileOptions';
+import { OCCUPATION_OPTIONS, QUALIFICATION_OPTIONS, RELIGION_OPTIONS, SEX_OPTIONS } from '../../constants/profileOptions';
 import { MultiSelectModal } from './components/MultiSelectModal';
 
 // --- Constants & Options ---
@@ -89,9 +89,11 @@ export default function CreateSpecScreen({ navigation }: any) {
     const [ageRange, setAgeRange] = useState<string>('18-99');
     const [minHeight, setMinHeight] = useState<string>('0');
     const [genotype, setGenotype] = useState<string>('ANY');
+    const [religion, setReligion] = useState<string>('Any');
     const [isAgeCompulsory, setIsAgeCompulsory] = useState(true);
     const [isHeightCompulsory, setIsHeightCompulsory] = useState(false);
     const [isGenotypeCompulsory, setIsGenotypeCompulsory] = useState(false);
+    const [isReligionCompulsory, setIsReligionCompulsory] = useState(false);
 
     const [sexSelected, setSexSelected] = useState<string[]>([]);
     const [isSexCompulsory, setIsSexCompulsory] = useState(false);
@@ -154,6 +156,7 @@ export default function CreateSpecScreen({ navigation }: any) {
         if (ageRange !== '18-99') lines.push({ label: `Age (${strictLabel(isAgeCompulsory)})`, value: ageRange.replace('-', '–') });
         if (minHeight !== '0') lines.push({ label: `Min height (${strictLabel(isHeightCompulsory)})`, value: `${minHeight}cm+` });
         if (genotype !== 'ANY') lines.push({ label: `Genotype (${strictLabel(isGenotypeCompulsory)})`, value: genotype });
+        if (religion !== 'Any') lines.push({ label: `Religion (${strictLabel(isReligionCompulsory)})`, value: religion });
 
         const sexSel = normalizeStringArray(sexSelected);
         if (sexSel.length > 0 && !isAllSelected(sexSel, sexOptions)) {
@@ -181,9 +184,11 @@ export default function CreateSpecScreen({ navigation }: any) {
         description,
         duration,
         genotype,
+        religion,
         isAgeCompulsory,
         isGenotypeCompulsory,
         isHeightCompulsory,
+        isReligionCompulsory,
         isOccupationCompulsory,
         isQualificationCompulsory,
         isSexCompulsory,
@@ -276,6 +281,16 @@ export default function CreateSpecScreen({ navigation }: any) {
                 operator: 'in',
                 value: values,
                 is_compulsory: isGenotypeCompulsory,
+            });
+        }
+
+        // Religion (default Any = no requirement)
+        if (religion !== 'Any' && religion.trim()) {
+            payload.requirements.push({
+                field: 'religion',
+                operator: '=',
+                value: religion.trim(),
+                is_compulsory: isReligionCompulsory,
             });
         }
 
@@ -551,6 +566,24 @@ export default function CreateSpecScreen({ navigation }: any) {
                     options={GENOTYPES}
                     value={genotype}
                     onSelect={(v) => setGenotype(v || 'ANY')}
+                />
+            </View>
+
+            {/* Religion */}
+            <View style={styles.reqBlock}>
+                <View style={styles.reqHeader}>
+                    <Text variant="titleMedium" style={[styles.reqTitle, { color: theme.colors.onSurface }]}>Religion</Text>
+                    <View style={styles.switchWrap}>
+                        <Text variant="labelSmall" style={[styles.reqLabel, { color: theme.colors.onSurface }]}>Strict?</Text>
+                        <Switch value={isReligionCompulsory} onValueChange={setIsReligionCompulsory} />
+                    </View>
+                </View>
+                <Dropdown
+                    label="Religion preference (Any = no filter)"
+                    mode="outlined"
+                    options={Array.from(RELIGION_OPTIONS).map((r) => ({ label: r, value: r }))}
+                    value={religion}
+                    onSelect={(v) => setReligion(v || 'Any')}
                 />
             </View>
 

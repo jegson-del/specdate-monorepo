@@ -241,6 +241,32 @@ class SpecService
                 continue;
             }
 
+            // Religion: "Any" or empty means no filter; otherwise user's religion must match
+            if ($req->field === 'religion') {
+                $reqVal = is_string($req->value) ? trim($req->value) : $req->value;
+                if ($reqVal === '' || $reqVal === 'Any') {
+                    continue;
+                }
+                $userReligion = $profile->religion ?? null;
+                if ($userReligion === null || (string) $userReligion === '') {
+                    throw new HttpException(422, 'Requirement not met: religion (add your religion in Profile)');
+                }
+                $reqValue = $req->value;
+                if (is_string($reqValue) && (str_starts_with(trim($reqValue), '[') || str_starts_with(trim($reqValue), '{'))) {
+                    $reqValue = json_decode($reqValue, true);
+                }
+                if (is_array($reqValue)) {
+                    if (!in_array((string) $userReligion, array_map('strval', $reqValue))) {
+                        throw new HttpException(422, "Requirement not met: religion (spec requires one of: " . implode(', ', $reqValue) . ")");
+                    }
+                } else {
+                    if ((string) $userReligion !== (string) $reqValue) {
+                        throw new HttpException(422, "Requirement not met: religion (spec requires: {$reqValue})");
+                    }
+                }
+                continue;
+            }
+
             $userValue = $profile->{$req->field} ?? null;
             $reqValue = $req->value;
             // Value may be JSON string in DB (e.g. from json_encode)
@@ -605,12 +631,52 @@ class SpecService
             $this->eliminateUser($user, $roundId, $uid);
         }
         
-        // And then close? Modern flow says explicit close. 
-        // If this old endpoint is called, it implied closing.
-        $round = SpecRound::findOrFail($roundId);
-        $round->update(['status' => 'COMPLETED']);
+        // Return simple message, do not auto-complete round
+        return ['message' => 'Users eliminated.'];
+    }
 
-        return ['message' => 'Round completed and users eliminated.'];
+    /**
+     * Nudge users who haven't answered.
+     */
+    public function nudgeUsers($user, $roundId, array $userIdsToNudge)
+    {
+        $round = SpecRound::with('spec')->findOrFail($roundId);
+
+        if ($round->spec->user_id !== $user->id) {
+            throw new HttpException(403, 'Unauthorized.');
+        }
+
+        if ($round->status !== 'ACTIVE') {
+            throw new HttpException(400, 'Can only nudge in active rounds.');
+        }
+
+        $count = 0;
+        foreach ($userIdsToNudge as $userId) {
+            $targetUser = User::find($userId);
+            if ($targetUser) {
+                // Verify they are accepted and haven't answered
+                $application = $round->spec->applications()->where('user_id', $userId)->where('status', 'ACCEPTED')->first();
+                $hasAnswered = $round->answers()->where('user_id', $userId)->exists();
+
+                if ($application && !$hasAnswered) {
+                    $this->notificationService->notify(
+                        $targetUser,
+                        'round_nudge',
+                        [
+                            'spec_id' => $round->spec->id,
+                            'round_id' => $round->id,
+                            'title' => 'Action Required',
+                            'message' => "You have not answered the question for '{$round->spec->title}' yet. Please submit your answer soon!",
+                        ],
+                        'Action Required',
+                        "You have not answered the question for '{$round->spec->title}' yet. Please submit your answer soon!"
+                    );
+                    $count++;
+                }
+            }
+        }
+
+        return ['message' => "Nudged {$count} participants."];
     }
 
     /**

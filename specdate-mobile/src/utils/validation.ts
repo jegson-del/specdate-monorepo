@@ -32,6 +32,7 @@ export const profileSchema = z.object({
     country: z.string().min(1, "Country is required"),
     height: z.coerce.number().min(50).max(300).optional(), // cm
     ethnicity: z.string().optional(),
+    religion: z.string().optional(),
 });
 
 export type RegisterFormData = z.infer<typeof registerSchema>;

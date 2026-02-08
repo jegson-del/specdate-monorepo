@@ -21,3 +21,15 @@ export const QUALIFICATION_OPTIONS = [
 
 export const SEX_OPTIONS = ['Male', 'Female', 'Other'] as const;
 
+/** Religion options for profile and spec requirements. "Any" = no filter when used as spec requirement. */
+export const RELIGION_OPTIONS = [
+    'Any',
+    'Christianity',
+    'Muslim',
+    'Buddhist',
+    'Sikh',
+    'Hindu',
+    'Jewish',
+    'Other',
+] as const;
+

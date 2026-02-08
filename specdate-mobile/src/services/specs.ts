@@ -115,4 +115,9 @@ export const SpecService = {
         const response = await api.post(`/rounds/${roundId}/eliminate`, { user_ids: userIds });
         return response.data;
     },
+
+    async nudgeUsers(roundId: number, userIds: number[]) {
+        const response = await api.post(`/rounds/${roundId}/nudge`, { user_ids: userIds });
+        return response.data;
+    },
 };

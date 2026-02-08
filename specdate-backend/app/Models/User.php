@@ -25,6 +25,7 @@ class User extends Authenticatable
         'mobile',   // Added
         'password',
         'is_paused',
+        'terms_accepted',
         'expo_push_token',
     ];
 
@@ -49,6 +50,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_paused' => 'boolean',
+            'terms_accepted' => 'boolean',
         ];
     }
 

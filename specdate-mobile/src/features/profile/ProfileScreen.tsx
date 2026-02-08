@@ -11,7 +11,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import { Dropdown } from 'react-native-paper-dropdown';
-import { OCCUPATION_OPTIONS, QUALIFICATION_OPTIONS } from '../../constants/profileOptions';
+import { OCCUPATION_OPTIONS, QUALIFICATION_OPTIONS, RELIGION_OPTIONS } from '../../constants/profileOptions';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ProfileImageGrid, ImageViewerModal, ConfirmModal } from './components';
@@ -108,6 +108,7 @@ export default function ProfileScreen({ navigation }: any) {
         country: '',
         height: undefined,
         ethnicity: '',
+        religion: '',
     });
     const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -178,6 +179,7 @@ export default function ProfileScreen({ navigation }: any) {
             country: profile?.country || '',
             height: profile?.height,
             ethnicity: profile?.ethnicity || '',
+            religion: profile?.religion || '',
         });
         // Load user images from either images[] or profile_gallery_media[] (API can return either)
         const urlList =
@@ -765,6 +767,23 @@ export default function ProfileScreen({ navigation }: any) {
                     {ethnicitySelect === OTHER_VALUE && (
                         <TextInput label="Specify Ethnicity" value={ethnicityOther} onChangeText={(t) => { setEthnicityOther(t); updateForm({ ethnicity: t }); }} mode="flat" style={styles.input} />
                     )}
+                </Surface>
+
+                <Surface style={[styles.section, { backgroundColor: theme.colors.elevation.level1 }]} elevation={0}>
+                    <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
+                        Religion
+                    </Text>
+                    <Dropdown
+                        label="Religion (optional)"
+                        mode="outlined"
+                        options={[
+                            { label: 'Prefer not to say', value: '' },
+                            ...Array.from(RELIGION_OPTIONS).filter((r) => r !== 'Any').map((r) => ({ label: r, value: r })),
+                        ]}
+                        value={form?.religion ?? ''}
+                        onSelect={(v) => updateForm({ religion: v ?? '' })}
+                        style={styles.input}
+                    />
                 </Surface>
 
                 <Surface style={[styles.section, { backgroundColor: theme.colors.elevation.level1 }]} elevation={0}>

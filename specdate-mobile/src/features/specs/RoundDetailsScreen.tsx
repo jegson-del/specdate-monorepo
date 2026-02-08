@@ -9,10 +9,10 @@ import { SpecService } from '../../services/specs';
 import { useUser } from '../../hooks/useUser';
 import { toImageUri } from '../../utils/imageUrl';
 import { BalloonIcon } from '../../components/BalloonIcons';
+import { CloseRoundModal } from './components';
 import * as ImagePicker from 'expo-image-picker';
 import { MediaService } from '../../services/media';
-import { BlurView } from 'expo-blur';
-import { MotiView } from 'moti';
+
 
 export default function RoundDetailsScreen({ route, navigation }: any) {
     const specId = route.params?.specId != null ? String(route.params.specId) : undefined;
@@ -128,6 +128,7 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
     const [answerText, setAnswerText] = useState('');
     const [answerImage, setAnswerImage] = useState<string | null>(null);
     const [nextRoundQuestion, setNextRoundQuestion] = useState('');
+    const [closeModalVisible, setCloseRoundModalVisible] = useState(false);
 
     // Edit Question State
     const [isEditing, setIsEditing] = useState(false);
@@ -178,6 +179,83 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
         onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to update question.'),
     });
 
+    const eliminateUsersMutation = useMutation({
+        mutationFn: ({ rId, userIds }: { rId: number, userIds: number[] }) =>
+            SpecService.eliminateUsers(rId, userIds),
+        onSuccess: () => {
+            // After elimination, we might want to refetch
+            queryClient.invalidateQueries({ queryKey: ['spec', String(specId)] });
+        },
+        onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to eliminate users.'),
+    });
+
+    const nudgeUsersMutation = useMutation({
+        mutationFn: ({ rId, userIds }: { rId: number, userIds: number[] }) =>
+            SpecService.nudgeUsers(rId, userIds),
+        onSuccess: (data) => {
+            setCloseRoundModalVisible(false);
+            Alert.alert('Success', data.message || 'Participants nudged.');
+        },
+        onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to nudge users.'),
+    });
+
+    // --- Computed ---
+    const resolvedRound =
+        roundFromSpec ??
+        (lastRoundRef.current && String(lastRoundRef.current.id) === String(roundId) ? lastRoundRef.current : null);
+    const roundToShow =
+        resolvedRound &&
+            roundFromSpec?.status === 'COMPLETED' &&
+            lastRoundRef.current &&
+            String(lastRoundRef.current.id) === String(roundId) &&
+            lastRoundRef.current.status !== 'COMPLETED'
+            ? lastRoundRef.current
+            : resolvedRound;
+
+    // Participants = accepted applicants only; exclude spec owner (role: owner, not participant).
+    const activeParticipants = useMemo(() => {
+        if (!spec?.applications) return [];
+        const ownerId = spec.user_id != null ? String(spec.user_id) : null;
+        return spec.applications.filter(
+            (a: any) => a.status === 'ACCEPTED' && (!ownerId || String(a.user_id) !== ownerId)
+        );
+    }, [spec]);
+
+    const unresponsiveParticipants = useMemo(() => {
+        if (!roundToShow || roundToShow.status !== 'ACTIVE') return [];
+        const answeredIds = new Set((roundToShow.answers || []).map((a: any) => a.user_id));
+        return activeParticipants.filter((a: any) => !answeredIds.has(a.user_id));
+    }, [roundToShow, activeParticipants]);
+
+    const handleCloseRoundPress = () => {
+        if (unresponsiveParticipants.length > 0) {
+            setCloseRoundModalVisible(true);
+        } else {
+            Alert.alert('Close Round?', 'Stop accepting answers?', [
+                { text: 'Cancel' },
+                { text: 'Close', onPress: () => closeRoundMutation.mutate(roundToShow.id) }
+            ]);
+        }
+    };
+
+    const handleEliminateAndClose = async () => {
+        const ids = unresponsiveParticipants.map((p: any) => p.user_id);
+        if (ids.length > 0) {
+            try {
+                await eliminateUsersMutation.mutateAsync({ rId: roundToShow.id, userIds: ids });
+            } catch (e) {
+                return; // Stop if elimination fails
+            }
+        }
+        closeRoundMutation.mutate(roundToShow.id);
+        setCloseRoundModalVisible(false);
+    };
+
+    const handleNudge = () => {
+        const ids = unresponsiveParticipants.map((p: any) => p.user_id);
+        nudgeUsersMutation.mutate({ rId: roundToShow.id, userIds: ids });
+    };
+
     // --- Render Helpers ---
 
     if (!specId || roundId == null) {
@@ -211,17 +289,7 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
 
     // Resolve round: use refetch result, or last-known round to avoid "Round not found" flash during refetch / COMPLETED overwrite
     // but we were showing ACTIVE/REVIEWING (so Close button and balloons don't disappear after a few seconds)
-    const resolvedRound =
-        roundFromSpec ??
-        (lastRoundRef.current && String(lastRoundRef.current.id) === String(roundId) ? lastRoundRef.current : null);
-    const roundToShow =
-        resolvedRound &&
-            roundFromSpec?.status === 'COMPLETED' &&
-            lastRoundRef.current &&
-            String(lastRoundRef.current.id) === String(roundId) &&
-            lastRoundRef.current.status !== 'COMPLETED'
-            ? lastRoundRef.current
-            : resolvedRound;
+
 
     if (!roundToShow) {
         if (isFetching) {
@@ -320,10 +388,7 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                             <TouchableOpacity
                                 activeOpacity={0.8}
                                 style={[styles.primaryButton, { backgroundColor: theme.colors.error }]}
-                                onPress={() => Alert.alert('Close Round?', 'Stop accepting answers?', [
-                                    { text: 'Cancel' },
-                                    { text: 'Close', onPress: () => closeRoundMutation.mutate(roundToShow.id) }
-                                ])}
+                                onPress={handleCloseRoundPress}
                                 disabled={closeRoundMutation.isPending}
                             >
                                 {closeRoundMutation.isPending ? (
@@ -344,7 +409,9 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                                     placeholderTextColor={theme.colors.outline}
                                     value={nextRoundQuestion}
                                     onChangeText={setNextRoundQuestion}
-                                    style={[styles.flatInput, { color: theme.colors.onSurface, borderColor: theme.colors.outlineVariant || theme.colors.outline + '50' }]}
+                                    multiline
+                                    numberOfLines={4}
+                                    style={[styles.flatTextArea, { color: theme.colors.onSurface, borderColor: theme.colors.outlineVariant || theme.colors.outline + '50' }]}
                                 />
                                 <TouchableOpacity
                                     activeOpacity={0.8}
@@ -509,6 +576,21 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                 }
 
             </ScrollView>
+
+            <CloseRoundModal
+                visible={closeModalVisible}
+                onDismiss={() => setCloseRoundModalVisible(false)}
+                participants={unresponsiveParticipants}
+                onNudge={handleNudge}
+                onEliminateAndClose={handleEliminateAndClose}
+                onCloseAnyway={() => {
+                    setCloseRoundModalVisible(false);
+                    closeRoundMutation.mutate(roundToShow.id);
+                }}
+                nudgeLoading={nudgeUsersMutation.isPending}
+                eliminateOrCloseLoading={eliminateUsersMutation.isPending || closeRoundMutation.isPending}
+                closeLoading={closeRoundMutation.isPending}
+            />
 
         </View>
 

@@ -26,6 +26,7 @@ class UpdateProfileRequest extends ApiFormRequest
             'country' => 'nullable|string|max:100',
             'height' => 'nullable|integer|min:50|max:300',
             'ethnicity' => 'nullable|string|max:255',
+            'religion' => 'nullable|string|max:100',
         ];
     }
 }

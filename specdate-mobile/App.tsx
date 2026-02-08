@@ -16,6 +16,7 @@ import ProfileScreen from './src/features/profile/ProfileScreen';
 import ProfileViewerScreen from './src/features/profile/ProfileViewerScreen';
 import HomeScreen from './src/features/home/HomeScreen';
 import ProvidersScreen from './src/features/providers/ProvidersScreen';
+import ProviderDetailScreen from './src/features/providers/ProviderDetailScreen';
 import CreateSpecScreen from './src/features/specs/CreateSpecScreen';
 import SpecDetailsScreen from './src/features/specs/SpecDetailsScreen';
 import RoundDetailsScreen from './src/features/specs/RoundDetailsScreen';
@@ -114,6 +115,7 @@ export default function App() {
               <Stack.Screen name="ProfileViewer" component={ProfileViewerScreen} />
               <Stack.Screen name="Home" component={HomeScreen} />
               <Stack.Screen name="Providers" component={ProvidersScreen} />
+              <Stack.Screen name="ProviderDetail" component={ProviderDetailScreen} />
 
               <Stack.Screen name="Notifications" component={NotificationsScreen} />
               <Stack.Screen name="Messages" component={HomeScreen} />

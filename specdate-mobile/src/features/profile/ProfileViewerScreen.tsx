@@ -223,7 +223,7 @@ export default function ProfileViewerScreen({ route, navigation }: any) {
                     )}
                 </Surface>
 
-                {(profile?.occupation || profile?.qualification) && (
+                {(profile?.occupation || profile?.qualification || profile?.religion) && (
                     <Surface style={[styles.section, { backgroundColor: theme.colors.elevation.level1 }]} elevation={0}>
                         <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
                             About
@@ -241,6 +241,14 @@ export default function ProfileViewerScreen({ route, navigation }: any) {
                                 <MaterialCommunityIcons name="school" size={20} color={theme.colors.primary} />
                                 <Text variant="bodyLarge" style={{ color: theme.colors.onSurface, marginLeft: 12 }}>
                                     {profile.qualification}
+                                </Text>
+                            </View>
+                        )}
+                        {profile?.religion && (
+                            <View style={styles.infoRow}>
+                                <MaterialCommunityIcons name="book-open-variant" size={20} color={theme.colors.primary} />
+                                <Text variant="bodyLarge" style={{ color: theme.colors.onSurface, marginLeft: 12 }}>
+                                    {profile.religion}
                                 </Text>
                             </View>
                         )}

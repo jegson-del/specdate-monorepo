@@ -62,14 +62,17 @@ export default function NotificationsScreen() {
         if (specId) {
             const navigatesToSpec =
                 type === 'round_started' ||
+                type === 'round_nudge' ||
                 type === 'eliminated' ||
                 type === 'application_accepted' ||
                 type === 'round_answer';
             if (navigatesToSpec) {
-                // Clear spec cache so Spec Details refetches and shows spinner until data loads (no stale cache)
                 queryClient.removeQueries({ queryKey: ['spec', specId] });
                 queryClient.removeQueries({ queryKey: ['spec', specId, 'round_details'] });
-                if (type === 'eliminated' && roundId != null) {
+                // Take user to the round where they can answer (nudge, new question) or see elimination
+                if ((type === 'round_nudge' || type === 'round_started') && roundId != null) {
+                    navigation.navigate('RoundDetails', { specId, roundId });
+                } else if (type === 'eliminated' && roundId != null) {
                     navigation.navigate('RoundDetails', { specId, roundId });
                 } else {
                     navigation.navigate('SpecDetails', { specId, fromNotification: true });
@@ -90,6 +93,10 @@ export default function NotificationsScreen() {
             iconName = 'play-circle-outline';
             color = '#F59E0B';
             bgColor = 'rgba(245, 158, 11, 0.15)';
+        } else if (type === 'round_nudge') {
+            iconName = 'message-question-outline';
+            color = '#8B5CF6';
+            bgColor = 'rgba(139, 92, 246, 0.15)';
         } else if (type === 'eliminated') {
             iconName = 'close-circle-outline';
             color = '#EF4444';

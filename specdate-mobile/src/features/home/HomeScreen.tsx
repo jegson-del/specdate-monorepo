@@ -618,8 +618,9 @@ export default function HomeScreen({ navigation }: any) {
             )}
 
             {tab === 'Specs' ? (
-              <FlatList
-                key="home-specs"
+              <View style={[styles.specGridContainer, { backgroundColor: theme.colors.surface }]}>
+                <FlatList
+                  key="home-specs"
                 data={filteredItems}
                 keyExtractor={(item) => item.id}
                 numColumns={2}
@@ -669,44 +670,47 @@ export default function HomeScreen({ navigation }: any) {
                     }}
                   />
                 )}
-              />
+                />
+              </View>
             ) : (
-              <FlatList
-                key="home-people"
-                data={usersList}
-                keyExtractor={(item) => String(item.id)}
-                numColumns={3}
-                columnWrapperStyle={styles.peopleGridRow}
-                contentContainerStyle={[
-                  styles.peopleGridContent,
-                  {
-                    paddingLeft: insets.left + 12,
-                    paddingRight: insets.right + 12,
-                    paddingBottom: insets.bottom + bottomNavHeight + 24,
-                  },
-                ]}
-                onRefresh={() => refetchUsers()}
-                refreshing={isLoadingUsers}
-                renderItem={({ item }) => (
-                  <PersonCard
-                    item={item}
-                    theme={theme}
-                    onPress={() => navigation.navigate('ProfileViewer', { userId: Number(item.id) })}
-                  />
-                )}
-                ListEmptyComponent={
-                  <View style={styles.peopleEmpty}>
-                    {isLoadingUsers ? (
-                      <>
-                        <ActivityIndicator animating color={theme.colors.primary} size="large" />
-                        <Text style={[styles.peopleEmptyText, { color: theme.colors.outline }]}>Loading people…</Text>
-                      </>
-                    ) : (
-                      <Text style={[styles.peopleEmptyText, { color: theme.colors.outline }]}>No people found. Try another city or filter.</Text>
-                    )}
-                  </View>
-                }
-              />
+              <View style={[styles.specGridContainer, { backgroundColor: theme.colors.surface }]}>
+                <FlatList
+                  key="home-people"
+                  data={usersList}
+                  keyExtractor={(item) => String(item.id)}
+                  numColumns={3}
+                  columnWrapperStyle={styles.peopleGridRow}
+                  contentContainerStyle={[
+                    styles.peopleGridContent,
+                    {
+                      paddingLeft: insets.left + 12,
+                      paddingRight: insets.right + 12,
+                      paddingBottom: insets.bottom + bottomNavHeight + 24,
+                    },
+                  ]}
+                  onRefresh={() => refetchUsers()}
+                  refreshing={isLoadingUsers}
+                  renderItem={({ item }) => (
+                    <PersonCard
+                      item={item}
+                      theme={theme}
+                      onPress={() => navigation.navigate('ProfileViewer', { userId: Number(item.id) })}
+                    />
+                  )}
+                  ListEmptyComponent={
+                    <View style={styles.peopleEmpty}>
+                      {isLoadingUsers ? (
+                        <>
+                          <ActivityIndicator animating color={theme.colors.primary} size="large" />
+                          <Text style={[styles.peopleEmptyText, { color: theme.colors.outline }]}>Loading people…</Text>
+                        </>
+                      ) : (
+                        <Text style={[styles.peopleEmptyText, { color: theme.colors.outline }]}>No people found. Try another city or filter.</Text>
+                      )}
+                    </View>
+                  }
+                />
+              </View>
             )}
           </>
         ) : bottomTab === 'Specs' ? (
@@ -734,61 +738,63 @@ export default function HomeScreen({ navigation }: any) {
                 theme={{ colors: { secondaryContainer: 'rgba(124, 58, 237, 0.12)' } }} // Light purple bg for active
               />
             </View>
-            <FlatList
-              key="my-specs"
-              data={mySpecs}
-              keyExtractor={(item) => String(item.id)}
-              numColumns={2}
-              columnWrapperStyle={styles.gridRow}
-              contentContainerStyle={[
-                styles.listContent,
-                {
-                  paddingLeft: insets.left + 16,
-                  paddingRight: insets.right + 16,
-                  paddingBottom: insets.bottom + bottomNavHeight + 24,
-                },
-              ]}
-              onRefresh={refetchMySpecs}
-              refreshing={isLoadingMySpecs}
-              ListEmptyComponent={
-                isLoadingMySpecs ? (
-                  <View style={{ paddingTop: 30, alignItems: 'center' }}>
-                    <ActivityIndicator animating color={theme.colors.primary} />
-                  </View>
-                ) : (
-                  <View style={{ paddingTop: 30, alignItems: 'center' }}>
-                    <Text style={{ color: theme.colors.outline }}>
-                      {specTab === 'Owned' ? 'You haven\'t created any specs yet.' : 'You haven\'t joined any specs yet.'}
-                    </Text>
-                  </View>
-                )
-              }
-              renderItem={({ item }) => (
-                <SpecCard
-                  item={{
-                    id: String(item.id),
-                    title: item.title,
-                    owner: item.owner?.profile?.full_name || item.owner?.name || 'Unknown',
-                    expiresIn: new Date(item.expires_at) > new Date() ? 'Active' : 'Ended',
-                    joinCount: item.applications_count || 0,
-                    maxParticipants: item.max_participants,
-                    eliminatedCount: 0,
-                    firstDateProvider: '—',
-                    likesCount: 0,
-                    tag: item.status === 'OPEN' ? 'LIVE' : 'ONGOING',
-                    ownerAvatar: item.owner?.profile?.avatar, // Use the injected avatar
-                  }}
-                  theme={theme}
-                  homeColors={homeColors}
-                  tagColor={tagColor}
-                  withAlpha={withAlpha}
-                  onPress={() => {
-                    queryClient.prefetchQuery({ queryKey: ['spec', String(item.id)], queryFn: () => SpecService.getOne(String(item.id)) });
-                    navigation.navigate('SpecDetails', { specId: String(item.id) });
-                  }}
-                />
-              )}
-            />
+            <View style={[styles.specGridContainer, { backgroundColor: theme.colors.surface }]}>
+              <FlatList
+                key="my-specs"
+                data={mySpecs}
+                keyExtractor={(item) => String(item.id)}
+                numColumns={2}
+                columnWrapperStyle={styles.gridRow}
+                contentContainerStyle={[
+                  styles.listContent,
+                  {
+                    paddingLeft: insets.left + 16,
+                    paddingRight: insets.right + 16,
+                    paddingBottom: insets.bottom + bottomNavHeight + 24,
+                  },
+                ]}
+                onRefresh={refetchMySpecs}
+                refreshing={isLoadingMySpecs}
+                ListEmptyComponent={
+                  isLoadingMySpecs ? (
+                    <View style={{ paddingTop: 30, alignItems: 'center' }}>
+                      <ActivityIndicator animating color={theme.colors.primary} />
+                    </View>
+                  ) : (
+                    <View style={{ paddingTop: 30, alignItems: 'center' }}>
+                      <Text style={{ color: theme.colors.outline }}>
+                        {specTab === 'Owned' ? 'You haven\'t created any specs yet.' : 'You haven\'t joined any specs yet.'}
+                      </Text>
+                    </View>
+                  )
+                }
+                renderItem={({ item }) => (
+                  <SpecCard
+                    item={{
+                      id: String(item.id),
+                      title: item.title,
+                      owner: item.owner?.profile?.full_name || item.owner?.name || 'Unknown',
+                      expiresIn: new Date(item.expires_at) > new Date() ? 'Active' : 'Ended',
+                      joinCount: item.applications_count || 0,
+                      maxParticipants: item.max_participants,
+                      eliminatedCount: 0,
+                      firstDateProvider: '—',
+                      likesCount: 0,
+                      tag: item.status === 'OPEN' ? 'LIVE' : 'ONGOING',
+                      ownerAvatar: item.owner?.profile?.avatar, // Use the injected avatar
+                    }}
+                    theme={theme}
+                    homeColors={homeColors}
+                    tagColor={tagColor}
+                    withAlpha={withAlpha}
+                    onPress={() => {
+                      queryClient.prefetchQuery({ queryKey: ['spec', String(item.id)], queryFn: () => SpecService.getOne(String(item.id)) });
+                      navigation.navigate('SpecDetails', { specId: String(item.id) });
+                    }}
+                  />
+                )}
+              />
+            </View>
           </View>
         ) : bottomTab === 'Requests' ? (
           <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 10 }}>
@@ -956,31 +962,45 @@ export default function HomeScreen({ navigation }: any) {
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => setBottomTab('Requests')} style={styles.bottomNavItem} activeOpacity={0.7}>
-            {bottomTab === 'Requests' ? (
-              <View style={{
-                shadowColor: theme.colors.primary,
-                shadowRadius: 8,
-                shadowOpacity: 0.5,
-                shadowOffset: { width: 0, height: 0 },
-                backgroundColor: 'rgba(255,255,255,0.1)',
-                borderRadius: 16,
-                padding: 6
-              }}>
+            <View style={styles.iconWithBadge}>
+              {bottomTab === 'Requests' ? (
+                <View style={{
+                  shadowColor: theme.colors.primary,
+                  shadowRadius: 8,
+                  shadowOpacity: 0.5,
+                  shadowOffset: { width: 0, height: 0 },
+                  backgroundColor: 'rgba(255,255,255,0.1)',
+                  borderRadius: 16,
+                  padding: 6
+                }}>
+                  <MaterialCommunityIcons
+                    name="account-plus"
+                    size={24}
+                    color="#06B6D4"
+                    style={{ textShadowColor: '#06B6D4', textShadowRadius: 10 }}
+                  />
+                </View>
+              ) : (
                 <MaterialCommunityIcons
-                  name="account-plus"
-                  size={24}
+                  name="account-plus-outline"
+                  size={28}
                   color="#06B6D4"
-                  style={{ textShadowColor: '#06B6D4', textShadowRadius: 10 }}
+                  style={{ opacity: 0.5 }}
                 />
-              </View>
-            ) : (
-              <MaterialCommunityIcons
-                name="account-plus-outline"
-                size={28}
-                color="#06B6D4"
-                style={{ opacity: 0.5 }}
-              />
-            )}
+              )}
+              {(user?.unread_requests_count ?? 0) > 0 && (
+                <View
+                  style={[
+                    styles.countBadge,
+                    { borderColor: theme.colors.elevation?.level2 ?? theme.colors.surface, backgroundColor: '#EF4444' },
+                  ]}
+                >
+                  <Text style={styles.countBadgeText}>
+                    {user!.unread_requests_count! > 99 ? '99+' : user!.unread_requests_count}
+                  </Text>
+                </View>
+              )}
+            </View>
             <Text
               style={[
                 styles.bottomNavLabel,
@@ -1091,6 +1111,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '900',
     letterSpacing: 0.4,
+  },
+  specGridContainer: {
+    flex: 1,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    overflow: 'hidden',
   },
   listContent: {
     paddingTop: 14,

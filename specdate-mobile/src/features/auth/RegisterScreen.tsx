@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, ScrollView, Alert, Image as RNImage } from 'react-native';
-import { Text, TextInput, Button, IconButton, useTheme, RadioButton, SegmentedButtons } from 'react-native-paper';
+import { Text, TextInput, Button, IconButton, useTheme, RadioButton, SegmentedButtons, Checkbox } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MotiView } from 'moti';
 import { z } from 'zod';
@@ -45,6 +45,7 @@ export default function RegisterScreen({ navigation }: any) {
 
     const [step, setStep] = useState(1); // 1: Details, 2: OTP Channel
     const [loading, setLoading] = useState(false);
+    const [termsAccepted, setTermsAccepted] = useState(false);
 
     // Form State
     const [form, setForm] = useState({
@@ -162,7 +163,7 @@ export default function RegisterScreen({ navigation }: any) {
             const target = otpChannel === 'email' ? form.email : form.mobile;
             await AuthService.sendOtp(otpChannel as 'email' | 'mobile', target);
             navigation.navigate('OtpVerification', {
-                formData: { ...form, name: form.username },
+                formData: { ...form, name: form.username, terms_accepted: true },
                 channel: otpChannel,
                 target,
             });
@@ -322,6 +323,17 @@ export default function RegisterScreen({ navigation }: any) {
                             <Text style={{ marginTop: 20, textAlign: 'center', color: theme.colors.onSurface }}>
                                 We will send a 6-digit code to: {otpChannel === 'email' ? form.email : form.mobile}
                             </Text>
+
+                            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 24, paddingHorizontal: 4 }}>
+                                <Checkbox.Android
+                                    status={termsAccepted ? 'checked' : 'unchecked'}
+                                    onPress={() => setTermsAccepted(!termsAccepted)}
+                                    color={theme.colors.primary}
+                                />
+                                <Text style={{ flex: 1, marginLeft: 8, color: theme.colors.onSurface }} onPress={() => setTermsAccepted(!termsAccepted)}>
+                                    I accept the Terms and Conditions and confirm I am over 18 years of age.
+                                </Text>
+                            </View>
                         </View>
                     )}
 
@@ -329,6 +341,7 @@ export default function RegisterScreen({ navigation }: any) {
                         mode="contained"
                         onPress={handleNext}
                         loading={loading}
+                        disabled={loading || (step === 2 && !termsAccepted)}
                         style={styles.button}
                         contentStyle={{ height: 50 }}
                     >
