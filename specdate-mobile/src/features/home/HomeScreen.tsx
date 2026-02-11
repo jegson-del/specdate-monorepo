@@ -380,92 +380,85 @@ export default function HomeScreen({ navigation }: any) {
 
   return (
     <View style={[styles.container, { backgroundColor: homeColors.bg }]}>
-      {/* Top Bar (Snapchat-ish) */}
-      <View
+      {/* Top Bar (Modernized) */}
+      <Surface
         style={[
           styles.topBar,
           {
-            paddingTop: insets.top + 10,
-            paddingBottom: 10, // Added space for bigger logo
-            paddingLeft: insets.left + 10,
-            paddingRight: insets.right + 10,
-            minHeight: 80, // Forced height for bigger logo
+            paddingTop: insets.top + 8,
+            paddingBottom: 8,
+            paddingLeft: 16,
+            paddingRight: 16,
+            minHeight: 100, // Sufficient height for the large logo
+            backgroundColor: theme.colors.surface,
+            borderBottomWidth: 1,
+            borderBottomColor: theme.colors.outline,
+            elevation: 4, // Android shadow
+            shadowColor: '#000', // iOS shadow
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.05,
+            shadowRadius: 10,
+            zIndex: 10,
           },
         ]}
       >
-        {avatarUrl ? (
-          <TouchableOpacity onPress={() => navigation.navigate('Profile')} activeOpacity={0.8} style={{ marginLeft: 6 }}>
-            <Avatar.Image size={32} source={{ uri: avatarUrl }} style={{ backgroundColor: theme.colors.surfaceVariant }} />
-          </TouchableOpacity>
-        ) : (
-          <IconButton
-            icon="account-circle"
-            size={28}
-            iconColor={homeColors.text}
-            onPress={() => navigation.navigate('Profile')}
-          />
-        )}
+        {/* Left: Avatar */}
+        <TouchableOpacity
+          onPress={() => navigation.navigate('Profile')}
+          activeOpacity={0.8}
+          style={styles.headerIconBtn}
+        >
+          {avatarUrl ? (
+            <Avatar.Image size={38} source={{ uri: avatarUrl }} />
+          ) : (
+            <MaterialCommunityIcons name="account-circle" size={38} color={theme.colors.onSurfaceVariant} />
+          )}
+        </TouchableOpacity>
 
-        <View style={styles.titleWrap} pointerEvents="none">
+        {/* Center: Logo */}
+        <View style={[styles.titleWrap, { paddingTop: insets.top + 8, paddingBottom: 8 }]} pointerEvents="none">
           <Image
-            source={require('../../../assets/logo_v2.png')}
-            style={{ width: 400, height: 120, resizeMode: 'contain', backgroundColor: 'transparent' }}
+            source={require('../../../assets/dateusher_icon_only.png')}
+            style={{
+              width: 180, // Slightly reduced
+              height: 90,
+              resizeMode: 'contain',
+              // Removed tintColor to keep original colors
+              shadowColor: theme.colors.primary,
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.3,
+              shadowRadius: 12,
+            }}
           />
         </View>
 
+        {/* Right: Actions */}
         <View style={styles.rightIcons}>
           <TouchableOpacity
-            style={styles.topIconBtn}
+            style={styles.headerIconBtn}
             onPress={() => navigation.navigate('Messages')}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            activeOpacity={0.7}
           >
-            <View style={styles.iconWithBadge}>
-              <MaterialCommunityIcons
-                name="message-outline"
-                size={28}
-                color={homeColors.text}
-                style={{ textShadowColor: homeColors.text, textShadowRadius: 8 }}
-              />
-              {/* TODO: Real message count */}
-              <View
-                style={[
-                  styles.countBadge,
-                  { borderColor: theme.colors.elevation.level2, backgroundColor: '#EF4444', opacity: 0 },
-                ]}
-              >
-                <Text style={styles.countBadgeText}>0</Text>
-              </View>
+            <View>
+              <MaterialCommunityIcons name="message-text-outline" size={26} color={theme.colors.onSurface} />
+              {/* Message Count Badge (Placeholder) */}
             </View>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.topIconBtn}
+            style={styles.headerIconBtn}
             onPress={() => navigation.navigate('Notifications')}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            activeOpacity={0.7}
           >
-            <View style={styles.iconWithBadge}>
-              <MaterialCommunityIcons
-                name="bell-outline"
-                size={28}
-                color={homeColors.text}
-                style={{ textShadowColor: homeColors.text, textShadowRadius: 8 }}
-              />
+            <View>
+              <MaterialCommunityIcons name="bell-outline" size={26} color={theme.colors.onSurface} />
               {(user?.unread_notifications_count || 0) > 0 && (
-                <View
-                  style={[
-                    styles.countBadge,
-                    { borderColor: theme.colors.elevation.level2, backgroundColor: '#EF4444' },
-                  ]}
-                >
-                  <Text style={styles.countBadgeText}>
-                    {user!.unread_notifications_count! > 99 ? '99+' : user!.unread_notifications_count}
-                  </Text>
-                </View>
+                <View style={styles.activeBadge} />
               )}
             </View>
           </TouchableOpacity>
         </View>
-      </View>
+      </Surface>
 
       {/* Main Content Area based on Bottom Tab */}
       <View style={{ flex: 1 }}>
@@ -621,55 +614,55 @@ export default function HomeScreen({ navigation }: any) {
               <View style={[styles.specGridContainer, { backgroundColor: theme.colors.surface }]}>
                 <FlatList
                   key="home-specs"
-                data={filteredItems}
-                keyExtractor={(item) => item.id}
-                numColumns={2}
-                columnWrapperStyle={styles.gridRow}
-                contentContainerStyle={[
-                  styles.listContent,
-                  {
-                    paddingLeft: insets.left + 16,
-                    paddingRight: insets.right + 16,
-                    paddingBottom: insets.bottom + bottomNavHeight + 24,
-                  },
-                ]}
-                onRefresh={onRefresh}
-                refreshing={isLoading || isRefetching}
-                onEndReachedThreshold={0.6}
-                ListEmptyComponent={
-                  <View style={{ paddingTop: 30 }}>
-                    {isLoading || isRefetching ? (
-                      <View style={{ alignItems: 'center', gap: 10 }}>
-                        <ActivityIndicator animating color={theme.colors.primary} />
-                        <Text style={{ color: theme.colors.outline, textAlign: 'center' }}>Loading specs…</Text>
-                      </View>
-                    ) : isError ? (
-                      <View style={{ alignItems: 'center', gap: 10 }}>
-                        <Text style={{ color: theme.colors.error, textAlign: 'center', fontWeight: '800' }}>
-                          Couldn’t load specs
+                  data={filteredItems}
+                  keyExtractor={(item) => item.id}
+                  numColumns={2}
+                  columnWrapperStyle={styles.gridRow}
+                  contentContainerStyle={[
+                    styles.listContent,
+                    {
+                      paddingLeft: insets.left + 16,
+                      paddingRight: insets.right + 16,
+                      paddingBottom: insets.bottom + bottomNavHeight + 24,
+                    },
+                  ]}
+                  onRefresh={onRefresh}
+                  refreshing={isLoading || isRefetching}
+                  onEndReachedThreshold={0.6}
+                  ListEmptyComponent={
+                    <View style={{ paddingTop: 30 }}>
+                      {isLoading || isRefetching ? (
+                        <View style={{ alignItems: 'center', gap: 10 }}>
+                          <ActivityIndicator animating color={theme.colors.primary} />
+                          <Text style={{ color: theme.colors.outline, textAlign: 'center' }}>Loading specs…</Text>
+                        </View>
+                      ) : isError ? (
+                        <View style={{ alignItems: 'center', gap: 10 }}>
+                          <Text style={{ color: theme.colors.error, textAlign: 'center', fontWeight: '800' }}>
+                            Couldn’t load specs
+                          </Text>
+                          <Text style={{ color: theme.colors.outline, textAlign: 'center' }}>{specsErrorText}</Text>
+                        </View>
+                      ) : (
+                        <Text style={{ color: theme.colors.outline, textAlign: 'center' }}>
+                          No specs found.
                         </Text>
-                        <Text style={{ color: theme.colors.outline, textAlign: 'center' }}>{specsErrorText}</Text>
-                      </View>
-                    ) : (
-                      <Text style={{ color: theme.colors.outline, textAlign: 'center' }}>
-                        No specs found.
-                      </Text>
-                    )}
-                  </View>
-                }
-                renderItem={({ item }) => (
-                  <SpecCard
-                    item={item}
-                    theme={theme}
-                    homeColors={homeColors}
-                    tagColor={tagColor}
-                    withAlpha={withAlpha}
-                    onPress={() => {
-                      queryClient.prefetchQuery({ queryKey: ['spec', item.id], queryFn: () => SpecService.getOne(item.id) });
-                      navigation.navigate('SpecDetails', { specId: item.id });
-                    }}
-                  />
-                )}
+                      )}
+                    </View>
+                  }
+                  renderItem={({ item }) => (
+                    <SpecCard
+                      item={item}
+                      theme={theme}
+                      homeColors={homeColors}
+                      tagColor={tagColor}
+                      withAlpha={withAlpha}
+                      onPress={() => {
+                        queryClient.prefetchQuery({ queryKey: ['spec', item.id], queryFn: () => SpecService.getOne(item.id) });
+                        navigation.navigate('SpecDetails', { specId: item.id });
+                      }}
+                    />
+                  )}
                 />
               </View>
             ) : (
@@ -1042,11 +1035,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12, // Increased gap for better spacing
   },
-  topIconBtn: {
-    padding: 6,
+  headerIconBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0,0,0,0.04)', // Subtle gray background for buttons
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   iconWithBadge: {
     position: 'relative',
+  },
+  activeBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#EF4444', // Red dot for notifications
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
   },
   countBadge: {
     position: 'absolute',

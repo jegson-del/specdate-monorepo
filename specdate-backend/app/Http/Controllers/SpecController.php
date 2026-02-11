@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Spec;
 use App\Http\Requests\StoreSpecRequest;
+use App\Http\Requests\UpdateSpecRequest;
 use App\Services\SpecService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
@@ -306,7 +307,28 @@ class SpecController extends Controller
     {
         try {
             $result = $this->specService->eliminateUser($request->user(), $roundId, $userId);
-            return $this->sendResponse($result, 'User eliminated.');
+            return $this->sendResponse($result, $result['message'] ?? 'User eliminated.');
+        } catch (HttpException $e) {
+            return $this->sendError($e->getMessage(), [], $e->getStatusCode());
+        }
+    }
+
+    public function createDate(Request $request, $id)
+    {
+        try {
+            $result = $this->specService->createDate($request->user(), $id);
+            return $this->sendResponse($result, $result['message'] ?? 'Date created successfully.');
+        } catch (HttpException $e) {
+            return $this->sendError($e->getMessage(), [], $e->getStatusCode());
+        }
+    }
+
+    public function extendSearch(Request $request, $id)
+    {
+        try {
+            $comment = $request->input('comment');
+            $result = $this->specService->extendSearch($request->user(), $id, $comment);
+            return $this->sendResponse($result, $result['message'] ?? 'Search extended.');
         } catch (HttpException $e) {
             return $this->sendError($e->getMessage(), [], $e->getStatusCode());
         }

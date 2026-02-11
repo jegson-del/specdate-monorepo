@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { View, StyleSheet, ScrollView, Alert, ImageBackground, TouchableOpacity, TextInput, Image } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, TextInput, Image } from 'react-native';
 import { Text, useTheme, Button, ActivityIndicator, Avatar, IconButton } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -9,9 +9,12 @@ import { SpecService } from '../../services/specs';
 import { useUser } from '../../hooks/useUser';
 import { toImageUri } from '../../utils/imageUrl';
 import { BalloonIcon } from '../../components/BalloonIcons';
-import { CloseRoundModal } from './components';
+import { VideoViewerModal } from '../../components';
+import { CloseRoundModal, LastManStandingModal, VideoThumbnailPlayer } from './components';
 import * as ImagePicker from 'expo-image-picker';
 import { MediaService } from '../../services/media';
+
+type AnswerMedia = { uri: string; mimeType: string; assetType: 'image' | 'video' };
 
 
 export default function RoundDetailsScreen({ route, navigation }: any) {
@@ -86,9 +89,14 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
     const submitAnswerMutation = useMutation({
         mutationFn: async ({ rId, text }: { rId: number, text: string }) => {
             let mediaId: number | undefined;
-            if (answerImage) {
-                // Upload logic
-                const uploaded = await MediaService.upload(answerImage, 'round_answer_image');
+            if (answerMedia) {
+                const uploadType = answerMedia.assetType === 'video' ? 'round_answer_video' : 'round_answer_image';
+                const uploaded = await MediaService.upload(
+                    answerMedia.uri,
+                    uploadType,
+                    undefined,
+                    answerMedia.mimeType
+                );
                 mediaId = uploaded.id;
             }
             return SpecService.submitAnswer(rId, text, mediaId);
@@ -97,10 +105,15 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
             queryClient.invalidateQueries({ queryKey: ['spec', String(specId)] });
             await refetchSpec();
             setAnswerText('');
-            setAnswerImage(null);
+            setAnswerMedia(null);
             Alert.alert('Success', 'Answer submitted!');
         },
-        onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to submit answer.'),
+        onError: (err: any) => {
+            const msg = err?.response?.data?.message ?? err?.message;
+            const fileErrors = err?.response?.data?.errors?.file;
+            const detail = Array.isArray(fileErrors) ? fileErrors[0] : (typeof fileErrors === 'string' ? fileErrors : null);
+            Alert.alert('Error', detail || msg || 'Failed to submit answer.');
+        },
     });
 
     const closeRoundMutation = useMutation({
@@ -115,20 +128,60 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
     const eliminateUserMutation = useMutation({
         mutationFn: ({ rId, userId }: { rId: number, userId: number }) =>
             SpecService.eliminateUser(rId, userId),
-        onSuccess: async () => {
+        onSuccess: async (apiResponse: any) => {
             queryClient.invalidateQueries({ queryKey: ['spec', String(specId)] });
             queryClient.invalidateQueries({ queryKey: ['spec', String(specId), 'round_details'] });
             await refetchSpec();
-            Alert.alert('Success', 'Participant eliminated.');
+            const payload = apiResponse?.data;
+            if (payload?.last_man_standing && payload.winner && payload.spec_id != null) {
+                setLastManStandingWinnerName(payload.winner.name || 'Winner');
+                setLastManStandingSpecId(String(payload.spec_id));
+                setLastManStandingVisible(true);
+            } else {
+                Alert.alert('Success', 'Participant eliminated.');
+            }
         },
         onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to eliminate user.'),
     });
 
+    const createDateMutation = useMutation({
+        mutationFn: (specIdToUse: string) => SpecService.createDate(specIdToUse),
+        onSuccess: async (res: any) => {
+            const data = res?.data ?? res;
+            queryClient.invalidateQueries({ queryKey: ['spec', String(specId)] });
+            await refetchSpec();
+            setLastManStandingVisible(false);
+            setLastManStandingSpecId(null);
+            setLastManStandingWinnerName('');
+            Alert.alert('Date created!', data?.date_code ? `Your date code: ${data.date_code}` : 'You are now matched. Go plan your date!');
+        },
+        onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to create date.'),
+    });
+
+    const extendSearchMutation = useMutation({
+        mutationFn: ({ specIdToUse, comment }: { specIdToUse: string; comment: string }) =>
+            SpecService.extendSearch(specIdToUse, comment),
+        onSuccess: async () => {
+            queryClient.invalidateQueries({ queryKey: ['spec', String(specId)] });
+            await refetchSpec();
+            setLastManStandingVisible(false);
+            setLastManStandingSpecId(null);
+            setLastManStandingWinnerName('');
+            Alert.alert('Search extended', 'Edit your spec and set the status to open to get more applicants.');
+        },
+        onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to extend search.'),
+    });
+
     // --- State ---
     const [answerText, setAnswerText] = useState('');
-    const [answerImage, setAnswerImage] = useState<string | null>(null);
+    const [answerMedia, setAnswerMedia] = useState<AnswerMedia | null>(null);
     const [nextRoundQuestion, setNextRoundQuestion] = useState('');
     const [closeModalVisible, setCloseRoundModalVisible] = useState(false);
+    const [videoViewerVisible, setVideoViewerVisible] = useState(false);
+    const [videoViewerUri, setVideoViewerUri] = useState<string | null>(null);
+    const [lastManStandingVisible, setLastManStandingVisible] = useState(false);
+    const [lastManStandingWinnerName, setLastManStandingWinnerName] = useState('');
+    const [lastManStandingSpecId, setLastManStandingSpecId] = useState<string | null>(null);
 
     // Edit Question State
     const [isEditing, setIsEditing] = useState(false);
@@ -136,26 +189,77 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
 
 
 
-    const pickImage = async () => {
+    const pickFromLibrary = async () => {
         try {
             const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
             if (status !== 'granted') {
-                Alert.alert('Permission Required', 'Pending permissions to access your photos.');
+                Alert.alert('Permission Required', 'Allow access to your photos and videos.');
                 return;
             }
-
             const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: 'images',
+                mediaTypes: ['images', 'videos'],
                 allowsEditing: true,
                 aspect: [4, 3],
                 quality: 0.8,
             });
-
             if (!result.canceled) {
-                setAnswerImage(result.assets[0].uri);
+                const asset = result.assets[0];
+                const assetType = (asset.type === 'video' ? 'video' : 'image') as 'image' | 'video';
+                const mimeType = asset.mimeType ?? (assetType === 'video' ? 'video/mp4' : 'image/jpeg');
+                setAnswerMedia({ uri: asset.uri, mimeType, assetType });
             }
         } catch (e: any) {
-            Alert.alert('Error picking image', e.message || String(e));
+            Alert.alert('Error', e.message || String(e));
+        }
+    };
+
+    const takePhoto = async () => {
+        try {
+            const cam = await ImagePicker.requestCameraPermissionsAsync();
+            if (!cam.granted) {
+                Alert.alert('Permission Required', 'Allow camera access to take a photo.');
+                return;
+            }
+            const result = await ImagePicker.launchCameraAsync({
+                mediaTypes: ['images'],
+                allowsEditing: true,
+                aspect: [4, 3],
+                quality: 0.8,
+            });
+            if (!result.canceled) {
+                const asset = result.assets[0];
+                setAnswerMedia({
+                    uri: asset.uri,
+                    mimeType: asset.mimeType ?? 'image/jpeg',
+                    assetType: 'image',
+                });
+            }
+        } catch (e: any) {
+            Alert.alert('Error', e.message || String(e));
+        }
+    };
+
+    const recordVideo = async () => {
+        try {
+            const cam = await ImagePicker.requestCameraPermissionsAsync();
+            if (!cam.granted) {
+                Alert.alert('Permission Required', 'Allow camera access to record video.');
+                return;
+            }
+            const result = await ImagePicker.launchCameraAsync({
+                mediaTypes: ['videos'],
+                videoMaxDuration: 60,
+            });
+            if (!result.canceled) {
+                const asset = result.assets[0];
+                setAnswerMedia({
+                    uri: asset.uri,
+                    mimeType: asset.mimeType ?? 'video/mp4',
+                    assetType: 'video',
+                });
+            }
+        } catch (e: any) {
+            Alert.alert('Error', e.message || String(e));
         }
     };
 
@@ -456,7 +560,13 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                                     )}
                                 </View>
                                 {myAnswer.media && (
-                                    <Image source={{ uri: myAnswer.media?.url }} style={{ width: 100, height: 100, borderRadius: 8, marginTop: 12 }} />
+                                    <View style={{ marginTop: 12 }}>
+                                        {myAnswer.media.mime_type?.startsWith('video/') ? (
+                                            <VideoThumbnailPlayer uri={myAnswer.media.url} width={200} height={120} onPress={() => { setVideoViewerUri(myAnswer.media.url); setVideoViewerVisible(true); }} />
+                                        ) : (
+                                            <Image source={{ uri: myAnswer.media?.url }} style={{ width: 120, height: 120, borderRadius: 8 }} />
+                                        )}
+                                    </View>
                                 )}
                             </View>
                         ) : (
@@ -470,40 +580,56 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                                     onChangeText={setAnswerText}
                                     style={[styles.flatTextArea, { color: theme.colors.onSurface, borderColor: theme.colors.outlineVariant || theme.colors.outline + '50' }]}
                                 />
-                                {answerImage && (
+                                {answerMedia && (
                                     <View style={{ marginBottom: 12, position: 'relative', alignSelf: 'flex-start' }}>
-                                        <Image source={{ uri: answerImage }} style={{ width: 100, height: 100, borderRadius: 8 }} />
+                                        {answerMedia.assetType === 'image' ? (
+                                            <Image source={{ uri: answerMedia.uri }} style={{ width: 120, height: 120, borderRadius: 8 }} />
+                                        ) : (
+                                            <VideoThumbnailPlayer uri={answerMedia.uri} width={160} height={100} onPress={() => { setVideoViewerUri(answerMedia.uri); setVideoViewerVisible(true); }} />
+                                        )}
                                         <TouchableOpacity
-                                            style={{ position: 'absolute', top: -8, right: -8, backgroundColor: theme.colors.error, borderRadius: 12 }}
-                                            onPress={() => setAnswerImage(null)}
+                                            style={{ position: 'absolute', top: -8, right: -8, backgroundColor: theme.colors.error, borderRadius: 12, padding: 4 }}
+                                            onPress={() => setAnswerMedia(null)}
                                         >
                                             <MaterialCommunityIcons name="close" size={16} color="#fff" />
                                         </TouchableOpacity>
                                     </View>
                                 )}
-                                <View style={{ flexDirection: 'row', gap: 10 }}>
+                                <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
                                     <TouchableOpacity
-                                        onPress={pickImage}
-                                        style={{
-                                            borderWidth: 1, borderColor: theme.colors.outlineVariant, borderRadius: 10,
-                                            width: 48, alignItems: 'center', justifyContent: 'center'
-                                        }}
+                                        onPress={pickFromLibrary}
+                                        style={[styles.mediaBtn, { borderColor: theme.colors.outlineVariant }]}
                                     >
-                                        <MaterialCommunityIcons name="camera-plus" size={24} color={theme.colors.primary} />
+                                        <MaterialCommunityIcons name="image-multiple" size={22} color={theme.colors.primary} />
+                                        <Text style={[styles.mediaBtnLabel, { color: theme.colors.onSurface }]}>Gallery</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
-                                        activeOpacity={0.8}
-                                        style={[styles.primaryButton, { backgroundColor: theme.colors.primary, flex: 1 }]}
-                                        onPress={() => submitAnswerMutation.mutate({ rId: roundToShow.id, text: answerText })}
-                                        disabled={!answerText.trim() || submitAnswerMutation.isPending}
+                                        onPress={takePhoto}
+                                        style={[styles.mediaBtn, { borderColor: theme.colors.outlineVariant }]}
                                     >
-                                        {submitAnswerMutation.isPending ? (
-                                            <ActivityIndicator size="small" color="#fff" />
-                                        ) : (
-                                            <Text style={styles.primaryButtonText}>Submit answer</Text>
-                                        )}
+                                        <MaterialCommunityIcons name="camera" size={22} color={theme.colors.primary} />
+                                        <Text style={[styles.mediaBtnLabel, { color: theme.colors.onSurface }]}>Photo</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        onPress={recordVideo}
+                                        style={[styles.mediaBtn, { borderColor: theme.colors.outlineVariant }]}
+                                    >
+                                        <MaterialCommunityIcons name="video" size={22} color={theme.colors.primary} />
+                                        <Text style={[styles.mediaBtnLabel, { color: theme.colors.onSurface }]}>Record</Text>
                                     </TouchableOpacity>
                                 </View>
+                                <TouchableOpacity
+                                    activeOpacity={0.8}
+                                    style={[styles.primaryButton, { backgroundColor: theme.colors.primary, marginTop: 12 }]}
+                                    onPress={() => submitAnswerMutation.mutate({ rId: roundToShow.id, text: answerText })}
+                                    disabled={!answerText.trim() || submitAnswerMutation.isPending}
+                                >
+                                    {submitAnswerMutation.isPending ? (
+                                        <ActivityIndicator size="small" color="#fff" />
+                                    ) : (
+                                        <Text style={styles.primaryButtonText}>Submit answer</Text>
+                                    )}
+                                </TouchableOpacity>
                             </View>
                         )}
                     </View>
@@ -540,12 +666,18 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                                                 <Text style={[styles.answerName, { color: theme.colors.onSurface }]} numberOfLines={1}>{displayName}</Text>
                                                 <Text style={[styles.answerText, { color: theme.colors.onSurfaceVariant }]} numberOfLines={3}>{a.answer_text}</Text>
                                                 {a.media && (
-                                                    <TouchableOpacity onPress={() => {/* Maybe open lightbox? For now just show */ }}>
-                                                        <Image
-                                                            source={{ uri: a.media.url }}
-                                                            style={{ width: 120, height: 120, borderRadius: 8, marginTop: 8, backgroundColor: theme.colors.surfaceVariant }}
-                                                        />
-                                                    </TouchableOpacity>
+                                                    a.media.mime_type?.startsWith('video/') ? (
+                                                        <View style={{ marginTop: 8 }}>
+                                                            <VideoThumbnailPlayer uri={a.media.url} width={160} height={100} onPress={() => { setVideoViewerUri(a.media.url); setVideoViewerVisible(true); }} />
+                                                        </View>
+                                                    ) : (
+                                                        <TouchableOpacity onPress={() => {}}>
+                                                            <Image
+                                                                source={{ uri: a.media.url }}
+                                                                style={{ width: 120, height: 120, borderRadius: 8, marginTop: 8, backgroundColor: theme.colors.surfaceVariant }}
+                                                            />
+                                                        </TouchableOpacity>
+                                                    )
                                                 )}
                                             </View>
                                             {(isOwner && (String(roundToShow.status).toUpperCase() === 'REVIEWING' || String(roundToShow.status).toUpperCase() === 'ACTIVE') && !isEliminated) ? (
@@ -590,6 +722,23 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                 nudgeLoading={nudgeUsersMutation.isPending}
                 eliminateOrCloseLoading={eliminateUsersMutation.isPending || closeRoundMutation.isPending}
                 closeLoading={closeRoundMutation.isPending}
+            />
+
+            <VideoViewerModal
+                visible={videoViewerVisible}
+                uri={videoViewerUri}
+                onClose={() => { setVideoViewerVisible(false); setVideoViewerUri(null); }}
+            />
+
+            <LastManStandingModal
+                visible={lastManStandingVisible}
+                onDismiss={() => { setLastManStandingVisible(false); setLastManStandingSpecId(null); setLastManStandingWinnerName(''); }}
+                winnerName={lastManStandingWinnerName}
+                specId={lastManStandingSpecId ?? ''}
+                onMatchAndDate={() => lastManStandingSpecId && createDateMutation.mutate(lastManStandingSpecId)}
+                onExtendSearch={(comment) => lastManStandingSpecId && extendSearchMutation.mutate({ specIdToUse: lastManStandingSpecId, comment })}
+                matchLoading={createDateMutation.isPending}
+                extendLoading={extendSearchMutation.isPending}
             />
 
         </View>
@@ -687,4 +836,14 @@ const styles = StyleSheet.create({
     answerName: { fontSize: 15, fontWeight: '700', marginBottom: 4 },
     answerText: { fontSize: 14, lineHeight: 20 },
     balloonTouch: { padding: 8 },
+    mediaBtn: {
+        borderWidth: 1,
+        borderRadius: 10,
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+        minWidth: 72,
+    },
+    mediaBtnLabel: { fontSize: 12, fontWeight: '600' },
 });

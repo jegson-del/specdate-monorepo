@@ -12,21 +12,44 @@ class MediaService
 {
     public const PROFILE_GALLERY_MAX = 6;
 
+    /** Use S3 when configured (AWS credentials set), otherwise store in public disk so uploads work without S3. */
+    private function getMediaDisk(): \Illuminate\Contracts\Filesystem\Filesystem
+    {
+        $driver = config('filesystems.default');
+        $useS3 = $driver === 's3' && config('filesystems.disks.s3.key');
+        return Storage::disk($useS3 ? 's3' : 'public');
+    }
+
+    private function getMediaUrl(string $fullPath, \Illuminate\Contracts\Filesystem\Filesystem $disk): string
+    {
+        $driver = config('filesystems.default');
+        $useS3 = $driver === 's3' && config('filesystems.disks.s3.key');
+        if ($useS3) {
+            return $disk->url($fullPath);
+        }
+        return rtrim(config('app.url'), '/') . '/storage/' . ltrim($fullPath, '/');
+    }
+
     /**
      * Upload a file for a user, or update an existing media row when media_id is provided.
+     * Works with S3 or local public disk (no video conversion; S3 allows any file type).
      *
      * @param UploadedFile $file
      * @param User $user
-     * @param string $type (avatar, profile_gallery, chat, proof)
+     * @param string $type (avatar, profile_gallery, chat, proof, round_answer_image, round_answer_video)
      * @param int|null $mediaId When provided (and type is profile_gallery), update this row instead of creating. Keeps slot count at 6.
      * @return Media
      */
     public function uploadFile(UploadedFile $file, User $user, string $type, ?int $mediaId = null): Media
     {
-        $extension = $file->getClientOriginalExtension();
+        $extension = $file->getClientOriginalExtension() ?: 'bin';
         $filename = Str::uuid() . '.' . $extension;
         $path = "uploads/{$user->id}/{$type}";
         $fullPath = "{$path}/{$filename}";
+
+        $disk = $this->getMediaDisk();
+        $useS3 = config('filesystems.default') === 's3' && config('filesystems.disks.s3.key');
+        $options = $useS3 ? ['visibility' => 'public', 'ACL' => 'public-read'] : [];
 
         // Update-by-id: replace file and url for existing row (avatar or profile_gallery). No media_id = new image.
         if ($mediaId !== null) {
@@ -35,14 +58,9 @@ class MediaService
                 throw new \InvalidArgumentException('media_id is only supported for avatar or profile_gallery.');
             }
             $media = Media::where('id', $mediaId)->where('user_id', $user->id)->where('type', $type)->firstOrFail();
-            /** @var \Illuminate\Contracts\Filesystem\Cloud $disk */
-            $disk = Storage::disk('s3');
             $disk->delete($media->file_path);
-            $disk->putFileAs($path, $file, $filename, [
-                'visibility' => 'public',
-                'ACL' => 'public-read',
-            ]);
-            $url = $disk->url($fullPath);
+            $disk->putFileAs($path, $file, $filename, $options);
+            $url = $this->getMediaUrl($fullPath, $disk);
             $media->update([
                 'file_path' => $fullPath,
                 'url' => $url,
@@ -68,13 +86,8 @@ class MediaService
             }
         }
 
-        /** @var \Illuminate\Contracts\Filesystem\Cloud $disk */
-        $disk = Storage::disk('s3');
-        $disk->putFileAs($path, $file, $filename, [
-            'visibility' => 'public',
-            'ACL' => 'public-read',
-        ]);
-        $url = $disk->url($fullPath);
+        $disk->putFileAs($path, $file, $filename, $options);
+        $url = $this->getMediaUrl($fullPath, $disk);
 
         return Media::create([
             'user_id' => $user->id,
@@ -94,10 +107,10 @@ class MediaService
      */
     public function deleteMedia(Media $media): bool
     {
-        // Delete from S3
-        Storage::disk('s3')->delete($media->file_path);
-        
-        // Delete from DB
+        $disk = $this->getMediaDisk();
+        if ($disk->exists($media->file_path)) {
+            $disk->delete($media->file_path);
+        }
         return $media->delete();
     }
 }

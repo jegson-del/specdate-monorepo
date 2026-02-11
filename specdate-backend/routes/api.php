@@ -44,6 +44,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/specs/{id}/applications/{applicationId}/reject', [\App\Http\Controllers\SpecController::class, 'rejectApplication']);
     Route::post('/specs/{id}/applications/{applicationId}/eliminate', [\App\Http\Controllers\SpecController::class, 'eliminateApplication']);
     Route::post('/specs/{id}/like', [\App\Http\Controllers\SpecController::class, 'toggleLike']);
+    Route::post('/specs/{id}/match', [\App\Http\Controllers\SpecController::class, 'createDate']);
+    Route::post('/specs/{id}/extend-search', [\App\Http\Controllers\SpecController::class, 'extendSearch']);
     Route::post('/media/upload', [\App\Http\Controllers\MediaController::class, 'upload']);
     Route::get('/user/requests', [\App\Http\Controllers\SpecController::class, 'pendingRequests']);
     Route::apiResource('specs', \App\Http\Controllers\SpecController::class);

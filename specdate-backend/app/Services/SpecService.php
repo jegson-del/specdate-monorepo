@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Spec;
+use App\Models\SpecDate;
 use App\Models\SpecRound;
 use App\Models\SpecRoundAnswer;
 use App\Models\User;
@@ -614,6 +615,25 @@ class SpecService
             }
         });
 
+        // After elimination: if exactly one active participant remains, return last-man-standing info
+        $activeCount = $round->spec->applications()->where('status', 'ACCEPTED')->count();
+        if ($activeCount === 1) {
+            $winnerApp = $round->spec->applications()->where('status', 'ACCEPTED')->with('user.profile')->first();
+            $winner = $winnerApp ? $winnerApp->user : null;
+            if ($winner) {
+                $winnerName = $winner->profile ? ($winner->profile->full_name ?? $winner->name ?? 'Winner') : ($winner->name ?? 'Winner');
+                return [
+                    'message' => 'User eliminated.',
+                    'last_man_standing' => true,
+                    'spec_id' => $round->spec->id,
+                    'winner' => [
+                        'user_id' => $winner->id,
+                        'name' => $winnerName,
+                    ],
+                ];
+            }
+        }
+
         return ['message' => 'User eliminated.'];
     }
 
@@ -633,6 +653,106 @@ class SpecService
         
         // Return simple message, do not auto-complete round
         return ['message' => 'Users eliminated.'];
+    }
+
+    /**
+     * Create a date (match) when there is exactly one active participant (last man standing).
+     * Stores winner_user_id, owner_id, spec_id, and generates a 6-char alphanumeric date_code.
+     */
+    public function createDate($user, $specId)
+    {
+        $spec = Spec::findOrFail($specId);
+        if ($spec->user_id !== $user->id) {
+            throw new HttpException(403, 'You are not the owner of this spec.');
+        }
+
+        $winnerApp = $spec->applications()->where('status', 'ACCEPTED')->with('user')->first();
+        if (!$winnerApp || $spec->applications()->where('status', 'ACCEPTED')->count() !== 1) {
+            throw new HttpException(400, 'There must be exactly one active participant (last man standing) to create a date.');
+        }
+
+        if ($spec->dates()->exists()) {
+            throw new HttpException(400, 'A date has already been created for this spec.');
+        }
+
+        $dateCode = $this->generateDateCode();
+
+        DB::transaction(function () use ($spec, $winnerApp, $dateCode) {
+            $spec->dates()->create([
+                'owner_id' => $spec->user_id,
+                'winner_user_id' => $winnerApp->user_id,
+                'date_code' => $dateCode,
+            ]);
+            $winnerApp->update(['status' => 'WINNER']);
+            $spec->update(['status' => 'COMPLETED']);
+        });
+
+        return [
+            'message' => 'Date created successfully.',
+            'date_code' => $dateCode,
+            'winner_user_id' => $winnerApp->user_id,
+        ];
+    }
+
+    /**
+     * Extend search: eliminate the last remaining participant and set spec status to OPEN.
+     * Owner can then edit the spec and get more applicants.
+     * $comment is sent to the eliminated user in the notification.
+     */
+    public function extendSearch($user, $specId, ?string $comment = null)
+    {
+        $spec = Spec::with('rounds')->findOrFail($specId);
+        if ($spec->user_id !== $user->id) {
+            throw new HttpException(403, 'You are not the owner of this spec.');
+        }
+
+        $winnerApp = $spec->applications()->where('status', 'ACCEPTED')->with('user')->first();
+        if (!$winnerApp || $spec->applications()->where('status', 'ACCEPTED')->count() !== 1) {
+            throw new HttpException(400, 'There must be exactly one active participant to extend search.');
+        }
+
+        $round = $spec->rounds()->orderByDesc('round_number')->first();
+        if (!$round) {
+            throw new HttpException(400, 'No round found; cannot eliminate.');
+        }
+
+        $body = "The owner of '{$spec->title}' has extended their search. You have been removed from this quest.";
+        if ($comment !== null && trim($comment) !== '') {
+            $body .= "\n\nMessage from the owner: " . trim($comment);
+        }
+
+        DB::transaction(function () use ($spec, $winnerApp, $round, $body) {
+            $round->answers()->where('user_id', $winnerApp->user_id)->update(['is_eliminated' => true]);
+            $winnerApp->update(['status' => 'ELIMINATED']);
+            $spec->update(['status' => 'OPEN']);
+
+            $victim = $winnerApp->user;
+            if ($victim) {
+                $this->notificationService->notify(
+                    $victim,
+                    'eliminated',
+                    ['spec_id' => $spec->id, 'round_id' => $round->id],
+                    'Search extended',
+                    $body
+                );
+            }
+        });
+
+        return [
+            'message' => 'Search extended. Edit your spec and keep it open to get more applicants.',
+        ];
+    }
+
+    private function generateDateCode(): string
+    {
+        $chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous 0/O, 1/I
+        do {
+            $code = '';
+            for ($i = 0; $i < 6; $i++) {
+                $code .= $chars[random_int(0, strlen($chars) - 1)];
+            }
+        } while (SpecDate::where('date_code', $code)->exists());
+        return $code;
     }
 
     /**
@@ -789,6 +909,58 @@ class SpecService
             '<' => $userValue < $reqValue,
             default => $userValue === $reqValue,
         };
+    }
+
+    /**
+     * Update an existing spec.
+     *
+     * @param \App\Models\User $user
+     * @param int $id
+     * @param array $data
+     * @return \App\Models\Spec
+     * @throws HttpException
+     */
+    public function updateSpec($user, $id, array $data)
+    {
+        $spec = Spec::findOrFail($id);
+
+        if ($spec->user_id !== $user->id) {
+            throw new HttpException(403, 'You are not the owner of this spec.');
+        }
+
+
+
+
+        if (in_array($spec->status, ['COMPLETED', 'EXPIRED'])) {
+            throw new HttpException(400, 'Cannot edit a closed or expired spec.');
+        }
+
+        // Handle status change
+        if (isset($data['status'])) {
+            $spec->status = $data['status'];
+        }
+
+        // Handle requirements update
+        if (isset($data['requirements'])) {
+            // Delete existing and re-create? Or update?
+            // Simplest is delete all and recreate specific ones, or just update value if ID provided.
+            // For MVP, let's wipe and recreate to handle additions/removals easily
+            $spec->requirements()->delete();
+            
+            foreach ($data['requirements'] as $req) {
+                 $spec->requirements()->create([
+                    'field' => $req['field'],
+                    'operator' => $req['operator'] ?? '=',
+                    'value' => is_array($req['value']) ? json_encode($req['value']) : $req['value'],
+                    'is_compulsory' => $req['is_compulsory'] ?? false,
+                ]);
+            }
+        }
+        
+        $spec->fill($data); // Handles other fields like title, description
+        $spec->save();
+
+        return $spec->load('requirements');
     }
 
     /**

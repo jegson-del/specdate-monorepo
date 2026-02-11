@@ -10,6 +10,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SpecService } from '../../services/specs';
 import { useUser } from '../../hooks/useUser';
 import { toImageUri } from '../../utils/imageUrl';
+import { EditSpecModal } from './components/EditSpecModal';
 
 function formatExpires(expiresAt?: string) {
     if (!expiresAt) return '—';
@@ -88,6 +89,7 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
     const insets = useSafeAreaInsets();
     const queryClient = useQueryClient();
     const { data: user } = useUser();
+    const [isEditModalVisible, setIsEditModalVisible] = React.useState(false);
 
     const { data: spec, isLoading, isFetching, error, refetch: refetchSpec } = useQuery({
         queryKey: ['spec', specId],
@@ -203,8 +205,10 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
 
     const isOwner = useMemo(() => {
         if (!spec || !user) return false;
-        return (spec as any).user_id === user.id;
+        // Loose comparison in case of string/number mismatch
+        return String((spec as any).user_id) === String(user.id);
     }, [spec, user]);
+
 
     const participants = useMemo(() => {
         if (!spec?.applications) return [];
@@ -490,6 +494,23 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                             onPress={() => navigation.goBack()}
                         />
 
+                        {/* Edit Button for Owner */}
+                        {isOwner && !['COMPLETED', 'EXPIRED'].includes(spec?.status) && (
+                            <IconButton
+                                icon="pencil"
+                                iconColor="#FFFFFF"
+                                style={{
+                                    position: 'absolute',
+                                    right: 12,
+                                    top: insets.top + 12,
+                                    backgroundColor: 'rgba(0,0,0,0.4)',
+                                    borderRadius: 20,
+                                    margin: 0
+                                }}
+                                onPress={() => setIsEditModalVisible(true)}
+                            />
+                        )}
+
                         <View style={[styles.heroContent, { paddingBottom: 24 }]}>
                             {/* Owner info - user image + created-by row; both open profile */}
                             {(() => {
@@ -536,6 +557,20 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
 
                             {/* Title - prominent */}
                             <Text style={styles.heroTitle}>{spec.title}</Text>
+
+                            {/* Status Badges */}
+                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 8 }}>
+                                {spec?.status === 'CLOSED' && (
+                                    <View style={{ backgroundColor: '#EF4444', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 }}>
+                                        <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>CLOSED</Text>
+                                    </View>
+                                )}
+                                {spec?.status === 'REVIEWING' && (
+                                    <View style={{ backgroundColor: '#EAB308', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 }}>
+                                        <Text style={{ color: 'black', fontSize: 10, fontWeight: 'bold' }}>REVIEWING</Text>
+                                    </View>
+                                )}
+                            </View>
 
                             {/* Meta info - clean and minimal */}
                             {headerLine ? (
@@ -863,6 +898,12 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                     </Button>
                 )}
             </Surface>
+
+            <EditSpecModal
+                visible={isEditModalVisible}
+                onClose={() => setIsEditModalVisible(false)}
+                spec={spec}
+            />
         </View>
     );
 }

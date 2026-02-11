@@ -46,4 +46,9 @@ class Spec extends Model
     {
         return $this->hasMany(SpecRound::class);
     }
+
+    public function dates()
+    {
+        return $this->hasMany(SpecDate::class);
+    }
 }

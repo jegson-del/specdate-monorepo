@@ -40,6 +40,10 @@ export const SpecService = {
         return response.data;
     },
 
+    async updateSpec(id: number, data: any) {
+        return api.put(`/specs/${id}`, data).then(res => res.data);
+    },
+
     async getPendingRequests() {
         const response = await api.get('/user/requests');
         return response.data;
@@ -103,6 +107,16 @@ export const SpecService = {
 
     async eliminateUser(roundId: number, userId: number) {
         const response = await api.post(`/rounds/${roundId}/eliminate/${userId}`);
+        return response.data;
+    },
+
+    async createDate(specId: string) {
+        const response = await api.post(`/specs/${specId}/match`);
+        return response.data;
+    },
+
+    async extendSearch(specId: string, comment?: string) {
+        const response = await api.post(`/specs/${specId}/extend-search`, { comment: comment ?? '' });
         return response.data;
     },
 

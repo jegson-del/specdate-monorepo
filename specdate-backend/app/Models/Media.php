@@ -28,7 +28,9 @@ class Media extends Model
         if ($stored !== null && $stored !== '') {
             return (string) $stored;
         }
-        return Storage::disk('s3')->url($this->file_path);
+        /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
+        $disk = Storage::disk('s3');
+        return $disk->url($this->file_path);
     }
 
     /**
@@ -41,6 +43,8 @@ class Media extends Model
         if ($stored !== null && $stored !== '') {
             return (string) $stored;
         }
-        return Storage::disk('s3')->url($this->file_path);
+        /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
+        $disk = Storage::disk('s3');
+        return $disk->url($this->file_path);
     }
 }

@@ -94,8 +94,8 @@ export default function LandingScreen({ navigation }: any) {
                     >
                         {/* Actual Logo Image */}
                         <RNImage
-                            source={require('../../../assets/logo.png')}
-                            style={{ width: 280, height: 120, resizeMode: 'contain' }}
+                            source={require('../../../assets/dateusher_icon_only.png')}
+                            style={{ width: 200, height: 100, resizeMode: 'contain' }}
                         />
                         <Text style={[styles.tagline, { color: theme.colors.outline }]}>
                             Quest for Love. Pop the Balloon.

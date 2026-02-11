@@ -45,7 +45,7 @@ export default function OtpVerificationScreen({ navigation, route }: any) {
                     OneSignal.User.addSms(payload.mobile);
                 }
 
-                Alert.alert("Success", "Account created! Welcome to SpecDate.", [
+                Alert.alert("Success", "Account created! Welcome to DateUsher.", [
                     { text: "Continue", onPress: () => navigation.navigate("Profile") }
                 ]);
             }

@@ -76,12 +76,12 @@ const DEFAULT_MOCK_REVIEWS: ProviderReview[] = [
 
 const MOCK_DETAILS: Record<string, ProviderDetail> = {
   p1: {
-    mainImage: 'https://picsum.photos/seed/specdate-provider-3/800/500',
+    mainImage: 'https://picsum.photos/seed/dateusher-provider-3/800/500',
     images: [
-      'https://picsum.photos/seed/specdate-d1a/400/300',
-      'https://picsum.photos/seed/specdate-d1b/400/300',
-      'https://picsum.photos/seed/specdate-d1c/400/300',
-      'https://picsum.photos/seed/specdate-d1d/400/300',
+      'https://picsum.photos/seed/dateusher-d1a/400/300',
+      'https://picsum.photos/seed/dateusher-d1b/400/300',
+      'https://picsum.photos/seed/dateusher-d1c/400/300',
+      'https://picsum.photos/seed/dateusher-d1d/400/300',
     ],
     website: 'https://example.com/nilebites',
     description: 'Nile Bites brings you authentic flavours in a relaxed setting—perfect for a first date or a special evening. Our menu features fresh, locally sourced ingredients and a curated selection of drinks.',
@@ -91,19 +91,19 @@ const MOCK_DETAILS: Record<string, ProviderDetail> = {
       items: ['Jollof Rice & Grilled Chicken', 'Pepper Soup Combo', 'Suya Platter', 'Chapman & Mocktails'],
     },
     voucherTitle: '15% off your first date',
-    voucherDescription: 'SpecDate users get 15% off the total bill when you book through the app. Valid for two people, any day.',
+    voucherDescription: 'DateUsher users get 15% off the total bill when you book through the app. Valid for two people, any day.',
   },
   p2: {
-    mainImage: 'https://picsum.photos/seed/specdate-provider-6/800/500',
+    mainImage: 'https://picsum.photos/seed/dateusher-provider-6/800/500',
     images: [
-      'https://picsum.photos/seed/specdate-d2a/400/300',
-      'https://picsum.photos/seed/specdate-d2b/400/300',
+      'https://picsum.photos/seed/dateusher-d2a/400/300',
+      'https://picsum.photos/seed/dateusher-d2b/400/300',
     ],
     website: 'https://example.com/thevineyard',
     description: 'The Vineyard offers an intimate dining experience with a focus on wine pairings and contemporary Nigerian cuisine. Ideal for a memorable date night.',
     address: 'Plot 45, Maitama, Abuja',
     voucherTitle: 'Free dessert for two',
-    voucherDescription: 'Book your date through SpecDate and enjoy a complimentary dessert platter with two drinks.',
+    voucherDescription: 'Book your date through DateUsher and enjoy a complimentary dessert platter with two drinks.',
   },
 };
 
@@ -116,7 +116,7 @@ function getDetail(provider: ProviderItem): ProviderDetail {
     website: undefined,
     description: `${provider.name} is a great choice for your date. Enjoy a relaxed atmosphere and quality service in ${provider.city}.`,
     address: `${provider.city}, Nigeria`,
-    voucherTitle: 'SpecDate partner offer',
+    voucherTitle: 'DateUsher partner offer',
     voucherDescription: 'Select this venue for your date and unlock an exclusive discount when you book through the app.',
   };
 }
@@ -277,7 +277,7 @@ export default function ProviderDetailScreen({ route, navigation }: any) {
 
           {/* Address */}
           <SectionTitle theme={theme}>Address</SectionTitle>
-          <View style={[styles.addressRow, { backgroundColor: theme.colors.surfaceContainerHighest || theme.colors.surface }]}>
+          <View style={[styles.addressRow, { backgroundColor: theme.colors.surfaceVariant || theme.colors.surface }]}>
             <MaterialCommunityIcons name="map-marker" size={20} color={theme.colors.primary} />
             <Text style={[styles.addressText, { color: theme.colors.onSurface }]}>{detail.address}</Text>
           </View>
@@ -295,7 +295,7 @@ export default function ProviderDetailScreen({ route, navigation }: any) {
           )}
 
           {/* Voucher / discount */}
-          <SectionTitle theme={theme}>SpecDate offer</SectionTitle>
+          <SectionTitle theme={theme}>DateUsher offer</SectionTitle>
           <View style={[styles.voucherCard, { backgroundColor: theme.colors.primaryContainer || theme.colors.primary + '18', borderColor: theme.colors.primary + '40' }]}>
             <MaterialCommunityIcons name="ticket-percent" size={28} color={theme.colors.primary} />
             <View style={styles.voucherBody}>
@@ -308,12 +308,12 @@ export default function ProviderDetailScreen({ route, navigation }: any) {
           <View style={styles.reviewsSectionHeader}>
             <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Reviews</Text>
             <Button
-                mode="outlined"
-                onPress={() => setAddReviewModalVisible(true)}
-                icon="pencil"
-                style={[styles.addReviewBtn, { borderColor: theme.colors.primary }]}
-                labelStyle={{ color: theme.colors.primary, fontWeight: '700' }}
-                compact
+              mode="outlined"
+              onPress={() => setAddReviewModalVisible(true)}
+              icon="pencil"
+              style={[styles.addReviewBtn, { borderColor: theme.colors.primary }]}
+              labelStyle={{ color: theme.colors.primary, fontWeight: '700' }}
+              compact
             >
               Add a review
             </Button>

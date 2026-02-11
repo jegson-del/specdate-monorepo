@@ -1,5 +1,8 @@
 FROM php:8.2-cli
 
+# Allow large uploads (e.g. video for spec answers, max 50MB)
+COPY php-upload.ini /usr/local/etc/php/conf.d/99-upload.ini
+
 # System deps + PHP extensions needed by Laravel 12
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \

@@ -1,6 +1,6 @@
 import { MD3LightTheme } from 'react-native-paper';
 
-// "SpecDate Pop" (Electric Violet): premium + unique (keep everything else neutral)
+// "DateUsher Pop" (Electric Violet): premium + unique (keep everything else neutral)
 const snapPopColors = {
     // Brand
     primary: '#7C3AED', // electric violet
