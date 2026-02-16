@@ -20,10 +20,11 @@ class User extends Authenticatable
      */
     protected $fillable = [
         'name',
-        'username', // Added
+        'username',
         'email',
-        'mobile',   // Added
+        'mobile',
         'password',
+        'role', // Added
         'is_paused',
         'terms_accepted',
         'expo_push_token',
@@ -59,6 +60,11 @@ class User extends Authenticatable
         return $this->hasOne(UserProfile::class);
     }
 
+    public function providerProfile()
+    {
+        return $this->hasOne(ProviderProfile::class);
+    }
+
     public function balance()
     {
         return $this->hasOne(UserBalance::class);
@@ -84,6 +90,11 @@ class User extends Authenticatable
         return $this->hasOne(SparkSkin::class);
     }
 
+    public function discounts()
+    {
+        return $this->hasMany(Discount::class, 'provider_id');
+    }
+
     /**
      * Get the profile completion status.
      *
@@ -91,6 +102,9 @@ class User extends Authenticatable
      */
     public function getProfileCompleteAttribute(): bool
     {
+        if ($this->role === 'provider') {
+            return $this->providerProfile !== null;
+        }
         return $this->profile && $this->profile->profile_completed_at !== null;
     }
 

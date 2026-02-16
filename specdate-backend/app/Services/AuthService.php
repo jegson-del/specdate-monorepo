@@ -11,6 +11,9 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Http\Exceptions\HttpResponseException;
+use App\Mail\WelcomeUserMail;
+use App\Mail\WelcomeProviderMail;
+use App\Mail\NewProviderAdminNotificationMail;
 
 class AuthService
 {
@@ -158,21 +161,42 @@ class AuthService
             'email' => $data['email'],
             'mobile' => $data['mobile'],
             'password' => Hash::make($data['password']),
+            'role' => $data['role'] ?? 'user',
             'terms_accepted' => filter_var($data['terms_accepted'] ?? false, FILTER_VALIDATE_BOOLEAN),
         ]);
 
-        // 2. Create Profile with Location (if provided)
-        $user->profile()->create([
-            'latitude' => $data['latitude'] ?? null,
-            'longitude' => $data['longitude'] ?? null,
-            'city' => $data['city'] ?? null,
-            'state' => $data['state'] ?? null,
-            'country' => $data['country'] ?? null,
-            'continent' => $data['continent'] ?? null,
-            // Other compulsory fields will be filled in the Profile steps
-            // We initialize them as empty/null here or handle them in a separate update
-            // ideally we'd validate them here if sent, but simpler to just init location.
-        ]);
+        if ($user->role === 'provider') {
+            // Create Provider Profile
+            $user->providerProfile()->create([
+                'city' => $data['city'] ?? null,
+                'country' => $data['country'] ?? null,
+                'is_verified' => false,
+            ]);
+            
+            // Send Provider Welcome Email
+            Mail::to($user->email)->send(new WelcomeProviderMail($user));
+
+            // Notify Admin
+            // Using a default admin email or the mail from address for now
+            $adminEmail = config('mail.from.address'); 
+            if ($adminEmail) {
+                Mail::to($adminEmail)->send(new NewProviderAdminNotificationMail($user));
+            }
+
+        } else {
+            // Create User Profile with Location
+            $user->profile()->create([
+                'latitude' => $data['latitude'] ?? null,
+                'longitude' => $data['longitude'] ?? null,
+                'city' => $data['city'] ?? null,
+                'state' => $data['state'] ?? null,
+                'country' => $data['country'] ?? null,
+                'continent' => $data['continent'] ?? null,
+            ]);
+
+            // Send User Welcome Email
+            Mail::to($user->email)->send(new WelcomeUserMail($user));
+        }
 
         // 3. Initialize Sparks
         $this->sparkService->initializeForUser($user);

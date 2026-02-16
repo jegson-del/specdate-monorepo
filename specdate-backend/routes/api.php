@@ -63,4 +63,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/notifications', [\App\Http\Controllers\Api\NotificationController::class, 'index']);
     Route::post('/notifications/{notification}/read', [\App\Http\Controllers\Api\NotificationController::class, 'markRead']);
     Route::post('/user/push-token', [\App\Http\Controllers\Api\NotificationController::class, 'updatePushToken']);
+
+    // Provider
+    Route::prefix('provider')->group(function () {
+        Route::get('/dashboard', [\App\Http\Controllers\ProviderController::class, 'getDashboard']);
+        Route::post('/settings', [\App\Http\Controllers\ProviderController::class, 'updateSettings']);
+        Route::post('/scan-qr', [\App\Http\Controllers\ProviderController::class, 'scanQRCode']);
+        Route::get('/categories', [\App\Http\Controllers\ProviderController::class, 'getCategories']);
+    });
 });

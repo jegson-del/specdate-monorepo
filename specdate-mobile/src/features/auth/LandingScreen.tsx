@@ -94,9 +94,12 @@ export default function LandingScreen({ navigation }: any) {
                     >
                         {/* Actual Logo Image */}
                         <RNImage
-                            source={require('../../../assets/dateusher_icon_only.png')}
-                            style={{ width: 200, height: 100, resizeMode: 'contain' }}
+                            source={require('../../../assets/wellcome_logo.png')}
+                            style={{ width: 300, height: 150, resizeMode: 'contain' }}
                         />
+                        <Text style={[styles.appName, { color: theme.colors.primary, marginTop: 10 }]}>
+                            DateUsher
+                        </Text>
                         <Text style={[styles.tagline, { color: theme.colors.outline }]}>
                             Quest for Love. Pop the Balloon.
                         </Text>

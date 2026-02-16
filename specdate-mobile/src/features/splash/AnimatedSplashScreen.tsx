@@ -24,38 +24,17 @@ export default function AnimatedSplashScreen({ onAnimationFinish }: Props) {
     return (
         <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
             <View style={styles.centerContainer}>
-                {/* Left Text: Spec */}
                 <MotiView
-                    from={{ opacity: 0, translateX: -100 }}
-                    animate={{ opacity: 1, translateX: 0 }}
-                    transition={{ type: 'spring', damping: 12, delay: 300 }}
-                    style={styles.textContainer}
-                >
-                    <Text style={[styles.text, { color: theme.colors.onBackground }]}>Spec</Text>
-                </MotiView>
-
-                {/* Center Icon */}
-                <MotiView
-                    from={{ opacity: 0, scale: 0.5 }}
+                    from={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    transition={{ type: 'spring', damping: 10 }}
-                    style={styles.iconContainer}
+                    transition={{ type: 'timing', duration: 1000 }}
+                    style={StyleSheet.absoluteFill}
                 >
                     <Image
-                        source={require('../../../assets/icon.png')}
-                        style={styles.icon}
-                        resizeMode="contain"
+                        source={require('../../../assets/splash_logo.png')}
+                        style={styles.logo}
+                        resizeMode="cover"
                     />
-                </MotiView>
-
-                {/* Right Text: Date */}
-                <MotiView
-                    from={{ opacity: 0, translateX: 100 }}
-                    animate={{ opacity: 1, translateX: 0 }}
-                    transition={{ type: 'spring', damping: 12, delay: 300 }}
-                    style={styles.textContainer}
-                >
-                    <Text style={[styles.text, { color: theme.colors.onBackground }]}>Date</Text>
                 </MotiView>
             </View>
         </View>
@@ -69,17 +48,13 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     centerContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
+        flex: 1,
+        width: '100%',
+        height: '100%',
     },
-    iconContainer: {
-        marginHorizontal: 10,
-        zIndex: 10,
-    },
-    icon: {
-        width: 80,
-        height: 80,
+    logo: {
+        width: '100%',
+        height: '100%',
     },
     textContainer: {
         justifyContent: 'center',

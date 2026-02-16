@@ -15,6 +15,7 @@ class RegisterRequest extends ApiFormRequest
             'username' => 'required|string|max:255|unique:users',
             'email' => 'required|string|email|max:255|unique:users',
             'mobile' => 'required|string|max:20|unique:users',
+            'role' => 'nullable|string|in:user,provider',
             'password' => 'required|string|min:8',
             // Optional location fields (sent from mobile via expo-location reverse geocode)
             'latitude' => 'nullable|numeric|between:-90,90',

@@ -17,16 +17,19 @@ import ProfileViewerScreen from './src/features/profile/ProfileViewerScreen';
 import HomeScreen from './src/features/home/HomeScreen';
 import ProvidersScreen from './src/features/providers/ProvidersScreen';
 import ProviderDetailScreen from './src/features/providers/ProviderDetailScreen';
+import ProviderDashboardScreen from './src/features/provider/ProviderDashboardScreen';
+import ProviderDiscountListScreen from './src/features/provider/ProviderDiscountListScreen';
+import QRScannerScreen from './src/features/provider/QRScannerScreen';
 import CreateSpecScreen from './src/features/specs/CreateSpecScreen';
 import SpecDetailsScreen from './src/features/specs/SpecDetailsScreen';
 import RoundDetailsScreen from './src/features/specs/RoundDetailsScreen';
 import NotificationsScreen from './src/features/notifications/NotificationsScreen';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { LogLevel, OneSignal } from 'react-native-onesignal';
+// import { LogLevel, OneSignal } from 'react-native-onesignal';
 import Constants from 'expo-constants';
 
 // Initialize OneSignal
-const ONESIGNAL_APP_ID = process.env.EXPO_PUBLIC_ONESIGNAL_APP_ID!;
+// const ONESIGNAL_APP_ID = process.env.EXPO_PUBLIC_ONESIGNAL_APP_ID!;
 
 // Only initialize if we're not in Expo Go (or handle gracefully)
 // OneSignal native code might not work in standard Expo Go client 
@@ -66,7 +69,8 @@ export default function App() {
             const user = (me.data as any)?.data ?? me.data;
             // Use backend computed attribute
             const isComplete = user.profile_complete === true;
-            if (mounted) setInitialRoute(isComplete ? 'Home' : 'Profile');
+            const isProvider = user.role === 'provider';
+            if (mounted) setInitialRoute(isProvider ? 'ProviderDashboard' : (isComplete ? 'Home' : 'Profile'));
           } catch (err: any) {
             const status = err?.response?.status;
             // If token is invalid/expired, clear it and fall back to Landing.
@@ -116,6 +120,10 @@ export default function App() {
               <Stack.Screen name="Home" component={HomeScreen} />
               <Stack.Screen name="Providers" component={ProvidersScreen} />
               <Stack.Screen name="ProviderDetail" component={ProviderDetailScreen} />
+
+              <Stack.Screen name="ProviderDashboard" component={ProviderDashboardScreen} />
+              <Stack.Screen name="ProviderDiscountList" component={ProviderDiscountListScreen} />
+              <Stack.Screen name="QRScanner" component={QRScannerScreen} />
 
               <Stack.Screen name="Notifications" component={NotificationsScreen} />
               <Stack.Screen name="Messages" component={HomeScreen} />

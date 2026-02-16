@@ -210,10 +210,7 @@ export default function RegisterScreen({ navigation }: any) {
                     animate={{ opacity: 1, translateY: 0 }}
                     style={styles.header}
                 >
-                    <RNImage
-                        source={require('../../../assets/logo_v2.png')}
-                        style={{ width: 300, height: 95, resizeMode: 'contain', marginBottom: 20, alignSelf: 'center', backgroundColor: 'transparent' }}
-                    />
+
                     <Text variant="bodyMedium" style={{ color: theme.colors.onBackground, textAlign: 'center', marginBottom: 10 }}>
                         {step === 1 ? "Join the quest for your perfect spec." : "Where should we send your code?"}
                     </Text>

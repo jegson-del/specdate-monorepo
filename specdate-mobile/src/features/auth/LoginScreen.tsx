@@ -34,10 +34,11 @@ export default function LoginScreen({ navigation }: any) {
 
       // Use backend computed attribute
       const isComplete = user.profile_complete === true;
+      const isProvider = user.role === 'provider';
 
       navigation.reset({
         index: 0,
-        routes: [{ name: isComplete ? 'Home' : 'Profile' }],
+        routes: [{ name: isProvider ? 'ProviderDashboard' : (isComplete ? 'Home' : 'Profile') }],
       });
     } catch (error) {
       if (axios.isAxiosError(error)) {
@@ -91,10 +92,7 @@ export default function LoginScreen({ navigation }: any) {
         </View>
 
 
-        <RNImage
-          source={require('../../../assets/logo_v2.png')}
-          style={{ width: 300, height: 95, resizeMode: 'contain', marginBottom: 20, alignSelf: 'center', backgroundColor: 'transparent' }}
-        />
+
         <Text variant="bodyMedium" style={{ color: theme.colors.secondary }}>
           Login to continue.
         </Text>

@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import axios from 'axios';
 import { AuthService } from '../../services/auth';
 import { getApiBaseUrl } from '../../services/api';
-import { OneSignal } from 'react-native-onesignal';
+// import { OneSignal } from 'react-native-onesignal';
 
 export default function OtpVerificationScreen({ navigation, route }: any) {
     const theme = useTheme();
@@ -41,9 +41,9 @@ export default function OtpVerificationScreen({ navigation, route }: any) {
 
             if (response.data.success || response.status === 201) {
                 // Should we enroll them in SMS?
-                if (payload.mobile) {
-                    OneSignal.User.addSms(payload.mobile);
-                }
+                // if (payload.mobile) {
+                //     OneSignal.User.addSms(payload.mobile);
+                // }
 
                 Alert.alert("Success", "Account created! Welcome to DateUsher.", [
                     { text: "Continue", onPress: () => navigation.navigate("Profile") }

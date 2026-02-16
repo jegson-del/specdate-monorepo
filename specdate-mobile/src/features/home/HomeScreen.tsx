@@ -418,10 +418,10 @@ export default function HomeScreen({ navigation }: any) {
         {/* Center: Logo */}
         <View style={[styles.titleWrap, { paddingTop: insets.top + 8, paddingBottom: 8 }]} pointerEvents="none">
           <Image
-            source={require('../../../assets/dateusher_icon_only.png')}
+            source={require('../../../assets/homescreen_header_logo.png')}
             style={{
-              width: 180, // Slightly reduced
-              height: 90,
+              width: 140, // Reduced size
+              height: 70,
               resizeMode: 'contain',
               // Removed tintColor to keep original colors
               shadowColor: theme.colors.primary,

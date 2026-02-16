@@ -54,92 +54,94 @@ const SpecCard = memo(({ item, theme, homeColors, tagColor, withAlpha, onPress }
                     ]}
                     elevation={1}
                 >
-                    {/* Media */}
-                    <View style={styles.cardMedia}>
-                        <ImageBackground
-                            source={{ uri: item.ownerAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.owner || 'User')}&size=512&background=random` }}
-                            style={StyleSheet.absoluteFillObject}
-                            imageStyle={styles.cardMediaImage}
-                            resizeMode="cover"
-                        />
-                        <View style={[styles.tagPill, { backgroundColor: tagColor(item.tag) }]}>
-                            <Text style={[styles.tagText, { color: theme.colors.onPrimary }]}>{item.tag}</Text>
-                        </View>
-                        {/* Owner tag (glass) – anchored to image */}
-                        <View style={styles.ownerOverlay}>
-                            <View style={[styles.ownerGlass, { paddingLeft: 4, paddingVertical: 4 }]}>
-                                {item.ownerAvatar ? (
-                                    <Image
-                                        source={{ uri: item.ownerAvatar }}
-                                        style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: '#eee' }}
-                                    />
-                                ) : (
-                                    <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' }}>
-                                        <MaterialCommunityIcons name="account" size={14} color="rgba(255,255,255,0.95)" />
-                                    </View>
-                                )}
-                                <Text style={[styles.ownerGlassText, { textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 4 }]} numberOfLines={1} ellipsizeMode="tail">
-                                    {item.owner}
-                                </Text>
+                    <View style={styles.cardContent}>
+                        {/* Media */}
+                        <View style={styles.cardMedia}>
+                            <ImageBackground
+                                source={{ uri: item.ownerAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.owner || 'User')}&size=512&background=random` }}
+                                style={StyleSheet.absoluteFillObject}
+                                imageStyle={styles.cardMediaImage}
+                                resizeMode="cover"
+                            />
+                            <View style={[styles.tagPill, { backgroundColor: tagColor(item.tag) }]}>
+                                <Text style={[styles.tagText, { color: theme.colors.onPrimary }]}>{item.tag}</Text>
                             </View>
-                        </View>
-                    </View>
-
-                    {/* Body */}
-                    <View style={styles.cardBody}>
-                        <Text style={[styles.cardTitle, { color: homeColors.cardText }]} numberOfLines={2}>
-                            {item.title}
-                        </Text>
-
-                        {/* Meta Rows */}
-                        <View style={styles.metaRow}>
-                            <MaterialCommunityIcons name="map-marker" size={16} color={theme.colors.primary} />
-                            <Text style={[styles.metaText, { color: homeColors.cardSubtext }]} numberOfLines={1}>
-                                {(item.title.split('•')[1] || 'Location').trim()}
-                            </Text>
-                        </View>
-
-                        <View style={styles.metaRow}>
-                            <MaterialCommunityIcons name="account-group" size={16} color={theme.colors.primary} />
-                            <Text style={[styles.metaText, { color: homeColors.cardSubtext }]} numberOfLines={1}>
-                                {item.joinCount}/{item.maxParticipants} participants
-                            </Text>
-                        </View>
-
-                        <View style={styles.metaRow}>
-                            <MaterialCommunityIcons name="balloon" size={16} color={theme.colors.primary} />
-                            <Text style={[styles.metaText, { color: homeColors.cardSubtext }]} numberOfLines={1}>
-                                {item.eliminatedCount} eliminated
-                            </Text>
-                        </View>
-
-                        <View style={styles.metaRow}>
-                            <MaterialCommunityIcons name="silverware-fork-knife" size={16} color={theme.colors.primary} />
-                            <TouchableOpacity
-                                onPress={handlePressProvider}
-                                style={{ flex: 1 }}
-                                hitSlop={8}
-                                activeOpacity={0.7}
-                            >
-                                <Text style={[styles.metaText, { color: homeColors.cardSubtext }]} numberOfLines={1}>
-                                    First date: {item.firstDateProvider === '—' ? 'Choose provider' : item.firstDateProvider}
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        <View style={styles.metaRow}>
-                            <MaterialCommunityIcons name="timer-sand" size={16} color={theme.colors.primary} />
-                            <Text style={[styles.metaText, { color: homeColors.cardSubtext }]} numberOfLines={1}>
-                                {item.expiresIn}
-                            </Text>
-                            {typeof item.likesCount === 'number' && item.likesCount > 0 ? (
-                                <View style={styles.likesInline}>
-                                    <MaterialCommunityIcons name="heart" size={14} color="#EF4444" />
-                                    <Text style={[styles.likesText, { color: homeColors.cardSubtext }]}>
-                                        {item.likesCount}
+                            {/* Owner tag (glass) – anchored to image */}
+                            <View style={styles.ownerOverlay}>
+                                <View style={[styles.ownerGlass, { paddingLeft: 4, paddingVertical: 4 }]}>
+                                    {item.ownerAvatar ? (
+                                        <Image
+                                            source={{ uri: item.ownerAvatar }}
+                                            style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: '#eee' }}
+                                        />
+                                    ) : (
+                                        <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' }}>
+                                            <MaterialCommunityIcons name="account" size={14} color="rgba(255,255,255,0.95)" />
+                                        </View>
+                                    )}
+                                    <Text style={[styles.ownerGlassText, { textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 4 }]} numberOfLines={1} ellipsizeMode="tail">
+                                        {item.owner}
                                     </Text>
                                 </View>
-                            ) : null}
+                            </View>
+                        </View>
+
+                        {/* Body */}
+                        <View style={styles.cardBody}>
+                            <Text style={[styles.cardTitle, { color: homeColors.cardText }]} numberOfLines={2}>
+                                {item.title}
+                            </Text>
+
+                            {/* Meta Rows */}
+                            <View style={styles.metaRow}>
+                                <MaterialCommunityIcons name="map-marker" size={16} color={theme.colors.primary} />
+                                <Text style={[styles.metaText, { color: homeColors.cardSubtext }]} numberOfLines={1}>
+                                    {(item.title.split('•')[1] || 'Location').trim()}
+                                </Text>
+                            </View>
+
+                            <View style={styles.metaRow}>
+                                <MaterialCommunityIcons name="account-group" size={16} color={theme.colors.primary} />
+                                <Text style={[styles.metaText, { color: homeColors.cardSubtext }]} numberOfLines={1}>
+                                    {item.joinCount}/{item.maxParticipants} participants
+                                </Text>
+                            </View>
+
+                            <View style={styles.metaRow}>
+                                <MaterialCommunityIcons name="balloon" size={16} color={theme.colors.primary} />
+                                <Text style={[styles.metaText, { color: homeColors.cardSubtext }]} numberOfLines={1}>
+                                    {item.eliminatedCount} eliminated
+                                </Text>
+                            </View>
+
+                            <View style={styles.metaRow}>
+                                <MaterialCommunityIcons name="silverware-fork-knife" size={16} color={theme.colors.primary} />
+                                <TouchableOpacity
+                                    onPress={handlePressProvider}
+                                    style={{ flex: 1 }}
+                                    hitSlop={8}
+                                    activeOpacity={0.7}
+                                >
+                                    <Text style={[styles.metaText, { color: homeColors.cardSubtext }]} numberOfLines={1}>
+                                        First date: {item.firstDateProvider === '—' ? 'Choose provider' : item.firstDateProvider}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            <View style={styles.metaRow}>
+                                <MaterialCommunityIcons name="timer-sand" size={16} color={theme.colors.primary} />
+                                <Text style={[styles.metaText, { color: homeColors.cardSubtext }]} numberOfLines={1}>
+                                    {item.expiresIn}
+                                </Text>
+                                {typeof item.likesCount === 'number' && item.likesCount > 0 ? (
+                                    <View style={styles.likesInline}>
+                                        <MaterialCommunityIcons name="heart" size={14} color="#EF4444" />
+                                        <Text style={[styles.likesText, { color: homeColors.cardSubtext }]}>
+                                            {item.likesCount}
+                                        </Text>
+                                    </View>
+                                ) : null}
+                            </View>
                         </View>
                     </View>
                 </Surface>
@@ -150,11 +152,6 @@ const SpecCard = memo(({ item, theme, homeColors, tagColor, withAlpha, onPress }
 
 export default SpecCard;
 
-// Shared styles extracted or passed in props?
-// For verified cleanliness, we'll keep styles here or assume HomeScreen style sheet global refactor?
-// To avoid messy prop drilling of styles, let's duplicate the local styles needed or export them.
-// Better: keep it self contained.
-
 const styles = StyleSheet.create({
     cardWrap: {
         flex: 1,
@@ -163,6 +160,10 @@ const styles = StyleSheet.create({
         marginHorizontal: '1%',
     },
     card: {
+        borderRadius: 16,
+        backgroundColor: '#FFFFFF', // ensure bg color on Surface for shadow
+    },
+    cardContent: {
         borderRadius: 16,
         overflow: 'hidden',
     },
