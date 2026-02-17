@@ -431,7 +431,7 @@ export default function ProfileScreen({ navigation }: any) {
             />
 
             <ScrollView
-                contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 40 }]}
+                contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 40 }]}
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}
                 refreshControl={
@@ -533,9 +533,8 @@ export default function ProfileScreen({ navigation }: any) {
                     </View>
                     <View style={styles.walletRow}>
                         <View style={[styles.walletCard, { backgroundColor: theme.colors.errorContainer }]}>
-                            <View style={[styles.walletIconWrap, { backgroundColor: 'rgba(239,68,68,0.2)' }]}>
-                                {/* Red Balloon (Life) */}
-                                <BalloonIcon size={40} variant="red" />
+                            <View style={[styles.walletIconWrap, { backgroundColor: theme.colors.errorContainer }]}>
+                                <BalloonIcon size={100} variant="red" backgroundColor={theme.colors.errorContainer} />
                             </View>
                             <Text variant="headlineSmall" style={[styles.walletAmount, { color: theme.colors.onSurface }]}>
                                 {user?.balance?.red_sparks ?? 0}
@@ -545,9 +544,8 @@ export default function ProfileScreen({ navigation }: any) {
                             </Text>
                         </View>
                         <View style={[styles.walletCard, { backgroundColor: theme.colors.primaryContainer }]}>
-                            <View style={[styles.walletIconWrap, { backgroundColor: 'rgba(124,58,237,0.2)' }]}>
-                                {/* Blue Balloon (Credit) */}
-                                <BalloonIcon size={40} variant="blue" />
+                            <View style={[styles.walletIconWrap, { backgroundColor: theme.colors.primaryContainer }]}>
+                                <BalloonIcon size={100} variant="blue" />
                             </View>
                             <Text variant="headlineSmall" style={[styles.walletAmount, { color: theme.colors.onSurface }]}>
                                 {user?.balance?.blue_sparks ?? 0}
@@ -782,7 +780,6 @@ export default function ProfileScreen({ navigation }: any) {
                         ]}
                         value={form?.religion ?? ''}
                         onSelect={(v) => updateForm({ religion: v ?? '' })}
-                        style={styles.input}
                     />
                 </Surface>
 
@@ -1072,9 +1069,8 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     walletIconWrap: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
+        width: 108,
+        height: 108,
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: 8,

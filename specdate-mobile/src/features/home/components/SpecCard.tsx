@@ -94,28 +94,28 @@ const SpecCard = memo(({ item, theme, homeColors, tagColor, withAlpha, onPress }
 
                             {/* Meta Rows */}
                             <View style={styles.metaRow}>
-                                <MaterialCommunityIcons name="map-marker" size={16} color={theme.colors.primary} />
+                                <MaterialCommunityIcons name="map-marker" size={20} color={theme.colors.primary} />
                                 <Text style={[styles.metaText, { color: homeColors.cardSubtext }]} numberOfLines={1}>
                                     {(item.title.split('•')[1] || 'Location').trim()}
                                 </Text>
                             </View>
 
                             <View style={styles.metaRow}>
-                                <MaterialCommunityIcons name="account-group" size={16} color={theme.colors.primary} />
+                                <MaterialCommunityIcons name="account-group" size={20} color={theme.colors.primary} />
                                 <Text style={[styles.metaText, { color: homeColors.cardSubtext }]} numberOfLines={1}>
                                     {item.joinCount}/{item.maxParticipants} participants
                                 </Text>
                             </View>
 
                             <View style={styles.metaRow}>
-                                <MaterialCommunityIcons name="balloon" size={16} color={theme.colors.primary} />
+                                <MaterialCommunityIcons name="balloon" size={20} color={theme.colors.primary} />
                                 <Text style={[styles.metaText, { color: homeColors.cardSubtext }]} numberOfLines={1}>
                                     {item.eliminatedCount} eliminated
                                 </Text>
                             </View>
 
                             <View style={styles.metaRow}>
-                                <MaterialCommunityIcons name="silverware-fork-knife" size={16} color={theme.colors.primary} />
+                                <MaterialCommunityIcons name="silverware-fork-knife" size={20} color={theme.colors.primary} />
                                 <TouchableOpacity
                                     onPress={handlePressProvider}
                                     style={{ flex: 1 }}
@@ -129,7 +129,7 @@ const SpecCard = memo(({ item, theme, homeColors, tagColor, withAlpha, onPress }
                             </View>
 
                             <View style={styles.metaRow}>
-                                <MaterialCommunityIcons name="timer-sand" size={16} color={theme.colors.primary} />
+                                <MaterialCommunityIcons name="timer-sand" size={20} color={theme.colors.primary} />
                                 <Text style={[styles.metaText, { color: homeColors.cardSubtext }]} numberOfLines={1}>
                                     {item.expiresIn}
                                 </Text>

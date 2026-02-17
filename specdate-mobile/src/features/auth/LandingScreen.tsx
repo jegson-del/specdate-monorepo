@@ -101,7 +101,7 @@ export default function LandingScreen({ navigation }: any) {
                             DateUsher
                         </Text>
                         <Text style={[styles.tagline, { color: theme.colors.outline }]}>
-                            Quest for Love. Pop the Balloon.
+                            Ushering you to dream dates
                         </Text>
                     </MotiView>
                 </View>
@@ -128,7 +128,7 @@ export default function LandingScreen({ navigation }: any) {
                         onPress={() => navigation.navigate('Login')}
                         style={styles.button}
                         contentStyle={styles.buttonContent}
-                        textColor={theme.colors.onBackground}
+                        textColor={theme.colors.primary}
                     >
                         Login
                     </Button>

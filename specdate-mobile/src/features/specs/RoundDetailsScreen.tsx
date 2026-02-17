@@ -8,7 +8,6 @@ import { useFocusEffect } from '@react-navigation/native';
 import { SpecService } from '../../services/specs';
 import { useUser } from '../../hooks/useUser';
 import { toImageUri } from '../../utils/imageUrl';
-import { BalloonIcon } from '../../components/BalloonIcons';
 import { VideoViewerModal } from '../../components';
 import { CloseRoundModal, LastManStandingModal, VideoThumbnailPlayer } from './components';
 import * as ImagePicker from 'expo-image-picker';
@@ -505,7 +504,7 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
 
                         {roundToShow.status === 'REVIEWING' && (
                             <View style={[styles.flatBlock, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant || theme.colors.outline + '40' }]}>
-                                <Text style={[styles.flatBlockHint, { color: theme.colors.onSurfaceVariant }]}>Tap the balloon next to an answer to eliminate that participant.</Text>
+                                <Text style={[styles.flatBlockHint, { color: theme.colors.onSurfaceVariant }]}>Tap Eliminate next to an answer to remove that participant.</Text>
                                 <View style={[styles.divider, { backgroundColor: theme.colors.outlineVariant || theme.colors.outline + '30' }]} />
                                 <Text style={[styles.flatBlockLabel, { color: theme.colors.onSurfaceVariant }]}>Next round question</Text>
                                 <TextInput
@@ -548,10 +547,10 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                                 <Text style={[styles.answerSubmittedText, { color: theme.colors.onSurface }]}>"{myAnswer.answer_text}"</Text>
                                 <View style={styles.answerSubmittedBadge}>
                                     {myAnswer.is_eliminated ? (
-                                        <>
-                                            <MaterialCommunityIcons name="close-circle" color="#EF4444" size={18} />
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                            <MaterialCommunityIcons name="account-off" size={18} color="#EF4444" />
                                             <Text style={[styles.answerSubmittedBadgeText, { color: '#EF4444' }]}>Eliminated</Text>
-                                        </>
+                                        </View>
                                     ) : (
                                         <>
                                             <MaterialCommunityIcons name="check-circle" color="#16a34a" size={18} />
@@ -671,7 +670,7 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                                                             <VideoThumbnailPlayer uri={a.media.url} width={160} height={100} onPress={() => { setVideoViewerUri(a.media.url); setVideoViewerVisible(true); }} />
                                                         </View>
                                                     ) : (
-                                                        <TouchableOpacity onPress={() => {}}>
+                                                        <TouchableOpacity onPress={() => { }}>
                                                             <Image
                                                                 source={{ uri: a.media.url }}
                                                                 style={{ width: 120, height: 120, borderRadius: 8, marginTop: 8, backgroundColor: theme.colors.surfaceVariant }}
@@ -688,15 +687,17 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                                                             { text: 'Eliminate', style: 'destructive', onPress: () => eliminateUserMutation.mutate({ rId: roundToShow.id, userId: a.user_id }) }
                                                         ]);
                                                     }}
-                                                    style={styles.balloonTouch}
+                                                    style={styles.eliminateButton}
                                                     accessibilityLabel="Eliminate participant"
                                                 >
-                                                    <BalloonIcon size={28} color={theme.colors.primary} />
+                                                    <MaterialCommunityIcons name="account-remove" size={22} color={theme.colors.error} />
+                                                    <Text style={[styles.eliminateButtonLabel, { color: theme.colors.error }]}>Eliminate</Text>
                                                 </TouchableOpacity>
                                             ) : null}
                                             {isEliminated && (
-                                                <View style={[styles.balloonTouch, { justifyContent: 'center', alignItems: 'center' }]}>
-                                                    <Text style={{ color: '#EF4444', fontWeight: '800', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>Eliminated</Text>
+                                                <View style={styles.eliminatedChip}>
+                                                    <MaterialCommunityIcons name="account-off" size={20} color={theme.colors.onSurfaceVariant} />
+                                                    <Text style={[styles.eliminatedLabel, { color: theme.colors.onSurfaceVariant }]}>Eliminated</Text>
                                                 </View>
                                             )}
                                         </View>
@@ -835,7 +836,24 @@ const styles = StyleSheet.create({
     answerBody: { flex: 1, minWidth: 0 },
     answerName: { fontSize: 15, fontWeight: '700', marginBottom: 4 },
     answerText: { fontSize: 14, lineHeight: 20 },
-    balloonTouch: { padding: 8 },
+    eliminateButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingVertical: 8,
+        paddingHorizontal: 10,
+        borderRadius: 8,
+        backgroundColor: 'transparent',
+    },
+    eliminateButtonLabel: { fontSize: 13, fontWeight: '700' },
+    eliminatedChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingVertical: 8,
+        paddingHorizontal: 10,
+    },
+    eliminatedLabel: { fontSize: 13, fontWeight: '600' },
     mediaBtn: {
         borderWidth: 1,
         borderRadius: 10,

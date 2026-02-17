@@ -840,9 +840,16 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                                         <Text style={[styles.participantName, { color: theme.colors.onSurface }]} numberOfLines={1}>
                                             {displayName.split(' ')[0]}
                                         </Text>
-                                        <Text style={[styles.participantStatus, { color: theme.colors.onSurface, opacity: 0.65 }]} numberOfLines={1}>
-                                            {p.status}
-                                        </Text>
+                                        {p.status === 'ELIMINATED' ? (
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                                                <MaterialCommunityIcons name="account-off" size={18} color={theme.colors.onSurfaceVariant} />
+                                                <Text style={[styles.participantStatus, { color: theme.colors.onSurfaceVariant, opacity: 1 }]}>Eliminated</Text>
+                                            </View>
+                                        ) : (
+                                            <Text style={[styles.participantStatus, { color: theme.colors.onSurface, opacity: 0.65 }]} numberOfLines={1}>
+                                                {p.status}
+                                            </Text>
+                                        )}
                                     </View>
                                 );
                             })

@@ -20,6 +20,7 @@ export type PublicProfile = {
         is_drug_user?: boolean;
         drinking?: string;
         sexual_orientation?: string;
+        religion?: string;
     } | null;
     images?: string[];
     specs_created_count?: number;
