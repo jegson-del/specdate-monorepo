@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, KeyboardAvoidingView, Platform, Alert, Image as RNImage } from 'react-native';
+import { OneSignal } from 'react-native-onesignal';
 import { Text, TextInput, Button, IconButton, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import axios from 'axios';
@@ -31,6 +32,11 @@ export default function LoginScreen({ navigation }: any) {
 
       const me = await api.get('/user');
       const user = me.data?.data ?? me.data;
+
+      // Register device with OneSignal
+      if (user?.id) {
+        OneSignal.login(String(user.id));
+      }
 
       // Use backend computed attribute
       const isComplete = user.profile_complete === true;

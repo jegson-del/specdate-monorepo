@@ -20,6 +20,7 @@ import { AuthService } from '../../services/auth';
 import { AccountService } from '../../services/account';
 import { toImageUri, imageUriWithCacheBust } from '../../utils/imageUrl';
 import { BalloonIcon } from '../../components/BalloonIcons';
+import { OneSignal } from 'react-native-onesignal';
 
 // --- OPTIONS & CONSTANTS ---
 const OTHER_VALUE = '__other__';
@@ -348,6 +349,7 @@ export default function ProfileScreen({ navigation }: any) {
 
     const handleLogout = async () => {
         await AuthService.logout();
+        OneSignal.logout();
         queryClient.removeQueries({ queryKey: ['user'] });
         navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
     };

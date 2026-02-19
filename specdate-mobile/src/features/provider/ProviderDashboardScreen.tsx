@@ -10,6 +10,7 @@ import {
   Dimensions,
   Linking,
 } from 'react-native';
+import { OneSignal } from 'react-native-onesignal';
 import { Text, TextInput, Button, IconButton, useTheme, Surface, ActivityIndicator, FAB } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -43,6 +44,7 @@ export default function ProviderDashboardScreen({ navigation }: any) {
   const [refreshing, setRefreshing] = useState(false);
   const [profile, setProfile] = useState<any>(null);
   const [discounts, setDiscounts] = useState<any[]>([]);
+  const [gallery, setGallery] = useState<any[]>([]);
   const [stats, setStats] = useState({ total_discounts: 0, used_discounts: 0 });
 
   const [discountPercentage, setDiscountPercentage] = useState('10');
@@ -70,6 +72,7 @@ export default function ProviderDashboardScreen({ navigation }: any) {
       const response = await api.get('/provider/dashboard');
       const data = response.data as any;
       setProfile(data.profile);
+      setGallery(data.gallery || []);
       setDiscounts(data.discounts || []);
       setStats(data.stats || { total_discounts: 0, used_discounts: 0 });
       if (data.profile) {
@@ -120,19 +123,78 @@ export default function ProviderDashboardScreen({ navigation }: any) {
     }
   };
 
-  const pickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-    if (!result.canceled) {
-      Alert.alert('Info', 'Image upload: backend media integration for providers coming soon.');
+  const uploadMedia = async (asset: any, type: 'avatar' | 'provider_gallery', skipRefresh = false) => {
+    try {
+      setLoading(true);
+      const uri = asset.uri;
+      const formData = new FormData();
+      formData.append('file', {
+        uri,
+        name: uri.split('/').pop() || 'image.jpg',
+        type: asset.mimeType || 'image/jpeg',
+      } as any);
+      formData.append('type', type);
+
+      await api.post('/media/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      if (!skipRefresh) fetchDashboard();
+      if (!skipRefresh) Alert.alert('Success', 'Image uploaded.');
+    } catch (error: any) {
+      const msg = error.response?.data?.message || 'Upload failed.';
+      Alert.alert('Error', msg);
+    } finally {
+      if (!skipRefresh) setLoading(false);
     }
   };
 
-  const galleryImages = profile?.image ? [profile.image] : [];
+  const pickAvatar = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images, // Updated to use MediaTypeOptions
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        await uploadMedia(result.assets[0], 'avatar');
+      }
+    } catch (err) {
+      Alert.alert('Error', 'Failed to pick image');
+    }
+  };
+
+  const pickGallery = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images, // Updated to use MediaTypeOptions
+        allowsMultipleSelection: true,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets) {
+        setLoading(true);
+        // Upload sequentially
+        for (const asset of result.assets) {
+          await uploadMedia(asset, 'provider_gallery', true);
+        }
+        fetchDashboard();
+        setLoading(false);
+        Alert.alert('Success', 'Gallery updated.');
+      }
+    } catch (err) {
+      Alert.alert('Error', 'Failed to pick images');
+      setLoading(false);
+    }
+  };
+
+  const galleryImages = [
+    ...(profile?.image ? [profile.image] : []),
+    ...gallery.map((m: any) => m.url),
+  ];
   const openGalleryAt = (index: number) => {
     setGalleryInitialIndex(index);
     setGalleryViewerVisible(true);
@@ -187,9 +249,10 @@ export default function ProviderDashboardScreen({ navigation }: any) {
             icon="logout"
             size={22}
             onPress={() => {
-              api.post('/logout').finally(() =>
-                navigation.reset({ index: 0, routes: [{ name: 'Landing' }] })
-              );
+              api.post('/logout').finally(() => {
+                OneSignal.logout();
+                navigation.reset({ index: 0, routes: [{ name: 'Landing' }] });
+              });
             }}
             iconColor={theme.colors.onSurfaceVariant}
           />
@@ -205,7 +268,7 @@ export default function ProviderDashboardScreen({ navigation }: any) {
               <Image source={{ uri: profile.image }} style={styles.mainImage} />
             ) : (
               <View style={[styles.mainImagePlaceholder, { backgroundColor: theme.colors.surfaceVariant }]}>
-                <TouchableOpacity onPress={editMode ? pickImage : undefined}>
+                <TouchableOpacity onPress={editMode ? pickAvatar : undefined}>
                   <MaterialCommunityIcons name="store-plus" size={48} color={theme.colors.onSurfaceVariant} />
                   <Text style={[styles.placeholderLabel, { color: theme.colors.onSurfaceVariant }]}>Add cover photo</Text>
                 </TouchableOpacity>
@@ -213,7 +276,7 @@ export default function ProviderDashboardScreen({ navigation }: any) {
             )}
           </TouchableOpacity>
           {profile?.image && editMode && (
-            <TouchableOpacity style={styles.editPhotoBadge} onPress={pickImage}>
+            <TouchableOpacity style={styles.editPhotoBadge} onPress={pickAvatar}>
               <MaterialCommunityIcons name="camera" size={18} color="#fff" />
             </TouchableOpacity>
           )}
@@ -251,10 +314,19 @@ export default function ProviderDashboardScreen({ navigation }: any) {
                   <Image source={{ uri }} style={styles.galleryItem} />
                 </TouchableOpacity>
               ))}
+              <View style={styles.galleryItemWrap}>
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={pickGallery}
+                  style={[styles.galleryItem, { backgroundColor: theme.colors.surfaceVariant, alignItems: 'center', justifyContent: 'center' }]}
+                >
+                  <MaterialCommunityIcons name="plus" size={32} color={theme.colors.primary} />
+                </TouchableOpacity>
+              </View>
             </ScrollView>
           ) : (
             <TouchableOpacity
-              onPress={editMode ? pickImage : undefined}
+              onPress={pickGallery}
               style={[styles.galleryPlaceholder, { backgroundColor: theme.colors.surfaceVariant }]}
             >
               <MaterialCommunityIcons name="image-plus" size={32} color={theme.colors.onSurfaceVariant} />

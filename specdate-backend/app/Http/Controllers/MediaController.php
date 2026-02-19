@@ -68,7 +68,7 @@ class MediaController extends Controller
 
         $validator = Validator::make($request->all(), [
             'file' => $fileRules,
-            'type' => 'required|string|in:avatar,profile_gallery,chat,proof,round_answer_image,round_answer_video',
+            'type' => 'required|string|in:avatar,profile_gallery,provider_gallery,chat,proof,round_answer_image,round_answer_video',
             'media_id' => 'nullable|integer|exists:media,id',
         ]);
 

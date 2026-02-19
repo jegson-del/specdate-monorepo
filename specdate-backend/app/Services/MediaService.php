@@ -13,14 +13,14 @@ class MediaService
     public const PROFILE_GALLERY_MAX = 6;
 
     /** Use S3 when configured (AWS credentials set), otherwise store in public disk so uploads work without S3. */
-    private function getMediaDisk(): \Illuminate\Contracts\Filesystem\Filesystem
+    private function getMediaDisk(): \Illuminate\Contracts\Filesystem\Cloud
     {
         $driver = config('filesystems.default');
         $useS3 = $driver === 's3' && config('filesystems.disks.s3.key');
         return Storage::disk($useS3 ? 's3' : 'public');
     }
 
-    private function getMediaUrl(string $fullPath, \Illuminate\Contracts\Filesystem\Filesystem $disk): string
+    private function getMediaUrl(string $fullPath, \Illuminate\Contracts\Filesystem\Cloud $disk): string
     {
         $driver = config('filesystems.default');
         $useS3 = $driver === 's3' && config('filesystems.disks.s3.key');

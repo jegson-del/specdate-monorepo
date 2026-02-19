@@ -43,8 +43,18 @@ class ProviderController extends Controller
             'used_discounts' => $discounts->where('status', 'used')->count(),
         ];
 
+        $media = $user->media()->whereIn('type', ['avatar', 'provider_gallery'])->get();
+        $avatar = $media->where('type', 'avatar')->last(); // Get latest avatar
+        $gallery = $media->where('type', 'provider_gallery')->values();
+
+        // If media avatar exists, use it as the profile image source of truth
+        if ($avatar) {
+            $profile->image = $avatar->url;
+        }
+
         return response()->json([
             'profile' => $profile,
+            'gallery' => $gallery,
             'discounts' => $discounts,
             'stats' => $stats,
         ]);

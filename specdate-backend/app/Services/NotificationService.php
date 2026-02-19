@@ -39,12 +39,45 @@ class NotificationService
         // 2. Broadcast via Pusher/Echo
         event(new \App\Events\NotificationCreated($notification));
 
-        // 3. Send Expo Push Notification (if token exists)
-        if ($user->expo_push_token) {
+        // 3. Send Push Notification
+        $osAppId = config('services.onesignal.app_id');
+        $osKey = config('services.onesignal.rest_api_key');
+
+        if ($osAppId && $osKey) {
+            $this->sendOneSignalPush((string) $user->id, $title ?? 'New Notification', $body ?? 'You have a new notification', $data, $osAppId, $osKey);
+        } elseif ($user->expo_push_token) {
             $this->sendExpoPush($user->expo_push_token, $title ?? 'New Notification', $body ?? 'You have a new notification', $data);
         }
 
         return $notification;
+    }
+
+    /**
+     * Send Push Notification via OneSignal using external_user_id.
+     */
+    protected function sendOneSignalPush(string $userId, string $title, string $body, array $data, string $appId, string $apiKey): void
+    {
+
+        try {
+            /** @var \Illuminate\Http\Client\Response $response */
+            $response = Http::withHeaders([
+                'Authorization' => 'Basic ' . $apiKey,
+                'Content-Type' => 'application/json',
+            ])->post('https://api.onesignal.com/notifications', [
+                'app_id' => $appId,
+                'include_external_user_ids' => [$userId],
+                'channel_for_external_user_ids' => 'push',
+                'headings' => ['en' => $title],
+                'contents' => ['en' => $body],
+                'data' => $data,
+            ]);
+
+            if ($response->failed()) {
+                Log::error('OneSignal Push Failed', ['user_id' => $userId, 'response' => $response->body()]);
+            }
+        } catch (\Exception $e) {
+            Log::error('OneSignal Push Exception', ['message' => $e->getMessage()]);
+        }
     }
 
     /**

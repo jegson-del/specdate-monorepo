@@ -25,24 +25,24 @@ import SpecDetailsScreen from './src/features/specs/SpecDetailsScreen';
 import RoundDetailsScreen from './src/features/specs/RoundDetailsScreen';
 import NotificationsScreen from './src/features/notifications/NotificationsScreen';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-// import { LogLevel, OneSignal } from 'react-native-onesignal';
+import { LogLevel, OneSignal } from 'react-native-onesignal';
 import Constants from 'expo-constants';
 
 // Initialize OneSignal
-// const ONESIGNAL_APP_ID = process.env.EXPO_PUBLIC_ONESIGNAL_APP_ID!;
+const ONESIGNAL_APP_ID = process.env.EXPO_PUBLIC_ONESIGNAL_APP_ID!;
 
 // Only initialize if we're not in Expo Go (or handle gracefully)
 // OneSignal native code might not work in standard Expo Go client 
 // so we wrap in try-catch or check constants
-// try {
-//   OneSignal.Debug.setLogLevel(LogLevel.Verbose);
-//   OneSignal.initialize(ONESIGNAL_APP_ID);
+try {
+  OneSignal.Debug.setLogLevel(LogLevel.Verbose);
+  OneSignal.initialize(ONESIGNAL_APP_ID);
 
-//   // Request permission
-//   OneSignal.Notifications.requestPermission(true);
-// } catch (e) {
-//   console.log('OneSignal init failed (likely running in Expo Go client without native code):', e);
-// }
+  // Request permission
+  OneSignal.Notifications.requestPermission(true);
+} catch (e) {
+  console.log('OneSignal init failed (likely running in Expo Go client without native code):', e);
+}
 
 const queryClient = new QueryClient();
 const Stack = createNativeStackNavigator();
@@ -50,7 +50,7 @@ const Stack = createNativeStackNavigator();
 export default function App() {
   const [booting, setBooting] = useState(true);
   const [splashAnimationDone, setSplashAnimationDone] = useState(false);
-  const [initialRoute, setInitialRoute] = useState<'Landing' | 'Home' | 'Profile'>('Landing');
+  const [initialRoute, setInitialRoute] = useState<'Landing' | 'Home' | 'Profile' | 'ProviderDashboard'>('Landing');
 
   useEffect(() => {
     let mounted = true;
