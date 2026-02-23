@@ -385,11 +385,10 @@ export default function HomeScreen({ navigation }: any) {
         style={[
           styles.topBar,
           {
-            paddingTop: insets.top + 8,
-            paddingBottom: 8,
-            paddingLeft: 16,
-            paddingRight: 16,
-            minHeight: 100, // Sufficient height for the large logo
+            paddingTop: insets.top + 6,
+            paddingBottom: 6,
+            paddingLeft: 12,
+            paddingRight: 12,
             backgroundColor: theme.colors.surface,
             borderBottomWidth: 1,
             borderBottomColor: theme.colors.outline,
@@ -409,25 +408,24 @@ export default function HomeScreen({ navigation }: any) {
           style={styles.headerIconBtn}
         >
           {avatarUrl ? (
-            <Avatar.Image size={38} source={{ uri: avatarUrl }} />
+            <Avatar.Image size={40} source={{ uri: avatarUrl }} />
           ) : (
-            <MaterialCommunityIcons name="account-circle" size={38} color={theme.colors.onSurfaceVariant} />
+            <MaterialCommunityIcons name="account-circle-outline" size={40} color={theme.colors.onSurfaceVariant} />
           )}
         </TouchableOpacity>
 
-        {/* Center: Logo */}
+        {/* Center: Logo (same visual scale as icons) */}
         <View style={[styles.titleWrap, { paddingTop: insets.top + 8, paddingBottom: 8 }]} pointerEvents="none">
           <Image
             source={require('../../../assets/homescreen_header_logo.png')}
             style={{
-              width: 140, // Reduced size
-              height: 70,
+              width: 160,
+              height: 60,
               resizeMode: 'contain',
-              // Removed tintColor to keep original colors
               shadowColor: theme.colors.primary,
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.3,
-              shadowRadius: 12,
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.2,
+              shadowRadius: 8,
             }}
           />
         </View>
@@ -440,7 +438,7 @@ export default function HomeScreen({ navigation }: any) {
             activeOpacity={0.7}
           >
             <View>
-              <MaterialCommunityIcons name="message-text-outline" size={26} color={theme.colors.onSurface} />
+              <MaterialCommunityIcons name="chat-outline" size={28} color={theme.colors.onSurface} />
               {/* Message Count Badge (Placeholder) */}
             </View>
           </TouchableOpacity>
@@ -451,7 +449,7 @@ export default function HomeScreen({ navigation }: any) {
             activeOpacity={0.7}
           >
             <View>
-              <MaterialCommunityIcons name="bell-outline" size={26} color={theme.colors.onSurface} />
+              <MaterialCommunityIcons name="bell-outline" size={28} color={theme.colors.onSurface} />
               {(user?.unread_notifications_count || 0) > 0 && (
                 <View style={styles.activeBadge} />
               )}
@@ -1025,6 +1023,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  headerLogo: {
+    width: 110,
+    height: 36,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+  },
   title: {
     fontSize: 18,
     fontWeight: '800',
@@ -1033,13 +1044,13 @@ const styles = StyleSheet.create({
   rightIcons: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12, // Increased gap for better spacing
+    gap: 8, // Increased gap for better spacing
   },
   headerIconBtn: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(0,0,0,0.04)', // Subtle gray background for buttons
+    backgroundColor: 'rgba(0,0,0,0.05)',
     alignItems: 'center',
     justifyContent: 'center',
   },

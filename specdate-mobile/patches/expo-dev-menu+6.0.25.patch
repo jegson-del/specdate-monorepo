@@ -1,0 +1,16 @@
+diff --git a/node_modules/expo-dev-menu/android/build.gradle b/node_modules/expo-dev-menu/android/build.gradle
+index 0000000..1111111 100644
+--- a/node_modules/expo-dev-menu/android/build.gradle
++++ b/node_modules/expo-dev-menu/android/build.gradle
+@@ -73,8 +73,8 @@ task copyAssets(type: Copy) {
+   into 'src/debug/assets'
+ }
+ 
+ project.afterEvaluate {
+-  packageDebugAssets.dependsOn copyAssets
+-  packageReleaseWithDevMenuAssets.dependsOn copyAssets
++  tasks.findByName('packageDebugAssets')?.dependsOn(copyAssets)
++  tasks.findByName('packageReleaseWithDevMenuAssets')?.dependsOn(copyAssets)
+ }
+ 
+ repositories {

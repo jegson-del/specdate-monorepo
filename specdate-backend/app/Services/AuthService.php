@@ -97,6 +97,7 @@ class AuthService
         } else {
             $response = Http::withHeaders($headers)->post('https://api.onesignal.com/notifications?c=sms', [
                 'app_id' => $appId,
+                'name' => 'DateUsher OTP verification',
                 'contents' => ['en' => $body],
                 'include_phone_numbers' => [trim($target)],
             ]);
