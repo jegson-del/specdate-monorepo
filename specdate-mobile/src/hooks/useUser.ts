@@ -6,8 +6,7 @@ export type ProfileGallerySlot = { id: number; url: string };
 export type UserBalance = {
     id: number;
     user_id: number;
-    red_sparks: number;
-    blue_sparks: number;
+    credits: number;
     created_at: string;
     updated_at: string;
 };

@@ -3,13 +3,25 @@ import * as SecureStore from 'expo-secure-store';
 
 import Constants from 'expo-constants';
 
-// API base URL. On a physical device, 127.0.0.1/localhost = the device itself, so backend is unreachable.
-// Set EXPO_PUBLIC_API_URL in .env to your PC's LAN IP (e.g. http://192.168.1.5:8000/api) when using a real device.
+// API base URL. Set both in .env; app uses DEV in development and PRODUCTION in release builds.
+const API_PORT = 8001;
+
+function normalizeBaseUrl(url: string): string {
+    const base = url.replace(/\/$/, '');
+    return base.endsWith('/api') ? base : base + '/api';
+}
+
 const getBaseUrl = (): string => {
-    const override = process.env.EXPO_PUBLIC_API_URL?.trim();
+    const devUrl = process.env.EXPO_PUBLIC_API_URL_DEV?.trim();
+    const prodUrl = process.env.EXPO_PUBLIC_API_URL_PRODUCTION?.trim();
+    const fallbackUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
+
+    const override = __DEV__
+        ? (devUrl || fallbackUrl)
+        : (prodUrl || fallbackUrl);
+
     if (override) {
-        const base = override.replace(/\/$/, '');
-        return base.endsWith('/api') ? base : base + '/api';
+        return normalizeBaseUrl(override);
     }
 
     const debuggerHost = Constants.expoConfig?.hostUri;
@@ -22,15 +34,15 @@ const getBaseUrl = (): string => {
             if (__DEV__) {
                 console.warn(
                     '[API] hostUri is 127.0.0.1/localhost – on a physical device this points to the device itself. ' +
-                    'Set EXPO_PUBLIC_API_URL in .env to your PC IP (e.g. http://192.168.1.5:8000/api) and restart Expo.'
+                    `Set EXPO_PUBLIC_API_URL_DEV in .env to your PC IP (e.g. http://192.168.1.5:${API_PORT}/api) and restart Expo.`
                 );
             }
-            return `http://${androidEmulatorHost}:8000/api`;
+            return `http://${androidEmulatorHost}:${API_PORT}/api`;
         }
-        return `http://${ip}:8000/api`;
+        return `http://${ip}:${API_PORT}/api`;
     }
 
-    return `http://${androidEmulatorHost}:8000/api`;
+    return `http://${androidEmulatorHost}:${API_PORT}/api`;
 };
 
 const API_URL = getBaseUrl();

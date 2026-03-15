@@ -174,7 +174,7 @@ export default function RegisterScreen({ navigation }: any) {
             const isNetworkError = !error?.response;
             const apiUrl = isNetworkError ? getApiBaseUrl() : '';
             const fullMsg = firstErr ?? (isNetworkError && apiUrl
-                ? `Cannot reach backend at ${apiUrl}. On a physical device, set EXPO_PUBLIC_API_URL in .env to your PC IP (e.g. http://192.168.1.5:8000/api), same Wi‑Fi, then restart Expo.`
+                ? `Cannot reach backend at ${apiUrl}. On a physical device, set EXPO_PUBLIC_API_URL in .env to your PC IP (e.g. http://192.168.1.5:8001/api), same Wi‑Fi, then restart Expo.`
                 : msg);
             Alert.alert('Error', fullMsg);
         } finally {

@@ -116,7 +116,7 @@ When expiry arrives:
 - After scoring, creator must eliminate:
   - \(k = \max(1, \lceil N \times 0.10 \rceil)\) where \(N\) = active participants
 - Store eliminations in `SpecElimination` (audit)
-- Notify eliminated user: “Your balloon popped — you’re out”
+- Notify eliminated user: “Your eliminated — you’re out”
 - Repeat until 1 participant remains → **winner**
 
 ## Notifications (minimum events)

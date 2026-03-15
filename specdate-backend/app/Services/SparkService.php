@@ -16,11 +16,10 @@ class SparkService
      */
     public function initializeForUser(User $user): void
     {
-        // 1. Assign Initial Credits
+        // 1. Assign initial credits (single balance; user can buy more via RevenueCat)
         UserBalance::create([
             'user_id' => $user->id,
-            'red_sparks' => 2,
-            'blue_sparks' => 2,
+            'credits' => 3,
         ]);
 
         // 2. Create Default Skin (Basic Spark)

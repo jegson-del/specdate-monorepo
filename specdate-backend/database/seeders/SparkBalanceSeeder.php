@@ -18,12 +18,9 @@ class SparkBalanceSeeder extends Seeder
         foreach ($users as $user) {
             UserBalance::updateOrCreate(
                 ['user_id' => $user->id],
-                [
-                    'red_sparks' => 5,
-                    'blue_sparks' => 5
-                ]
+                ['credits' => 5]
             );
         }
-        $this->command->info('Updated spark balances for ' . $users->count() . ' users.');
+        $this->command->info('Updated credit balances for ' . $users->count() . ' users.');
     }
 }

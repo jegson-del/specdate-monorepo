@@ -19,8 +19,6 @@ import { MediaService } from '../../services/media';
 import { AuthService } from '../../services/auth';
 import { AccountService } from '../../services/account';
 import { toImageUri, imageUriWithCacheBust } from '../../utils/imageUrl';
-import { BalloonIcon } from '../../components/BalloonIcons';
-import { OneSignal } from 'react-native-onesignal';
 
 // --- OPTIONS & CONSTANTS ---
 const OTHER_VALUE = '__other__';
@@ -349,7 +347,6 @@ export default function ProfileScreen({ navigation }: any) {
 
     const handleLogout = async () => {
         await AuthService.logout();
-        OneSignal.logout();
         queryClient.removeQueries({ queryKey: ['user'] });
         navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
     };
@@ -522,38 +519,44 @@ export default function ProfileScreen({ navigation }: any) {
                         <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.primary, marginBottom: 0 }]}>
                             Wallet
                         </Text>
-                        <TouchableOpacity
-                            onPress={() => Alert.alert('Coming soon', 'Top up and transaction history will be available soon.')}
-                            style={[styles.walletTopUp, { backgroundColor: theme.colors.primaryContainer }]}
-                            activeOpacity={0.8}
-                        >
-                            <MaterialCommunityIcons name="plus-circle" size={18} color={theme.colors.primary} />
-                            <Text variant="labelMedium" style={{ color: theme.colors.primary, fontWeight: '700', marginLeft: 6 }}>
-                                Top up
-                            </Text>
-                        </TouchableOpacity>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <TouchableOpacity
+                                onPress={() => navigation.navigate('CreditsTransactions')}
+                                style={[styles.walletTopUp, { backgroundColor: theme.colors.primaryContainer }]}
+                                activeOpacity={0.8}
+                            >
+                                <MaterialCommunityIcons name="history" size={18} color={theme.colors.primary} />
+                                <Text variant="labelMedium" style={{ color: theme.colors.primary, fontWeight: '700', marginLeft: 6 }}>
+                                    Transactions
+                                </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                onPress={() => Alert.alert('Buy credits', 'RevenueCat in-app purchase will be available here. You can buy credit packs to join more specs.')}
+                                style={[styles.walletTopUp, { backgroundColor: theme.colors.primaryContainer }]}
+                                activeOpacity={0.8}
+                            >
+                                <MaterialCommunityIcons name="plus-circle" size={18} color={theme.colors.primary} />
+                                <Text variant="labelMedium" style={{ color: theme.colors.primary, fontWeight: '700', marginLeft: 6 }}>
+                                    Buy credits
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
                     <View style={styles.walletRow}>
-                        <View style={[styles.walletCard, { backgroundColor: theme.colors.errorContainer }]}>
-                            <View style={[styles.walletIconWrap, { backgroundColor: theme.colors.errorContainer }]}>
-                                <BalloonIcon size={100} variant="red" backgroundColor={theme.colors.errorContainer} />
-                            </View>
+                        <View style={[styles.walletCard, { backgroundColor: theme.colors.primaryContainer, flex: 1 }]}>
+                            <Image
+                                source={require('../../../assets/specdate_coin.png')}
+                                style={{ width: 64, height: 64 }}
+                                resizeMode="contain"
+                            />
                             <Text variant="headlineSmall" style={[styles.walletAmount, { color: theme.colors.onSurface }]}>
-                                {user?.balance?.red_sparks ?? 0}
+                                {user?.balance?.credits ?? 0}
                             </Text>
                             <Text variant="bodySmall" numberOfLines={1} adjustsFontSizeToFit style={{ color: theme.colors.onSurfaceVariant, fontWeight: '600' }}>
-                                Red Balloons
+                                Credits
                             </Text>
-                        </View>
-                        <View style={[styles.walletCard, { backgroundColor: theme.colors.primaryContainer }]}>
-                            <View style={[styles.walletIconWrap, { backgroundColor: theme.colors.primaryContainer }]}>
-                                <BalloonIcon size={100} variant="blue" />
-                            </View>
-                            <Text variant="headlineSmall" style={[styles.walletAmount, { color: theme.colors.onSurface }]}>
-                                {user?.balance?.blue_sparks ?? 0}
-                            </Text>
-                            <Text variant="bodySmall" numberOfLines={1} adjustsFontSizeToFit style={{ color: theme.colors.onSurfaceVariant, fontWeight: '600' }}>
-                                Blue Balloons
+                            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 4 }}>
+                                1 credit = join a spec or lost when eliminated
                             </Text>
                         </View>
                     </View>

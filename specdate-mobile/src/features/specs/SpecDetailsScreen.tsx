@@ -268,15 +268,15 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
             return;
         }
 
-        // 2. Check Blue Sparks
-        const blueSparks = user?.balance?.blue_sparks || 0;
-        if (blueSparks < 1) {
+        // 2. Check credits
+        const credits = user?.balance?.credits ?? 0;
+        if (credits < 1) {
             Alert.alert(
-                'Insufficient Blue Sparks',
-                'You need at least 1 Blue Spark to join a spec.',
+                'Insufficient credits',
+                'You need at least 1 credit to join a spec. Buy more in Profile.',
                 [
                     { text: 'Cancel', style: 'cancel' },
-                    { text: 'Get Sparks', onPress: () => navigation.navigate('Profile') }
+                    { text: 'Get credits', onPress: () => navigation.navigate('Profile') }
                 ]
             );
             return;
@@ -285,10 +285,10 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
         // 3. Confirm then call API
         Alert.alert(
             'Join Spec?',
-            'This will cost 1 Blue Spark.',
+            'This will use 1 credit.',
             [
                 { text: 'Cancel', style: 'cancel' },
-                { text: 'Join (-1 Spark)', onPress: () => joinMutation.mutate() }
+                { text: 'Join (-1 credit)', onPress: () => joinMutation.mutate() }
             ]
         );
     };

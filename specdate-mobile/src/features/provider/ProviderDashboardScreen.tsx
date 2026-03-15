@@ -10,7 +10,6 @@ import {
   Dimensions,
   Linking,
 } from 'react-native';
-import { OneSignal } from 'react-native-onesignal';
 import { Text, TextInput, Button, IconButton, useTheme, Surface, ActivityIndicator, FAB } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -250,7 +249,6 @@ export default function ProviderDashboardScreen({ navigation }: any) {
             size={22}
             onPress={() => {
               api.post('/logout').finally(() => {
-                OneSignal.logout();
                 navigation.reset({ index: 0, routes: [{ name: 'Landing' }] });
               });
             }}

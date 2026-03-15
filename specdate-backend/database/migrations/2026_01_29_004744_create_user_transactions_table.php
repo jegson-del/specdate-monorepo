@@ -15,11 +15,11 @@ return new class extends Migration
             $table->id();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
             $table->enum('type', ['CREDIT', 'DEBIT']); // CREDIT = Bought/Earned, DEBIT = Spent
-            $table->string('item_type'); // e.g. 'blue_balloon', 'red_balloon'
+            $table->string('item_type'); // CREDIT (purchase): RevenueCat product_id (e.g. specdate_credits_5); DEBIT (spend): 'credit'
             $table->integer('quantity'); // Amount of items
             $table->decimal('amount', 10, 2)->nullable(); // Money value (cost/price)
             $table->string('currency', 3)->nullable()->default('GBP');
-            $table->string('purpose'); // Description e.g. 'Bought 5 Balloons', 'Joined Spec'
+            $table->string('purpose'); // e.g. 'Joined Spec', 'Eliminated from Spec', 'Purchased (RevenueCat)'
             $table->json('metadata')->nullable(); // Store { spec_id: 1 } etc.
             $table->timestamps();
         });

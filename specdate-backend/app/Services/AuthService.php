@@ -3,6 +3,9 @@
 namespace App\Services;
 
 use App\Models\User;
+use App\Mail\OtpMail;
+use App\Mail\WelcomeUserMail;
+use App\Mail\WelcomeProviderMail;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
@@ -26,11 +29,11 @@ class AuthService
 
     /**
      * Send OTP to the given channel (email or mobile).
-     * Uses OneSignal exclusively as per configuration.
+     * Email: Laravel Mail (SMTP). Mobile: Twilio SMS.
      * Stores code in cache for verification.
      *
      * @param string $channel 'email' or 'mobile'
-     * @param string $target  Email address or phone number
+     * @param string $target  Email address or phone number (E.164 for SMS)
      * @return array{success: bool, message: string}
      */
     public function sendOtp(string $channel, string $target): array
@@ -39,28 +42,77 @@ class AuthService
         $key = $this->otpCacheKey($channel, $target);
         Cache::put($key, $code, self::OTP_TTL_SECONDS);
 
-        // OneSignal (email + SMS) when ONESIGNAL_APP_ID and ONESIGNAL_REST_API_KEY are set
-        $osEnabled = config('services.onesignal.enabled');
-        $osAppId = config('services.onesignal.app_id');
-        $osKey = config('services.onesignal.rest_api_key');
-
-        if ($osEnabled && $osAppId && $osKey) {
-            $body = 'Your SpecDate verification code is: ' . $code . '. It expires in 10 minutes.';
-            $sent = $this->sendViaOneSignal($channel, $target, 'Your SpecDate verification code', $body, $osAppId, $osKey);
-            if ($sent) {
+        if ($channel === 'email') {
+            try {
+                Mail::to(trim($target))->send(new OtpMail($code, $target));
                 return [
                     'success' => true,
-                    'message' => $channel === 'email'
-                        ? 'Verification code sent to your email.'
-                        : 'Verification code sent to your phone.',
+                    'message' => 'Verification code sent to your email.',
+                ];
+            } catch (\Throwable $e) {
+                Log::warning('OTP email send failed', ['target' => $target, 'error' => $e->getMessage()]);
+                return [
+                    'success' => false,
+                    'message' => 'Failed to send verification code. Please try again.',
                 ];
             }
         }
 
+        if ($channel === 'mobile') {
+            $twilio = config('services.twilio');
+            $sid = $twilio['sid'] ?? null;
+            $token = $twilio['token'] ?? null;
+            $from = $twilio['from'] ?? null;
+            if (!$sid || !$token || !$from) {
+                Log::warning('Twilio not configured for SMS OTP');
+                return [
+                    'success' => false,
+                    'message' => 'SMS is not configured. Please use email verification.',
+                ];
+            }
+            $body = 'Your SpecDate verification code is: ' . $code . '. It expires in 10 minutes.';
+            $sent = $this->sendSmsViaTwilio($from, trim($target), $body, $sid, $token);
+            if ($sent) {
+                return [
+                    'success' => true,
+                    'message' => 'Verification code sent to your phone.',
+                ];
+            }
+            return [
+                'success' => false,
+                'message' => 'Failed to send SMS. Please check the number or try email.',
+            ];
+        }
+
         return [
             'success' => false,
-            'message' => 'Failed to send verification code via OneSignal. Please ensure you are a test recipient if the account is not yet verified.',
+            'message' => 'Invalid channel.',
         ];
+    }
+
+    /**
+     * Send SMS via Twilio REST API.
+     */
+    private function sendSmsViaTwilio(string $from, string $to, string $body, string $sid, string $authToken): bool
+    {
+        $url = 'https://api.twilio.com/2010-04-01/Accounts/' . $sid . '/Messages.json';
+        try {
+            $response = Http::withBasicAuth($sid, $authToken)
+                ->asForm()
+                ->post($url, [
+                    'From' => $from,
+                    'To' => $to,
+                    'Body' => $body,
+                ]);
+            if ($response->successful()) {
+                return true;
+            }
+            Log::warning('Twilio SMS failed', ['response' => $response->body()]);
+            return false;
+        } catch (\Throwable $e) {
+            Log::warning('Twilio SMS exception', ['message' => $e->getMessage()]);
+            return false;
+        }
     }
 
     /**
@@ -75,40 +127,6 @@ class AuthService
             Cache::forget($key);
         }
         return $valid;
-    }
-
-    /**
-     * Send via OneSignal Email or SMS API.
-     */
-    private function sendViaOneSignal(string $channel, string $target, string $subject, string $body, string $appId, string $apiKey): bool
-    {
-        $headers = [
-            'Authorization' => 'Key ' . $apiKey,
-            'Content-Type' => 'application/json',
-        ];
-
-        if ($channel === 'email') {
-            $response = Http::withHeaders($headers)->post('https://api.onesignal.com/notifications?c=email', [
-                'app_id' => $appId,
-                'email_to' => [trim($target)],
-                'email_subject' => $subject,
-                'email_body' => '<p>' . htmlspecialchars($body) . '</p>',
-            ]);
-        } else {
-            $response = Http::withHeaders($headers)->post('https://api.onesignal.com/notifications?c=sms', [
-                'app_id' => $appId,
-                'name' => 'DateUsher OTP verification',
-                'contents' => ['en' => $body],
-                'include_phone_numbers' => [trim($target)],
-            ]);
-        }
-
-        /** @var \Illuminate\Http\Client\Response $response */
-        if ($response->successful() && ! empty($response->json('id'))) {
-            return true;
-        }
-        Log::warning('OneSignal send failed', ['channel' => $channel, 'response' => $response->body()]);
-        return false;
     }
 
     private function otpCacheKey(string $channel, string $target): string
@@ -153,9 +171,6 @@ class AuthService
             'terms_accepted' => filter_var($data['terms_accepted'] ?? false, FILTER_VALIDATE_BOOLEAN),
         ]);
 
-        $osAppId = config('services.onesignal.app_id');
-        $osKey = config('services.onesignal.rest_api_key');
-
         if ($user->role === 'provider') {
             // Create Provider Profile
             $user->providerProfile()->create([
@@ -163,14 +178,10 @@ class AuthService
                 'country' => $data['country'] ?? null,
                 'is_verified' => false,
             ]);
-            
-            // Send Provider Welcome Email via OneSignal
-            if ($osAppId && $osKey) {
-                $this->sendViaOneSignal('email', $user->email, 'Welcome to SpecDate (Provider)', 'Welcome to SpecDate! Your provider account has been created.', $osAppId, $osKey);
-            }
 
-            // Notify Admin (optional, keeping as Laravel Mail if internal, or switch to OneSignal)
-            $adminEmail = config('mail.from.address'); 
+            Mail::to($user->email)->send(new WelcomeProviderMail($user));
+
+            $adminEmail = config('mail.from.address');
             if ($adminEmail) {
                 Mail::to($adminEmail)->send(new NewProviderAdminNotificationMail($user));
             }
@@ -186,10 +197,7 @@ class AuthService
                 'continent' => $data['continent'] ?? null,
             ]);
 
-            // Send User Welcome Email via OneSignal
-            if ($osAppId && $osKey) {
-                $this->sendViaOneSignal('email', $user->email, 'Welcome to SpecDate', 'Hello ' . $user->name . ', welcome to SpecDate! Your account is ready.', $osAppId, $osKey);
-            }
+            Mail::to($user->email)->send(new WelcomeUserMail($user));
         }
 
         // 2. Initialize Sparks

@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class UserBalance extends Model
 {
-    protected $fillable = ['user_id', 'red_sparks', 'blue_sparks'];
+    protected $fillable = ['user_id', 'credits'];
 
     public function user()
     {

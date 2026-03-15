@@ -48,10 +48,4 @@ return [
         'from' => env('TWILIO_FROM'),
     ],
 
-    'onesignal' => [
-        'enabled' => env('ONESIGNAL_ENABLED', true),
-        'app_id' => env('ONESIGNAL_APP_ID'),
-        'rest_api_key' => env('ONESIGNAL_REST_API_KEY'),
-    ],
-
 ];

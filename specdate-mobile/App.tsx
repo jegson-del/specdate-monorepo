@@ -8,6 +8,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { theme } from './src/theme';
 import { api, bootstrapAuthToken, getAuthToken, setAuthToken } from './src/services/api';
+import { registerExpoPushToken } from './src/utils/registerExpoPushToken';
 import LandingScreen from './src/features/auth/LandingScreen';
 import RegisterScreen from './src/features/auth/RegisterScreen';
 import OtpVerificationScreen from './src/features/auth/OtpVerificationScreen';
@@ -24,25 +25,8 @@ import CreateSpecScreen from './src/features/specs/CreateSpecScreen';
 import SpecDetailsScreen from './src/features/specs/SpecDetailsScreen';
 import RoundDetailsScreen from './src/features/specs/RoundDetailsScreen';
 import NotificationsScreen from './src/features/notifications/NotificationsScreen';
+import CreditsTransactionScreen from './src/features/profile/CreditsTransactionScreen';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { LogLevel, OneSignal } from 'react-native-onesignal';
-import Constants from 'expo-constants';
-
-// Initialize OneSignal
-const ONESIGNAL_APP_ID = process.env.EXPO_PUBLIC_ONESIGNAL_APP_ID!;
-
-// Only initialize if we're not in Expo Go (or handle gracefully)
-// OneSignal native code might not work in standard Expo Go client 
-// so we wrap in try-catch or check constants
-try {
-  OneSignal.Debug.setLogLevel(LogLevel.Verbose);
-  OneSignal.initialize(ONESIGNAL_APP_ID);
-
-  // Request permission
-  OneSignal.Notifications.requestPermission(true);
-} catch (e) {
-  console.log('OneSignal init failed (likely running in Expo Go client without native code):', e);
-}
 
 const queryClient = new QueryClient();
 const Stack = createNativeStackNavigator();
@@ -93,6 +77,13 @@ export default function App() {
     };
   }, []);
 
+  // When user is logged in, register Expo push token so backend can send push via Expo
+  useEffect(() => {
+    if (booting || !splashAnimationDone) return;
+    if (!getAuthToken()) return;
+    registerExpoPushToken();
+  }, [booting, splashAnimationDone]);
+
   // Show splash until both auth check (booting) AND animation are done.
   if (booting || !splashAnimationDone) {
     return (
@@ -126,6 +117,7 @@ export default function App() {
               <Stack.Screen name="QRScanner" component={QRScannerScreen} />
 
               <Stack.Screen name="Notifications" component={NotificationsScreen} />
+              <Stack.Screen name="CreditsTransactions" component={CreditsTransactionScreen} />
               <Stack.Screen name="Messages" component={HomeScreen} />
               <Stack.Screen name="SpecDetails" component={SpecDetailsScreen} />
               <Stack.Screen name="RoundDetails" component={RoundDetailsScreen} />

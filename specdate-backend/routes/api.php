@@ -64,6 +64,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/notifications/{notification}/read', [\App\Http\Controllers\Api\NotificationController::class, 'markRead']);
     Route::post('/user/push-token', [\App\Http\Controllers\Api\NotificationController::class, 'updatePushToken']);
 
+    // Credits (single balance; RevenueCat sends product_id, we get quantity from credit_products)
+    Route::get('/credits/products', [\App\Http\Controllers\Api\CreditsController::class, 'products']);
+    Route::post('/credits/grant', [\App\Http\Controllers\Api\CreditsController::class, 'grant']);
+    Route::get('/credits/transactions', [\App\Http\Controllers\Api\CreditsController::class, 'transactions']);
+
     // Provider
     Route::prefix('provider')->group(function () {
         Route::get('/dashboard', [\App\Http\Controllers\ProviderController::class, 'getDashboard']);

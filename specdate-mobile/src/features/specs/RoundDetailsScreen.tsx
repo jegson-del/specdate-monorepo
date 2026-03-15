@@ -391,7 +391,7 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
     }
 
     // Resolve round: use refetch result, or last-known round to avoid "Round not found" flash during refetch / COMPLETED overwrite
-    // but we were showing ACTIVE/REVIEWING (so Close button and balloons don't disappear after a few seconds)
+    // but we were showing ACTIVE/REVIEWING (so Close button and round UI don't disappear after a few seconds)
 
 
     if (!roundToShow) {

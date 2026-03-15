@@ -14,6 +14,7 @@ class UserTransaction extends Model
         'amount',
         'currency',
         'purpose',
+        'revenue_cat_transaction_id',
         'metadata',
     ];
 

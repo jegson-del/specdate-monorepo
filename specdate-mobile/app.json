@@ -31,12 +31,15 @@
     "plugins": [
       "@react-native-community/datetimepicker",
       "expo-secure-store",
-      [
-        "onesignal-expo-plugin",
-        {
-          "mode": "development"
+      "expo-notifications"
+    ],
+    "extra": {
+      "eas": {
+        "build": {
+          "projectId": "284a31ec-2d3e-4dc9-8e33-8a61431318a7"
         }
-      ]
-    ]
+      }
+    },
+    "owner": "jegedetayo"
   }
 }

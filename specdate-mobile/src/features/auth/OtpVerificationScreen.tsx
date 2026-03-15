@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import axios from 'axios';
 import { AuthService } from '../../services/auth';
 import { getApiBaseUrl } from '../../services/api';
-import { OneSignal } from 'react-native-onesignal';
+import { registerExpoPushToken } from '../../utils/registerExpoPushToken';
 
 export default function OtpVerificationScreen({ navigation, route }: any) {
     const theme = useTheme();
@@ -39,14 +39,11 @@ export default function OtpVerificationScreen({ navigation, route }: any) {
             };
             const response = await AuthService.register(payload);
 
-            if (response.data.success || response.status === 201) {
-                if (response.data.user?.id) {
-                    OneSignal.login(String(response.data.user.id));
+            const payloadData = response.data?.data ?? response.data;
+            if (response.data?.success || response.status === 201) {
+                if (payloadData?.user?.id) {
+                    registerExpoPushToken();
                 }
-
-                // if (payload.mobile) {
-                //     OneSignal.User.addSms(payload.mobile);
-                // }
 
                 Alert.alert("Success", "Account created! Welcome to DateUsher.", [
                     { text: "Continue", onPress: () => navigation.navigate("Profile") }
@@ -68,7 +65,7 @@ export default function OtpVerificationScreen({ navigation, route }: any) {
                     firstFieldError ||
                     data?.message ||
                     (isNetworkError
-                        ? `Cannot reach backend at ${apiUrl}. On a physical device, set EXPO_PUBLIC_API_URL in .env to your PC IP (e.g. http://192.168.1.5:8000/api), same Wi‑Fi, then restart Expo.`
+                        ? `Cannot reach backend at ${apiUrl}. On a physical device, set EXPO_PUBLIC_API_URL in .env to your PC IP (e.g. http://192.168.1.5:8001/api), same Wi‑Fi, then restart Expo.`
                         : `Request failed (${status ?? 'no status'})`);
                 Alert.alert("Registration failed", message);
                 return;

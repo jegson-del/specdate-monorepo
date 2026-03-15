@@ -108,7 +108,7 @@ const SpecCard = memo(({ item, theme, homeColors, tagColor, withAlpha, onPress }
                             </View>
 
                             <View style={styles.metaRow}>
-                                <MaterialCommunityIcons name="balloon" size={20} color={theme.colors.primary} />
+                                <MaterialCommunityIcons name="account-off" size={20} color={theme.colors.primary} />
                                 <Text style={[styles.metaText, { color: homeColors.cardSubtext }]} numberOfLines={1}>
                                     {item.eliminatedCount} eliminated
                                 </Text>

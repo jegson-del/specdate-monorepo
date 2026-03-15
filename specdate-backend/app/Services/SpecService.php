@@ -199,10 +199,10 @@ class SpecService
             throw new HttpException(400, 'You have already applied to this spec.');
         }
 
-        // Check Sparks
+        // Check credits
         $balance = $user->balance;
-        if (!$balance || $balance->blue_sparks < 1) {
-            throw new HttpException(403, 'Insufficient Blue Sparks. Please purchase more.', null, ['code' => 'INSUFFICIENT_FUNDS']);
+        if (!$balance || $balance->credits < 1) {
+            throw new HttpException(403, 'Insufficient credits. Please purchase more.', null, ['code' => 'INSUFFICIENT_FUNDS']);
         }
 
         // Check Requirements (with age derived from dob)
@@ -287,16 +287,16 @@ class SpecService
         }
 
         DB::transaction(function () use ($spec, $user, $balance) {
-            // Debit Spark
-            $balance->decrement('blue_sparks');
+            // Debit 1 credit
+            $balance->decrement('credits');
 
-            // Log Transaction
+            // Log transaction
             $user->transactions()->create([
                 'type' => 'DEBIT',
-                'item_type' => 'blue_spark',
+                'item_type' => 'credit',
                 'quantity' => 1,
-                'amount' => 0, // No money spent now, just using inventory
-                'currency' => 'GBP',
+                'amount' => null,
+                'currency' => null,
                 'purpose' => "Joined Spec: {$spec->title}",
                 'metadata' => ['spec_id' => $spec->id],
             ]);
@@ -585,23 +585,22 @@ class SpecService
                 ->where('user_id', $userIdToEliminate)
                 ->update(['status' => 'ELIMINATED']);
             
-            // 3. Log Spark Loss (Red Spark) - "Spark Extinguished"
-            $victim = User::find($userIdToEliminate);
-            if ($victim) {
-                 $victim->balance()->decrement('red_sparks'); // Lose a life
-                 
-                 // Log Transaction
+            // 3. Deduct 1 credit from eliminated user
+            $victim = User::with('balance')->find($userIdToEliminate);
+            if ($victim && $victim->balance) {
+                 $victim->balance->decrement('credits');
+
                  $victim->transactions()->create([
                     'type' => 'DEBIT',
-                    'item_type' => 'red_spark',
+                    'item_type' => 'credit',
                     'quantity' => 1,
-                    'amount' => 0,
-                    'currency' => 'GBP',
+                    'amount' => null,
+                    'currency' => null,
                     'purpose' => "Eliminated from Spec: {$round->spec->title}",
                     'metadata' => ['spec_id' => $round->spec->id, 'round_id' => $round->id],
                 ]);
 
-                // Notify (title: Balloon popped)
+                // Notify user they were eliminated (and lost 1 credit)
                 $this->notificationService->notify(
                     $victim,
                     'eliminated',
@@ -609,8 +608,8 @@ class SpecService
                         'spec_id' => $round->spec->id,
                         'round_id' => $round->id,
                     ],
-                    'Balloon popped',
-                    "You have been eliminated from '{$round->spec->title}'."
+                    'You were eliminated',
+                    "You have been eliminated from '{$round->spec->title}' and lost 1 credit."
                 );
             }
         });
