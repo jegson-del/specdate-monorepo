@@ -50,7 +50,7 @@ export function Navbar({
               <li key={href}>
                 <a
                   href={href}
-                  className="text-sm font-medium text-white/90 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-pink-500 rounded px-2 py-1 drop-shadow-md"
+                  className="text-sm font-medium text-white hover:text-white/90 transition-colors focus:outline-none focus:ring-2 focus:ring-pink-500 rounded px-2 py-1 drop-shadow-md"
                 >
                   {label}
                 </a>

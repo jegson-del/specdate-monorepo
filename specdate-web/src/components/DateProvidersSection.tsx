@@ -127,7 +127,7 @@ export function DateProvidersSection() {
         <div className="mb-10 text-center md:mb-12">
           <h2
             id="date-providers-heading"
-            className="text-3xl font-light tracking-wide text-white sm:text-4xl"
+            className="text-white text-4xl font-extrabold tracking-tight sm:text-5xl drop-shadow-lg pb-2"
           >
             Our date providers
           </h2>
