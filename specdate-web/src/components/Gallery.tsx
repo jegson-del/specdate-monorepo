@@ -8,6 +8,8 @@ export interface GalleryItem {
   src: string
   alt: string
   id: string
+  /** Optional visible title under the heart */
+  title?: string
 }
 
 export interface GalleryProps {
@@ -17,9 +19,9 @@ export interface GalleryProps {
 }
 
 const DEFAULT_ITEMS: GalleryItem[] = [
-  { src: '/black_wedding.png', alt: 'Black wedding', id: 'heart-1' },
-  { src: '/blackman_journey.png', alt: 'Journey', id: 'heart-2' },
-  { src: '/phone%20chat.png', alt: 'Phone chat', id: 'heart-3' },
+  { src: '/black_wedding.png', alt: 'Black wedding', id: 'heart-1', title: 'Now forever' },
+  { src: '/blackman_journey.png', alt: 'Journey', id: 'heart-2', title: 'We went on memorable dates' },
+  { src: '/phone%20chat.png', alt: 'Phone chat', id: 'heart-3', title: 'Our first chats' },
 ]
 
 function HeartFrame({ item }: { item: GalleryItem }) {
@@ -57,7 +59,16 @@ function HeartFrame({ item }: { item: GalleryItem }) {
           className="transition group-hover:stroke-pink-500/60"
         />
       </svg>
-      <figcaption className="sr-only">{item.alt}</figcaption>
+      <figcaption className="mt-4 text-center">
+        {item.title != null && item.title !== '' ? (
+          <>
+            <span className="text-base font-medium text-white/90 sm:text-lg">{item.title}</span>
+            <span className="sr-only"> — {item.alt}</span>
+          </>
+        ) : (
+          <span className="sr-only">{item.alt}</span>
+        )}
+      </figcaption>
     </figure>
   )
 }
