@@ -1,13 +1,6 @@
-/**
- * Official badge image URLs. Replace app links with your actual store URLs.
- * Google: https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png
- * Apple: standard "Download on the App Store" badge
- */
-const PLAY_STORE_BADGE =
-  'https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png'
-/** Apple Media Services badge (official-style; replace with your localized badge if needed). */
-const APP_STORE_BADGE =
-  'https://tools.applemediaservices.com/api/badges/download-on-the-app-store/black/en-us?size=250x83'
+/** Local badge images in /public. */
+const PLAY_STORE_BADGE = '/google_play.png'
+const APP_STORE_BADGE = '/app_store.png'
 
 export interface AppDownloadProps {
   /** Play Store app URL (e.g. https://play.google.com/store/apps/details?id=...) */
