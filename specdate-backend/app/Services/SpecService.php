@@ -356,7 +356,7 @@ class SpecService
         $application->update(['status' => 'REJECTED']);
     }
 
-    public function eliminateApplication($user, $specId, $applicationId): void
+    public function eliminateApplication($user, $specId, $applicationId): array
     {
         $spec = Spec::findOrFail($specId);
 
@@ -369,7 +369,24 @@ class SpecService
             throw new HttpException(404, 'Application not found.');
         }
 
-        $application->update(['status' => 'ELIMINATED']);
+        if ($application->user_role !== 'participant') {
+            throw new HttpException(400, 'Only participants can be eliminated.');
+        }
+
+        if ($application->status === 'ELIMINATED') {
+            throw new HttpException(400, 'Participant has already been eliminated.');
+        }
+
+        if ($application->status !== 'ACCEPTED') {
+            throw new HttpException(400, 'Only accepted participants can be eliminated.');
+        }
+
+        DB::transaction(function () use ($spec, $application) {
+            $application->update(['status' => 'ELIMINATED']);
+            $this->chargeEliminationCredit($application->user, $spec, null);
+        });
+
+        return $this->lastManStandingPayload($spec) ?? ['message' => 'Participant eliminated.'];
     }
 
     public function toggleLike($user, $specId): array
@@ -403,8 +420,8 @@ class SpecService
             throw new HttpException(403, 'Unauthorized.');
         }
 
-        // Count active participants (ACCEPTED status)
-        $activeCount = $spec->applications()->where('status', 'ACCEPTED')->count();
+        // Count active participants only; the owner also has an ACCEPTED application.
+        $activeCount = $this->activeParticipantCount($spec);
         if ($activeCount < 1) {
              throw new HttpException(400, 'Not enough participants to start a round.');
         }
@@ -431,8 +448,8 @@ class SpecService
         // Broadcast Real-time Event
         \App\Events\RoundStarted::dispatch($round);
 
-        // Notify all ACCEPTED participants
-        $participants = $spec->applications()->where('status', 'ACCEPTED')->with('user')->get();
+        // Notify accepted participants only, not the spec owner application.
+        $participants = $this->activeParticipantApplications($spec)->with('user')->get();
         foreach ($participants as $app) {
             $this->notificationService->notify(
                 $app->user,
@@ -487,6 +504,7 @@ class SpecService
         // Verify user is a participant
         $application = $round->spec->applications()
             ->where('user_id', $user->id)
+            ->where('user_role', 'participant')
             ->where('status', 'ACCEPTED')
             ->first();
 
@@ -527,7 +545,7 @@ class SpecService
         \App\Events\RoundAnswered::dispatch($answerModel);
 
         // Check for Auto-Close Trigger (All participants have answered)
-        $participantCount = $round->spec->applications()->where('status', 'ACCEPTED')->count();
+        $participantCount = $this->activeParticipantCount($round->spec);
         $answerCount = $round->answers()->count();
 
         if ($answerCount >= $participantCount) {
@@ -576,61 +594,31 @@ class SpecService
              throw new HttpException(400, 'Round must be Active or In Review to eliminate participants.');
         }
 
-        DB::transaction(function () use ($round, $userIdToEliminate) {
+        $application = $round->spec->applications()
+            ->where('user_id', $userIdToEliminate)
+            ->where('user_role', 'participant')
+            ->where('status', 'ACCEPTED')
+            ->first();
+
+        if (!$application) {
+            throw new HttpException(404, 'Active participant not found.');
+        }
+
+        DB::transaction(function () use ($round, $userIdToEliminate, $application) {
             // 1. Mark answer as eliminated (if exists)
             $round->answers()->where('user_id', $userIdToEliminate)->update(['is_eliminated' => true]);
 
             // 2. Update Application Status to ELIMINATED
-            $round->spec->applications()
-                ->where('user_id', $userIdToEliminate)
-                ->update(['status' => 'ELIMINATED']);
-            
+            $application->update(['status' => 'ELIMINATED']);
+
             // 3. Deduct 1 credit from eliminated user
-            $victim = User::with('balance')->find($userIdToEliminate);
-            if ($victim && $victim->balance) {
-                 $victim->balance->decrement('credits');
-
-                 $victim->transactions()->create([
-                    'type' => 'DEBIT',
-                    'item_type' => 'credit',
-                    'quantity' => 1,
-                    'amount' => null,
-                    'currency' => null,
-                    'purpose' => "Eliminated from Spec: {$round->spec->title}",
-                    'metadata' => ['spec_id' => $round->spec->id, 'round_id' => $round->id],
-                ]);
-
-                // Notify user they were eliminated (and lost 1 credit)
-                $this->notificationService->notify(
-                    $victim,
-                    'eliminated',
-                    [
-                        'spec_id' => $round->spec->id,
-                        'round_id' => $round->id,
-                    ],
-                    'You were eliminated',
-                    "You have been eliminated from '{$round->spec->title}' and lost 1 credit."
-                );
-            }
+            $this->chargeEliminationCredit($application->user, $round->spec, $round);
         });
 
         // After elimination: if exactly one active participant remains, return last-man-standing info
-        $activeCount = $round->spec->applications()->where('status', 'ACCEPTED')->count();
-        if ($activeCount === 1) {
-            $winnerApp = $round->spec->applications()->where('status', 'ACCEPTED')->with('user.profile')->first();
-            $winner = $winnerApp ? $winnerApp->user : null;
-            if ($winner) {
-                $winnerName = $winner->profile ? ($winner->profile->full_name ?? $winner->name ?? 'Winner') : ($winner->name ?? 'Winner');
-                return [
-                    'message' => 'User eliminated.',
-                    'last_man_standing' => true,
-                    'spec_id' => $round->spec->id,
-                    'winner' => [
-                        'user_id' => $winner->id,
-                        'name' => $winnerName,
-                    ],
-                ];
-            }
+        $lastManStanding = $this->lastManStandingPayload($round->spec);
+        if ($lastManStanding) {
+            return $lastManStanding;
         }
 
         return ['message' => 'User eliminated.'];
@@ -646,12 +634,15 @@ class SpecService
         // But for "Modern Flow", we use eliminateUser singular.
         
         // Let's repurpose this to Loop eliminateUser for simplicity if bulk is ever needed again
+        $lastResult = null;
         foreach($userIdsToEliminate as $uid) {
-            $this->eliminateUser($user, $roundId, $uid);
+            $lastResult = $this->eliminateUser($user, $roundId, $uid);
         }
         
         // Return simple message, do not auto-complete round
-        return ['message' => 'Users eliminated.'];
+        return ($lastResult && !empty($lastResult['last_man_standing']))
+            ? $lastResult
+            : ['message' => 'Users eliminated.'];
     }
 
     /**
@@ -665,8 +656,8 @@ class SpecService
             throw new HttpException(403, 'You are not the owner of this spec.');
         }
 
-        $winnerApp = $spec->applications()->where('status', 'ACCEPTED')->with('user')->first();
-        if (!$winnerApp || $spec->applications()->where('status', 'ACCEPTED')->count() !== 1) {
+        $winnerApp = $this->activeParticipantApplications($spec)->with('user')->first();
+        if (!$winnerApp || $this->activeParticipantCount($spec) !== 1) {
             throw new HttpException(400, 'There must be exactly one active participant (last man standing) to create a date.');
         }
 
@@ -705,8 +696,8 @@ class SpecService
             throw new HttpException(403, 'You are not the owner of this spec.');
         }
 
-        $winnerApp = $spec->applications()->where('status', 'ACCEPTED')->with('user')->first();
-        if (!$winnerApp || $spec->applications()->where('status', 'ACCEPTED')->count() !== 1) {
+        $winnerApp = $this->activeParticipantApplications($spec)->with('user')->first();
+        if (!$winnerApp || $this->activeParticipantCount($spec) !== 1) {
             throw new HttpException(400, 'There must be exactly one active participant to extend search.');
         }
 
@@ -742,6 +733,92 @@ class SpecService
         ];
     }
 
+    private function activeParticipantApplications(Spec $spec)
+    {
+        return $spec->applications()
+            ->where('user_role', 'participant')
+            ->where('status', 'ACCEPTED');
+    }
+
+    private function activeParticipantCount(Spec $spec): int
+    {
+        return $this->activeParticipantApplications($spec)->count();
+    }
+
+    private function lastManStandingPayload(Spec $spec): ?array
+    {
+        if ($this->activeParticipantCount($spec) !== 1) {
+            return null;
+        }
+
+        $winnerApp = $this->activeParticipantApplications($spec)->with('user.profile')->first();
+        $winner = $winnerApp ? $winnerApp->user : null;
+        if (!$winner) {
+            return null;
+        }
+
+        $winnerName = $winner->profile
+            ? ($winner->profile->full_name ?? $winner->name ?? 'Winner')
+            : ($winner->name ?? 'Winner');
+
+        return [
+            'message' => 'Participant eliminated.',
+            'last_man_standing' => true,
+            'spec_id' => $spec->id,
+            'winner' => [
+                'user_id' => $winner->id,
+                'name' => $winnerName,
+            ],
+        ];
+    }
+
+    private function chargeEliminationCredit(?User $victim, Spec $spec, ?SpecRound $round): void
+    {
+        if (!$victim) {
+            return;
+        }
+
+        $victim->loadMissing('balance');
+
+        if ($victim->balance) {
+            $victim->balance->decrement('credits');
+
+            $metadata = ['spec_id' => $spec->id];
+            if ($round) {
+                $metadata['round_id'] = $round->id;
+            }
+
+            $victim->transactions()->create([
+                'type' => 'DEBIT',
+                'item_type' => 'credit',
+                'quantity' => 1,
+                'amount' => null,
+                'currency' => null,
+                'purpose' => "Eliminated from Spec: {$spec->title}",
+                'metadata' => $metadata,
+            ]);
+        }
+
+        $payload = ['spec_id' => $spec->id];
+        if ($round) {
+            $payload['round_id'] = $round->id;
+        }
+
+        $message = "You have been eliminated from '{$spec->title}'";
+        if ($victim->balance) {
+            $message .= ' and lost 1 credit';
+        }
+        $message .= '.';
+
+        $this->notificationService->notify(
+            $victim,
+            'eliminated',
+            $payload,
+            'You were eliminated',
+            $message
+        );
+    }
+
     private function generateDateCode(): string
     {
         $chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous 0/O, 1/I
@@ -774,7 +851,11 @@ class SpecService
             $targetUser = User::find($userId);
             if ($targetUser) {
                 // Verify they are accepted and haven't answered
-                $application = $round->spec->applications()->where('user_id', $userId)->where('status', 'ACCEPTED')->first();
+                $application = $round->spec->applications()
+                    ->where('user_id', $userId)
+                    ->where('user_role', 'participant')
+                    ->where('status', 'ACCEPTED')
+                    ->first();
                 $hasAnswered = $round->answers()->where('user_id', $userId)->exists();
 
                 if ($application && !$hasAnswered) {

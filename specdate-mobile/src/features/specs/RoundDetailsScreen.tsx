@@ -285,9 +285,17 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
     const eliminateUsersMutation = useMutation({
         mutationFn: ({ rId, userIds }: { rId: number, userIds: number[] }) =>
             SpecService.eliminateUsers(rId, userIds),
-        onSuccess: () => {
+        onSuccess: async (apiResponse: any) => {
             // After elimination, we might want to refetch
             queryClient.invalidateQueries({ queryKey: ['spec', String(specId)] });
+            queryClient.invalidateQueries({ queryKey: ['spec', String(specId), 'round_details'] });
+            await refetchSpec();
+            const payload = apiResponse?.data;
+            if (payload?.last_man_standing && payload.winner && payload.spec_id != null) {
+                setLastManStandingWinnerName(payload.winner.name || 'Winner');
+                setLastManStandingSpecId(String(payload.spec_id));
+                setLastManStandingVisible(true);
+            }
         },
         onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to eliminate users.'),
     });
@@ -320,7 +328,7 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
         if (!spec?.applications) return [];
         const ownerId = spec.user_id != null ? String(spec.user_id) : null;
         return spec.applications.filter(
-            (a: any) => a.status === 'ACCEPTED' && (!ownerId || String(a.user_id) !== ownerId)
+            (a: any) => a.user_role === 'participant' && a.status === 'ACCEPTED' && (!ownerId || String(a.user_id) !== ownerId)
         );
     }, [spec]);
 
@@ -345,7 +353,11 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
         const ids = unresponsiveParticipants.map((p: any) => p.user_id);
         if (ids.length > 0) {
             try {
-                await eliminateUsersMutation.mutateAsync({ rId: roundToShow.id, userIds: ids });
+                const apiResponse: any = await eliminateUsersMutation.mutateAsync({ rId: roundToShow.id, userIds: ids });
+                if (apiResponse?.data?.last_man_standing) {
+                    setCloseRoundModalVisible(false);
+                    return;
+                }
             } catch (e) {
                 return; // Stop if elimination fails
             }

@@ -198,8 +198,8 @@ class SpecController extends Controller
     public function eliminateApplication(Request $request, $id, $applicationId)
     {
         try {
-            $this->specService->eliminateApplication($request->user(), $id, $applicationId);
-            return $this->sendResponse([], 'Participant eliminated.');
+            $result = $this->specService->eliminateApplication($request->user(), $id, $applicationId);
+            return $this->sendResponse($result, $result['message'] ?? 'Participant eliminated.');
         } catch (HttpException $e) {
             return $this->sendError($e->getMessage(), [], $e->getStatusCode());
         }

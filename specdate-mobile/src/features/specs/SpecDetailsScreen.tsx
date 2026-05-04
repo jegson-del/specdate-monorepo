@@ -11,6 +11,7 @@ import { SpecService } from '../../services/specs';
 import { useUser } from '../../hooks/useUser';
 import { toImageUri } from '../../utils/imageUrl';
 import { EditSpecModal } from './components/EditSpecModal';
+import { LastManStandingModal } from './components';
 
 function formatExpires(expiresAt?: string) {
     if (!expiresAt) return '—';
@@ -90,6 +91,9 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
     const queryClient = useQueryClient();
     const { data: user } = useUser();
     const [isEditModalVisible, setIsEditModalVisible] = React.useState(false);
+    const [lastManStandingVisible, setLastManStandingVisible] = React.useState(false);
+    const [lastManStandingWinnerName, setLastManStandingWinnerName] = React.useState('');
+    const [lastManStandingSpecId, setLastManStandingSpecId] = React.useState<string | null>(null);
 
     const { data: spec, isLoading, isFetching, error, refetch: refetchSpec } = useQuery({
         queryKey: ['spec', specId],
@@ -160,11 +164,47 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
             if (!specId) throw new Error('Spec ID is required');
             return SpecService.eliminateApplication(specId, appId);
         },
-        onSuccess: () => {
+        onSuccess: async (apiResponse: any) => {
             queryClient.invalidateQueries({ queryKey: ['spec', specId] });
-            Alert.alert('Success', 'Participant eliminated.');
+            await refetchSpec();
+            const payload = apiResponse?.data;
+            if (payload?.last_man_standing && payload.winner && payload.spec_id != null) {
+                setLastManStandingWinnerName(payload.winner.name || 'Winner');
+                setLastManStandingSpecId(String(payload.spec_id));
+                setLastManStandingVisible(true);
+            } else {
+                Alert.alert('Success', 'Participant eliminated.');
+            }
         },
         onError: () => Alert.alert('Error', 'Failed to eliminate participant.'),
+    });
+
+    const createDateMutation = useMutation({
+        mutationFn: (specIdToUse: string) => SpecService.createDate(specIdToUse),
+        onSuccess: async (res: any) => {
+            const data = res?.data ?? res;
+            queryClient.invalidateQueries({ queryKey: ['spec', specId] });
+            await refetchSpec();
+            setLastManStandingVisible(false);
+            setLastManStandingSpecId(null);
+            setLastManStandingWinnerName('');
+            Alert.alert('Date created!', data?.date_code ? `Your date code: ${data.date_code}` : 'You are now matched. Go plan your date!');
+        },
+        onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to create date.'),
+    });
+
+    const extendSearchMutation = useMutation({
+        mutationFn: ({ specIdToUse, comment }: { specIdToUse: string; comment: string }) =>
+            SpecService.extendSearch(specIdToUse, comment),
+        onSuccess: async () => {
+            queryClient.invalidateQueries({ queryKey: ['spec', specId] });
+            await refetchSpec();
+            setLastManStandingVisible(false);
+            setLastManStandingSpecId(null);
+            setLastManStandingWinnerName('');
+            Alert.alert('Search extended', 'Edit your spec and set the status to open to get more applicants.');
+        },
+        onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to extend search.'),
     });
 
     const joinMutation = useMutation({
@@ -910,6 +950,17 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                 visible={isEditModalVisible}
                 onClose={() => setIsEditModalVisible(false)}
                 spec={spec}
+            />
+
+            <LastManStandingModal
+                visible={lastManStandingVisible}
+                onDismiss={() => { setLastManStandingVisible(false); setLastManStandingSpecId(null); setLastManStandingWinnerName(''); }}
+                winnerName={lastManStandingWinnerName}
+                specId={lastManStandingSpecId ?? ''}
+                onMatchAndDate={() => lastManStandingSpecId && createDateMutation.mutate(lastManStandingSpecId)}
+                onExtendSearch={(comment) => lastManStandingSpecId && extendSearchMutation.mutate({ specIdToUse: lastManStandingSpecId, comment })}
+                matchLoading={createDateMutation.isPending}
+                extendLoading={extendSearchMutation.isPending}
             />
         </View>
     );
