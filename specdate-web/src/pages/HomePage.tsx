@@ -1,13 +1,23 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AppDownload, DateProvidersSection, Footer, Gallery, Hero } from '../components'
+import {
+  AppDownload,
+  DateProvidersSection,
+  Footer,
+  Gallery,
+  Hero,
+  HowItWorksSection,
+  SuccessStoriesSection,
+} from '../components'
 
 const NAV_LINKS = [
   { label: 'How it works', href: '#how-it-works' },
-  { label: 'Features', href: '#features' },
+  { label: 'Success stories', href: '#success-stories' },
   { label: 'Register as provider', href: '/register/provider' },
   { label: 'Sign in', href: '/login' },
 ] as const
+
+const LOGO_SRC = '/dateusher_logo_white_text.png'
 
 export default function HomePage() {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -20,7 +30,22 @@ export default function HomePage() {
     <div className="min-h-screen bg-gray-900 bg-[url('/bg.png')] bg-cover bg-center bg-no-repeat bg-fixed text-white">
       {/* Nav bar - sits above hero, not overlapping the image */}
       <div className="relative z-30 w-full bg-gradient-to-b from-black/50 to-transparent px-4 pt-6 pb-4 sm:px-6 sm:pt-6 sm:pb-4">
-        <div className="flex items-center justify-end">
+        <div className="flex items-center justify-between gap-4">
+          <Link
+            to="/"
+            className="flex shrink-0 items-center rounded-xl transition focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+            aria-label="Dateusher home"
+          >
+            <img
+              src={LOGO_SRC}
+              alt="Dateusher"
+              className="h-12 w-auto object-contain sm:h-14 lg:h-16"
+              width={134}
+              height={100}
+              fetchPriority="high"
+            />
+          </Link>
+
           <button
             type="button"
             aria-expanded={menuOpen}
@@ -125,6 +150,8 @@ export default function HomePage() {
         <AppDownload title="Download the app" className="mt-6 lg:mt-8" />
       </Hero>
       <Gallery />
+      <HowItWorksSection />
+      <SuccessStoriesSection />
       <DateProvidersSection />
       <Footer />
     </div>

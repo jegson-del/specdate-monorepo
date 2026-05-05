@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react'
 
-const LOGO_SRC = '/date_usher_landing_logo.png'
+const LOGO_SRC = '/dateusher_logo.png'
 
 export interface NavbarLink {
   label: string
@@ -37,9 +37,9 @@ export function Navbar({
           <img
             src={LOGO_SRC}
             alt={logoAlt}
-            className="h-8 w-auto sm:h-9 md:h-10 object-contain"
-            width={160}
-            height={40}
+            className="h-11 w-auto object-contain sm:h-12 md:h-14"
+            width={134}
+            height={100}
             fetchPriority="high"
           />
         </a>

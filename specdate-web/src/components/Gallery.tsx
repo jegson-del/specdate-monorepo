@@ -10,6 +10,10 @@ export interface GalleryItem {
   id: string
   /** Optional visible title under the heart */
   title?: string
+  imageBox?: {
+    y: number
+    height: number
+  }
 }
 
 export interface GalleryProps {
@@ -19,12 +23,20 @@ export interface GalleryProps {
 }
 
 const DEFAULT_ITEMS: GalleryItem[] = [
-  { src: '/black_wedding.png', alt: 'Black wedding', id: 'heart-1', title: 'Now forever' },
+  {
+    src: '/black_wedding.png',
+    alt: 'Black wedding',
+    id: 'heart-1',
+    title: 'Now forever',
+    imageBox: { y: -39, height: 150 },
+  },
   { src: '/blackman_journey.png', alt: 'Journey', id: 'heart-2', title: 'We went on memorable dates' },
   { src: '/phone%20chat.png', alt: 'Phone chat', id: 'heart-3', title: 'Our first chats' },
 ]
 
 function HeartFrame({ item }: { item: GalleryItem }) {
+  const imageBox = item.imageBox ?? { y: 0, height: 100 }
+
   return (
     <figure className="group relative w-full">
       <svg
@@ -45,9 +57,9 @@ function HeartFrame({ item }: { item: GalleryItem }) {
           <image
             href={item.src}
             x="0"
-            y="0"
+            y={imageBox.y}
             width="100"
-            height="100"
+            height={imageBox.height}
             preserveAspectRatio="xMidYMid slice"
           />
         </g>

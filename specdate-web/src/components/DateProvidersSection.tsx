@@ -181,12 +181,20 @@ export function DateProvidersSection() {
           <p className="max-w-lg text-sm text-white/70 sm:text-base">
             Become a provider let our daters discover and patronize your services.
           </p>
-          <Link
-            to="/register/provider"
-            className="inline-flex items-center justify-center rounded-full bg-pink-600 px-8 py-3.5 text-base font-semibold text-white shadow-lg transition hover:bg-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 focus:ring-offset-gray-900"
-          >
-            Become a provider
-          </Link>
+          <div className="flex flex-col items-center gap-3 sm:flex-row">
+            <Link
+              to="/providers"
+              className="inline-flex items-center justify-center rounded-full bg-white px-8 py-3.5 text-base font-semibold text-pink-700 shadow-lg transition hover:bg-pink-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+            >
+              Browse providers
+            </Link>
+            <Link
+              to="/register/provider"
+              className="inline-flex items-center justify-center rounded-full bg-pink-600 px-8 py-3.5 text-base font-semibold text-white shadow-lg transition hover:bg-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+            >
+              Become a provider
+            </Link>
+          </div>
         </div>
       </div>
     </section>
