@@ -6,12 +6,13 @@ import { toImageUri } from '../../../utils/imageUrl';
 
 type RequestCardProps = {
     item: any;
+    onPress?: (item: any) => void;
     onAccept: (specId: string, applicationId: string) => void;
     onReject: (specId: string, applicationId: string) => void;
     isProcessing: boolean;
 };
 
-export default function RequestCard({ item, onAccept, onReject, isProcessing }: RequestCardProps) {
+export default function RequestCard({ item, onPress, onAccept, onReject, isProcessing }: RequestCardProps) {
     const theme = useTheme();
     const applicant = item.user;
     const spec = item.spec;
@@ -21,7 +22,12 @@ export default function RequestCard({ item, onAccept, onReject, isProcessing }: 
 
     return (
         <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant }]}>
-            <View style={styles.header}>
+            <TouchableOpacity
+                style={styles.header}
+                onPress={() => onPress?.(item)}
+                activeOpacity={0.75}
+                disabled={!onPress}
+            >
                 <View style={styles.userInfo}>
                     <Avatar.Image
                         size={48}
@@ -39,9 +45,12 @@ export default function RequestCard({ item, onAccept, onReject, isProcessing }: 
                                 Applying to "{spec.title}"
                             </Text>
                         </View>
+                        <Text style={[styles.viewProfileText, { color: theme.colors.primary }]}>
+                            Tap to view profile
+                        </Text>
                     </View>
                 </View>
-            </View>
+            </TouchableOpacity>
 
             <View style={styles.actions}>
                 <Button
@@ -94,6 +103,11 @@ const styles = StyleSheet.create({
         fontSize: 14,
         marginLeft: 4,
         flex: 1,
+    },
+    viewProfileText: {
+        marginTop: 6,
+        fontSize: 12,
+        fontWeight: '700',
     },
     actions: {
         flexDirection: 'row',

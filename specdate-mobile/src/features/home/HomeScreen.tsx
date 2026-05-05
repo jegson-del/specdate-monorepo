@@ -47,7 +47,7 @@ function withAlpha(color: string, alpha: number) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-export default function HomeScreen({ navigation }: any) {
+export default function HomeScreen({ navigation, route }: any) {
   const theme = useTheme();
   const queryClient = useQueryClient();
   const { data: user } = useUser();
@@ -59,7 +59,9 @@ export default function HomeScreen({ navigation }: any) {
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const bottomNavHeight = 64;
-  const [bottomTab, setBottomTab] = useState<'Home' | 'Dates' | 'Specs' | 'Requests'>('Home');
+  const [bottomTab, setBottomTab] = useState<'Home' | 'Dates' | 'Specs' | 'Requests'>(
+    route?.params?.initialTab === 'Requests' ? 'Requests' : 'Home'
+  );
   const [sexFilter, setSexFilter] = useState<string>('All');
   const [cityFilter, setCityFilter] = useState<string>('');
   const [cityQuery, setCityQuery] = useState<string>(''); // debounced value sent to API
@@ -207,6 +209,13 @@ export default function HomeScreen({ navigation }: any) {
       channel.stopListening('.NotificationCreated');
     };
   }, [user?.id, queryClient, player]);
+
+  React.useEffect(() => {
+    if (route?.params?.initialTab === 'Requests') {
+      setBottomTab('Requests');
+      queryClient.invalidateQueries({ queryKey: ['pending-requests'] });
+    }
+  }, [queryClient, route?.params?.initialTab]);
 
   const specsErrorText = useMemo(() => {
     if (!isError) return '';
@@ -712,6 +721,7 @@ export default function HomeScreen({ navigation }: any) {
                 <RequestCard
                   item={item}
                   isProcessing={approveMutation.isPending || rejectMutation.isPending}
+                  onPress={(request) => navigation.navigate('ProfileViewer', { userId: Number(request.user_id ?? request.user?.id) })}
                   onAccept={(sid, appId) => approveMutation.mutate({ specId: sid, applicationId: appId })}
                   onReject={(sid, appId) => rejectMutation.mutate({ specId: sid, applicationId: appId })}
                 />

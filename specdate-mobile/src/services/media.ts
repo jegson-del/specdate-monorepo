@@ -6,11 +6,23 @@ export interface MediaItem {
     user_id: number;
     file_path: string;
     url: string;
-    type: 'avatar' | 'profile_gallery' | 'chat' | 'proof' | 'round_answer_image' | 'round_answer_video';
+    type: MediaUploadType;
     mime_type: string;
     size: number;
     created_at: string;
 }
+
+export type MediaUploadType =
+    | 'avatar'
+    | 'profile_gallery'
+    | 'chat'
+    | 'proof'
+    | 'round_answer_image'
+    | 'round_answer_video'
+    | 'round_question_image'
+    | 'round_question_video'
+    | 'round_answer_audio'
+    | 'round_question_audio';
 
 const VIDEO_EXT_MIME: Record<string, string> = {
     mp4: 'video/mp4',
@@ -19,11 +31,22 @@ const VIDEO_EXT_MIME: Record<string, string> = {
     webm: 'video/webm',
 };
 
+const AUDIO_EXT_MIME: Record<string, string> = {
+    m4a: 'audio/mp4',
+    mp4: 'audio/mp4',
+    mp3: 'audio/mpeg',
+    wav: 'audio/wav',
+    webm: 'audio/webm',
+    aac: 'audio/aac',
+    '3gp': 'audio/3gpp',
+};
+
 function getMimeTypeFromUri(uri: string, hint?: string): string {
-    if (hint && (hint.startsWith('image/') || hint.startsWith('video/'))) return hint;
+    if (hint && (hint.startsWith('image/') || hint.startsWith('video/') || hint.startsWith('audio/'))) return hint;
     const filename = uri.split('/').pop() || '';
     const match = /\.(\w+)$/.exec(filename);
     const ext = match ? match[1].toLowerCase() : 'jpg';
+    if (AUDIO_EXT_MIME[ext]) return AUDIO_EXT_MIME[ext];
     if (VIDEO_EXT_MIME[ext]) return VIDEO_EXT_MIME[ext];
     if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
     return ext === 'png' || ext === 'gif' || ext === 'webp' ? `image/${ext}` : 'image/jpeg';
@@ -33,29 +56,30 @@ function getMimeTypeFromUri(uri: string, hint?: string): string {
  * Upload a file to the backend, or update an existing media row when mediaId is provided (profile_gallery only).
  *
  * @param uri Local file URI (image picker / camera) or blob URL on web
- * @param type 'avatar' | 'profile_gallery' | 'chat' | 'proof' | 'round_answer_image' | 'round_answer_video'
+ * @param type Upload category accepted by the backend.
  * @param mediaId When provided with type profile_gallery, backend updates this row's file/url instead of creating.
  * @param mimeType Optional MIME (e.g. from ImagePicker asset) so video/image is sent correctly.
  */
 export async function uploadMedia(
     uri: string,
-    type: 'avatar' | 'profile_gallery' | 'chat' | 'proof' | 'round_answer_image' | 'round_answer_video',
+    type: MediaUploadType,
     mediaId?: number | null,
     mimeType?: string | null
 ): Promise<MediaItem> {
     const formData = new FormData();
     const resolvedMime = mimeType || getMimeTypeFromUri(uri);
     const isVideo = resolvedMime.startsWith('video/');
+    const isAudio = resolvedMime.startsWith('audio/');
 
     const isWebBlob = Platform.OS === 'web' && uri.startsWith('blob:');
     if (isWebBlob) {
         const res = await fetch(uri);
         const blob = await res.blob();
-        const ext = (blob.type || resolvedMime).split('/')[1] || (isVideo ? 'mp4' : 'jpeg');
+        const ext = (blob.type || resolvedMime).split('/')[1] || (isVideo ? 'mp4' : isAudio ? 'm4a' : 'jpeg');
         const name = `upload-${Date.now()}.${ext}`;
         formData.append('file', blob as unknown as Blob, name);
     } else {
-        const filename = uri.split('/').pop() || `upload-${Date.now()}.${isVideo ? 'mp4' : 'jpg'}`;
+        const filename = uri.split('/').pop() || `upload-${Date.now()}.${isVideo ? 'mp4' : isAudio ? 'm4a' : 'jpg'}`;
         (formData as any).append('file', {
             uri,
             name: filename,

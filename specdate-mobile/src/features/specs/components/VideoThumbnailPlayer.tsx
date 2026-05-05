@@ -65,7 +65,7 @@ export function VideoThumbnailPlayer({
         onLoad={() => setLoaded(true)}
       />
       {!loaded && (
-        <View style={[styles.loading, { backgroundColor: theme.colors.surfaceContainerHighest }]}>
+        <View style={[styles.loading, { backgroundColor: (theme.colors as any).surfaceContainerHighest ?? theme.colors.surface }]}>
           <ActivityIndicator size="small" color={theme.colors.primary} />
         </View>
       )}

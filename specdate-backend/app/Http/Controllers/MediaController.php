@@ -24,7 +24,9 @@ class MediaController extends Controller
      * Upload a file, or update an existing media row when media_id is sent (profile_gallery only).
      *
      * Body: file, type, and optionally media_id (int) to replace that slot's image and url.
-     * For round answers: round_answer_image (images, max 10MB), round_answer_video (video, max 50MB).
+     * For round media: round_answer_image/round_question_image (images, max 10MB),
+     * round_answer_video/round_question_video (video, max 50MB),
+     * round_answer_audio/round_question_audio (audio, max 10MB).
      */
     public function upload(Request $request): JsonResponse
     {
@@ -32,7 +34,7 @@ class MediaController extends Controller
 
         // If no file or invalid upload (e.g. exceeded PHP post_max_size), return clear error
         if (! $request->hasFile('file')) {
-            $maxMb = $type === 'round_answer_video' ? 50 : 10;
+            $maxMb = in_array($type, ['round_answer_video', 'round_question_video'], true) ? 50 : 10;
             Log::warning('Media upload: no file in request', ['type' => $type]);
             return $this->sendError(
                 'No file received. The file may be too large (max '.$maxMb.'MB for '.$type.') or the request was invalid.',
@@ -55,20 +57,23 @@ class MediaController extends Controller
         }
 
         $fileRules = ['required', 'file'];
-        if ($type === 'round_answer_video') {
+        if (in_array($type, ['round_answer_video', 'round_question_video'], true)) {
             $fileRules[] = 'max:51200'; // 50MB in KB
             // Extension-based so device-recorded videos (varying MIME) are accepted
             $fileRules[] = 'mimes:mp4,mov,m4v,3gp';
-        } elseif ($type === 'round_answer_image') {
+        } elseif (in_array($type, ['round_answer_image', 'round_question_image'], true)) {
             $fileRules[] = 'max:10240'; // 10MB
             $fileRules[] = 'mimetypes:image/jpeg,image/png,image/gif,image/webp';
+        } elseif (in_array($type, ['round_answer_audio', 'round_question_audio'], true)) {
+            $fileRules[] = 'max:10240'; // 10MB
+            $fileRules[] = 'mimes:m4a,mp4,mp3,wav,webm,aac,3gp';
         } else {
             $fileRules[] = 'max:10240';
         }
 
         $validator = Validator::make($request->all(), [
             'file' => $fileRules,
-            'type' => 'required|string|in:avatar,profile_gallery,provider_gallery,chat,proof,round_answer_image,round_answer_video',
+            'type' => 'required|string|in:avatar,profile_gallery,provider_gallery,chat,proof,round_answer_image,round_answer_video,round_question_image,round_question_video,round_answer_audio,round_question_audio',
             'media_id' => 'nullable|integer|exists:media,id',
         ]);
 

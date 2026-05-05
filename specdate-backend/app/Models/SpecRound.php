@@ -10,6 +10,7 @@ class SpecRound extends Model
         'spec_id',
         'round_number',
         'question_text',
+        'media_id',
         'status',
         'elimination_count',
     ];
@@ -22,5 +23,10 @@ class SpecRound extends Model
     public function answers()
     {
         return $this->hasMany(SpecRoundAnswer::class);
+    }
+
+    public function media()
+    {
+        return $this->belongsTo(Media::class);
     }
 }

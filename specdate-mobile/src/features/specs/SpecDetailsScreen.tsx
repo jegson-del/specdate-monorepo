@@ -6,12 +6,16 @@ import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SpecService } from '../../services/specs';
+import { MediaService } from '../../services/media';
 import { useUser } from '../../hooks/useUser';
 import { toImageUri } from '../../utils/imageUrl';
+import { VideoViewerModal } from '../../components';
 import { EditSpecModal } from './components/EditSpecModal';
-import { LastManStandingModal } from './components';
+import { AudioMessagePlayer, LastManStandingModal, useRoundAudioRecorder, VideoThumbnailPlayer } from './components';
+import type { RoundMediaAsset } from './components';
 
 function formatExpires(expiresAt?: string) {
     if (!expiresAt) return '—';
@@ -209,7 +213,20 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
 
     const joinMutation = useMutation({
         mutationFn: () => SpecService.joinSpec(String((spec as any)?.id ?? specId)),
-        onSuccess: () => {
+        onSuccess: (result: any) => {
+            const credits = result?.data?.balance?.credits;
+            if (typeof credits === 'number') {
+                queryClient.setQueryData(['user'], (current: any) => {
+                    if (!current) return current;
+                    return {
+                        ...current,
+                        balance: {
+                            ...(current.balance ?? {}),
+                            credits,
+                        },
+                    };
+                });
+            }
             queryClient.invalidateQueries({ queryKey: ['spec', specId] });
             queryClient.invalidateQueries({ queryKey: ['user'] }); // refresh balance
             Alert.alert('Applied', 'You have joined this spec!');
@@ -274,15 +291,116 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
 
     // --- OWNER ACTIONS ---
     const [newRoundQuestion, setNewRoundQuestion] = React.useState('');
+    const [roundQuestionMedia, setRoundQuestionMedia] = React.useState<RoundMediaAsset | null>(null);
+    const [questionVideoViewerVisible, setQuestionVideoViewerVisible] = React.useState(false);
+    const [questionVideoViewerUri, setQuestionVideoViewerUri] = React.useState<string | null>(null);
+    const questionAudioRecorder = useRoundAudioRecorder(setRoundQuestionMedia);
     const startRoundMutation = useMutation({
-        mutationFn: (question: string) => SpecService.startRound(String(specId), question),
+        mutationFn: async (question: string) => {
+            let mediaId: number | undefined;
+            if (roundQuestionMedia) {
+                const uploadType =
+                    roundQuestionMedia.assetType === 'audio'
+                        ? 'round_question_audio'
+                        : roundQuestionMedia.assetType === 'video'
+                            ? 'round_question_video'
+                            : 'round_question_image';
+                const uploaded = await MediaService.upload(
+                    roundQuestionMedia.uri,
+                    uploadType,
+                    null,
+                    roundQuestionMedia.mimeType
+                );
+                mediaId = uploaded.id;
+            }
+
+            return SpecService.startRound(String(specId), question, mediaId);
+        },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['spec', specId] });
             Alert.alert('Success', 'Round started!');
             setNewRoundQuestion('');
+            setRoundQuestionMedia(null);
         },
         onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to start round.'),
     });
+
+    const pickRoundQuestionMedia = async () => {
+        try {
+            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (status !== 'granted') {
+                Alert.alert('Permission Required', 'Allow access to your photos and videos.');
+                return;
+            }
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ['images', 'videos'],
+                allowsEditing: true,
+                aspect: [4, 3],
+                quality: 0.8,
+            });
+            if (!result.canceled) {
+                const asset = result.assets[0];
+                const assetType = (asset.type === 'video' ? 'video' : 'image') as 'image' | 'video';
+                setRoundQuestionMedia({
+                    uri: asset.uri,
+                    mimeType: asset.mimeType ?? (assetType === 'video' ? 'video/mp4' : 'image/jpeg'),
+                    assetType,
+                });
+            }
+        } catch (e: any) {
+            Alert.alert('Error', e.message || String(e));
+        }
+    };
+
+    const takeRoundQuestionPhoto = async () => {
+        try {
+            const cam = await ImagePicker.requestCameraPermissionsAsync();
+            if (!cam.granted) {
+                Alert.alert('Permission Required', 'Allow camera access to take a photo.');
+                return;
+            }
+            const result = await ImagePicker.launchCameraAsync({
+                mediaTypes: ['images'],
+                allowsEditing: true,
+                aspect: [4, 3],
+                quality: 0.8,
+            });
+            if (!result.canceled) {
+                const asset = result.assets[0];
+                setRoundQuestionMedia({
+                    uri: asset.uri,
+                    mimeType: asset.mimeType ?? 'image/jpeg',
+                    assetType: 'image',
+                });
+            }
+        } catch (e: any) {
+            Alert.alert('Error', e.message || String(e));
+        }
+    };
+
+    const recordRoundQuestionVideo = async () => {
+        try {
+            const cam = await ImagePicker.requestCameraPermissionsAsync();
+            if (!cam.granted) {
+                Alert.alert('Permission Required', 'Allow camera access to record video.');
+                return;
+            }
+            const result = await ImagePicker.launchCameraAsync({
+                mediaTypes: ['videos'],
+                videoMaxDuration: 60,
+            });
+            if (!result.canceled) {
+                const asset = result.assets[0];
+                setRoundQuestionMedia({
+                    uri: asset.uri,
+                    mimeType: asset.mimeType ?? 'video/mp4',
+                    assetType: 'video',
+                });
+            }
+        } catch (e: any) {
+            Alert.alert('Error', e.message || String(e));
+        }
+    };
 
     const eliminateUsersMutation = useMutation({
         mutationFn: ({ roundId, userIds }: { roundId: number, userIds: number[] }) =>
@@ -644,11 +762,75 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                                     textAlignVertical: 'top', // Ensure text starts at top
                                 }}
                             />
+                            {roundQuestionMedia && (
+                                <View style={[styles.questionMediaPreview, { borderColor: theme.colors.outlineVariant || theme.colors.outline + '40' }]}>
+                                    {roundQuestionMedia.assetType === 'image' ? (
+                                        <Image source={{ uri: roundQuestionMedia.uri }} style={styles.questionMediaImage} />
+                                    ) : roundQuestionMedia.assetType === 'video' ? (
+                                        <VideoThumbnailPlayer
+                                            uri={roundQuestionMedia.uri}
+                                            width={160}
+                                            height={100}
+                                            onPress={() => {
+                                                setQuestionVideoViewerUri(roundQuestionMedia.uri);
+                                                setQuestionVideoViewerVisible(true);
+                                            }}
+                                        />
+                                    ) : (
+                                        <AudioMessagePlayer uri={roundQuestionMedia.uri} compact />
+                                    )}
+                                    <Button mode="text" compact onPress={() => setRoundQuestionMedia(null)}>
+                                        Remove
+                                    </Button>
+                                </View>
+                            )}
+                            <View style={styles.questionMediaActions}>
+                                <TouchableOpacity
+                                    onPress={pickRoundQuestionMedia}
+                                    style={[styles.mediaBtn, { borderColor: theme.colors.outlineVariant || theme.colors.outline + '50' }]}
+                                >
+                                    <MaterialCommunityIcons name="image-multiple" size={22} color={theme.colors.primary} />
+                                    <Text style={[styles.mediaBtnLabel, { color: theme.colors.onSurface }]}>Library</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    onPress={takeRoundQuestionPhoto}
+                                    style={[styles.mediaBtn, { borderColor: theme.colors.outlineVariant || theme.colors.outline + '50' }]}
+                                >
+                                    <MaterialCommunityIcons name="camera" size={22} color={theme.colors.primary} />
+                                    <Text style={[styles.mediaBtnLabel, { color: theme.colors.onSurface }]}>Photo</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    onPress={recordRoundQuestionVideo}
+                                    style={[styles.mediaBtn, { borderColor: theme.colors.outlineVariant || theme.colors.outline + '50' }]}
+                                >
+                                    <MaterialCommunityIcons name="video" size={22} color={theme.colors.primary} />
+                                    <Text style={[styles.mediaBtnLabel, { color: theme.colors.onSurface }]}>Video</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    onPress={questionAudioRecorder.isRecording ? questionAudioRecorder.stopRecording : questionAudioRecorder.startRecording}
+                                    style={[
+                                        styles.mediaBtn,
+                                        {
+                                            borderColor: theme.colors.outlineVariant || theme.colors.outline + '50',
+                                            backgroundColor: questionAudioRecorder.isRecording ? 'rgba(236,72,153,0.12)' : 'transparent',
+                                        },
+                                    ]}
+                                >
+                                    <MaterialCommunityIcons
+                                        name={questionAudioRecorder.isRecording ? 'stop' : 'microphone'}
+                                        size={22}
+                                        color={theme.colors.primary}
+                                    />
+                                    <Text style={[styles.mediaBtnLabel, { color: theme.colors.onSurface }]}>
+                                        {questionAudioRecorder.isRecording ? `${Math.floor(questionAudioRecorder.durationMillis / 1000)}s` : 'Voice'}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
                             <Button
                                 mode="contained"
                                 onPress={() => startRoundMutation.mutate(newRoundQuestion)}
                                 loading={startRoundMutation.isPending}
-                                disabled={!newRoundQuestion.trim() || startRoundMutation.isPending || participants.filter((p: any) => p.status === 'ACCEPTED').length < 1}
+                                disabled={(!newRoundQuestion.trim() && !roundQuestionMedia) || startRoundMutation.isPending || participants.filter((p: any) => p.status === 'ACCEPTED').length < 1}
                             >
                                 Start Round {participants.filter((p: any) => p.status === 'ACCEPTED').length < 1 ? '(Need accepted users)' : ''}
                             </Button>
@@ -714,7 +896,9 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                                             <Text style={[styles.roundCardFlatNumText, { color: theme.colors.onSurface }]}>{r.round_number}</Text>
                                         </View>
                                         <View style={styles.roundCardFlatBody}>
-                                            <Text numberOfLines={2} style={[styles.roundCardFlatQuestion, { color: theme.colors.onSurface }]}>{r.question_text}</Text>
+                                            <Text numberOfLines={2} style={[styles.roundCardFlatQuestion, { color: theme.colors.onSurface }]}>
+                                                {r.question_text?.trim() || 'Voice question'}
+                                            </Text>
                                             <View style={styles.roundCardFlatMeta}>
                                                 <Text style={[styles.roundCardFlatStat, { color: theme.colors.onSurfaceVariant }]}>
                                                     {eliminated} out · {remaining} left
@@ -962,6 +1146,12 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                 matchLoading={createDateMutation.isPending}
                 extendLoading={extendSearchMutation.isPending}
             />
+
+            <VideoViewerModal
+                visible={questionVideoViewerVisible}
+                uri={questionVideoViewerUri}
+                onClose={() => { setQuestionVideoViewerVisible(false); setQuestionVideoViewerUri(null); }}
+            />
         </View>
     );
 }
@@ -1199,6 +1389,35 @@ const styles = StyleSheet.create({
     glassForm: {
         gap: 12,
         marginTop: 4,
+    },
+    questionMediaActions: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+        marginBottom: 12,
+    },
+    mediaBtn: {
+        borderWidth: 1,
+        borderRadius: 10,
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+        minWidth: 72,
+    },
+    mediaBtnLabel: { fontSize: 12, fontWeight: '600' },
+    questionMediaPreview: {
+        alignSelf: 'flex-start',
+        borderWidth: 1,
+        borderRadius: 12,
+        padding: 8,
+        marginBottom: 12,
+        gap: 6,
+    },
+    questionMediaImage: {
+        width: 120,
+        height: 120,
+        borderRadius: 8,
     },
     glassAnswerBox: {
         padding: 16,

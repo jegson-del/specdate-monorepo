@@ -31,7 +31,14 @@
     "plugins": [
       "@react-native-community/datetimepicker",
       "expo-secure-store",
-      "expo-notifications"
+      "expo-notifications",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow DateUsher to record voice notes for Spec questions and answers.",
+          "recordAudioAndroid": true
+        }
+      ]
     ],
     "extra": {
       "eas": {

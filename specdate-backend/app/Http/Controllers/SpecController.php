@@ -60,6 +60,8 @@ class SpecController extends Controller
         try {
             $spec = $this->specService->createSpec($request->validated(), $request->user());
             return $this->sendResponse($spec, 'Spec created successfully.', 201);
+        } catch (HttpException $e) {
+            return $this->sendError($e->getMessage(), [], $e->getStatusCode());
         } catch (\Exception $e) {
             // Logged in service
             return $this->sendError('Failed to create spec.', [], 500);
@@ -141,8 +143,8 @@ class SpecController extends Controller
     public function join(Request $request, $id)
     {
         try {
-            $this->specService->join($request->user(), $id);
-            return $this->sendResponse([], 'Application sent successfully.');
+            $result = $this->specService->join($request->user(), $id);
+            return $this->sendResponse($result, 'Application sent successfully.');
         } catch (HttpException $e) {
             return $this->sendError($e->getMessage(), [], $e->getStatusCode());
         }
@@ -224,9 +226,17 @@ class SpecController extends Controller
     }
     public function startRound(Request $request, $id)
     {
-        $request->validate(['question' => 'required|string']);
+        $request->validate([
+            'question' => 'nullable|string|required_without:media_id',
+            'media_id' => 'nullable|exists:media,id',
+        ]);
         try {
-            $round = $this->specService->startRound($request->user(), $id, $request->input('question'));
+            $round = $this->specService->startRound(
+                $request->user(),
+                $id,
+                $request->input('question', ''),
+                $request->input('media_id')
+            );
             return $this->sendResponse($round, 'Round started.');
         } catch (HttpException $e) {
             return $this->sendError($e->getMessage(), [], $e->getStatusCode());
@@ -236,14 +246,14 @@ class SpecController extends Controller
     public function submitAnswer(Request $request, $roundId)
     {
         $request->validate([
-            'answer' => 'required|string',
+            'answer' => 'nullable|string|required_without:media_id',
             'media_id' => 'nullable|exists:media,id',
         ]);
         try {
             $answer = $this->specService->submitAnswer(
                 $request->user(),
                 $roundId,
-                $request->input('answer'),
+                $request->input('answer', ''),
                 $request->input('media_id')
             );
             return $this->sendResponse($answer, 'Answer submitted.');

@@ -59,6 +59,11 @@ export default function NotificationsScreen() {
         const specId = navData?.spec_id != null ? String(navData.spec_id) : null;
         const roundId = navData?.round_id != null ? navData.round_id : null;
 
+        if (type === 'join_request') {
+            navigation.navigate('Home', { initialTab: 'Requests' });
+            return;
+        }
+
         if (specId) {
             const navigatesToSpec =
                 type === 'round_started' ||

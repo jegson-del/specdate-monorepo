@@ -355,22 +355,46 @@ export default function CreateSpecScreen({ navigation }: any) {
             });
         }
 
-        try {
-            await createSpec.mutateAsync(payload);
-            console.log('Spec created successfully, showing alert...');
-            // Wrap in setTimeout to avoid race conditions with UI updates/loading state
-            setTimeout(() => {
-                Alert.alert('Success', 'Your Spec is live! Let the applications roll in.', [
-                    { text: 'OK', onPress: () => navigation.navigate('Home') }
-                ]);
-            }, 500);
-        } catch (e: any) {
-            console.error('Spec creation failed', e);
-            const msg = e.response?.data?.message || 'Failed to create spec';
-            setTimeout(() => {
-                Alert.alert('Error', msg);
-            }, 500);
+        const credits = me.data?.balance?.credits ?? 0;
+        if (credits < 1) {
+            Alert.alert(
+                'Insufficient credits',
+                'You need at least 1 credit to create a spec. Buy more in Profile.',
+                [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Get credits', onPress: () => navigation.navigate('Profile') },
+                ],
+            );
+            return;
         }
+
+        const submitSpec = async () => {
+            try {
+                await createSpec.mutateAsync(payload);
+                console.log('Spec created successfully, showing alert...');
+                // Wrap in setTimeout to avoid race conditions with UI updates/loading state
+                setTimeout(() => {
+                    Alert.alert('Success', 'Your Spec is live! Let the applications roll in.', [
+                        { text: 'OK', onPress: () => navigation.navigate('Home') }
+                    ]);
+                }, 500);
+            } catch (e: any) {
+                console.error('Spec creation failed', e);
+                const msg = e.response?.data?.message || 'Failed to create spec';
+                setTimeout(() => {
+                    Alert.alert('Error', msg);
+                }, 500);
+            }
+        };
+
+        Alert.alert(
+            'Create Spec?',
+            'This will use 1 credit.',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Create (-1 credit)', onPress: submitSpec },
+            ],
+        );
     };
 
     // --- Render Steps ---

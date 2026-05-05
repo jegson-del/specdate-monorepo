@@ -7,6 +7,7 @@ use App\Models\SpecDate;
 use App\Models\SpecRound;
 use App\Models\SpecRoundAnswer;
 use App\Models\User;
+use App\Models\UserBalance;
 use App\Services\NotificationService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -121,7 +122,7 @@ class SpecService
             }])
             // Load all rounds (history + active), newest first for list UX
             ->with(['rounds' => function($q) {
-                $q->orderBy('round_number', 'desc');
+                $q->with('media')->orderBy('round_number', 'desc');
             }]);
 
         if ($user) {
@@ -171,7 +172,7 @@ class SpecService
 
 
 
-    public function join($user, $id): void
+    public function join($user, $id): array
     {
         $spec = Spec::with('requirements')->findOrFail($id);
 
@@ -197,12 +198,6 @@ class SpecService
         $existing = $spec->applications()->where('user_id', $user->id)->first();
         if ($existing) {
             throw new HttpException(400, 'You have already applied to this spec.');
-        }
-
-        // Check credits
-        $balance = $user->balance;
-        if (!$balance || $balance->credits < 1) {
-            throw new HttpException(403, 'Insufficient credits. Please purchase more.', null, ['code' => 'INSUFFICIENT_FUNDS']);
         }
 
         // Check Requirements (with age derived from dob)
@@ -286,20 +281,17 @@ class SpecService
             }
         }
 
-        DB::transaction(function () use ($spec, $user, $balance) {
-            // Debit 1 credit
-            $balance->decrement('credits');
+        $balance = DB::transaction(function () use ($spec, $user) {
+            $existing = $spec->applications()->where('user_id', $user->id)->lockForUpdate()->first();
+            if ($existing) {
+                throw new HttpException(400, 'You have already applied to this spec.');
+            }
 
-            // Log transaction
-            $user->transactions()->create([
-                'type' => 'DEBIT',
-                'item_type' => 'credit',
-                'quantity' => 1,
-                'amount' => null,
-                'currency' => null,
-                'purpose' => "Joined Spec: {$spec->title}",
-                'metadata' => ['spec_id' => $spec->id],
-            ]);
+            $balance = $this->debitCredit(
+                $user,
+                "Joined Spec: {$spec->title}",
+                ['spec_id' => $spec->id, 'action' => 'join_spec']
+            );
 
             // Create Application
             $spec->applications()->create([
@@ -321,7 +313,13 @@ class SpecService
                 'New Join Request',
                 "Someone wants to join '{$spec->title}'"
             );
+
+            return $balance;
         });
+
+        return [
+            'balance' => ['credits' => $balance->credits],
+        ];
     }
 
     public function approveApplication($user, $specId, $applicationId): void
@@ -412,7 +410,7 @@ class SpecService
     /**
      * Start a new elimination round.
      */
-    public function startRound($user, $specId, string $question): SpecRound
+    public function startRound($user, $specId, string $question = '', $mediaId = null): SpecRound
     {
         $spec = Spec::findOrFail($specId);
 
@@ -441,6 +439,7 @@ class SpecService
         $round = $spec->rounds()->create([
             'round_number' => $nextRoundNumber,
             'question_text' => $question,
+            'media_id' => $mediaId,
             'status' => 'ACTIVE',
             'elimination_count' => $eliminationCount,
         ]);
@@ -464,7 +463,7 @@ class SpecService
             );
         }
 
-        return $round;
+        return $round->load('media');
     }
 
     /**
@@ -493,7 +492,7 @@ class SpecService
     /**
      * Submit answer for a round.
      */
-    public function submitAnswer($user, $roundId, string $answer, $mediaId = null): SpecRoundAnswer
+    public function submitAnswer($user, $roundId, string $answer = '', $mediaId = null): SpecRoundAnswer
     {
         $round = SpecRound::findOrFail($roundId);
         
@@ -908,6 +907,12 @@ class SpecService
                 'status' => 'OPEN',
             ]);
 
+            $this->debitCredit(
+                $user,
+                "Created Spec: {$spec->title}",
+                ['spec_id' => $spec->id, 'action' => 'create_spec']
+            );
+
             // Auto-create application for owner
             $spec->applications()->create([
                 'user_id' => $user->id,
@@ -934,6 +939,30 @@ class SpecService
             Log::error('Spec creation failed: ' . $e->getMessage());
             throw $e;
         }
+    }
+
+    protected function debitCredit(User $user, string $purpose, array $metadata = []): UserBalance
+    {
+        $balance = UserBalance::where('user_id', $user->id)->lockForUpdate()->first();
+
+        if (!$balance || $balance->credits < 1) {
+            throw new HttpException(403, 'Insufficient credits. Please purchase more.');
+        }
+
+        $balance->decrement('credits', 1);
+        $balance->refresh();
+
+        $user->transactions()->create([
+            'type' => 'DEBIT',
+            'item_type' => 'credit',
+            'quantity' => 1,
+            'amount' => null,
+            'currency' => null,
+            'purpose' => $purpose,
+            'metadata' => $metadata,
+        ]);
+
+        return $balance;
     }
 
     /**

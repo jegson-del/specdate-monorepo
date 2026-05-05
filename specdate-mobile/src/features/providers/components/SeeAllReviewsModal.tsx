@@ -19,6 +19,7 @@ export type SeeAllReviewsModalProps = {
 
 export function SeeAllReviewsModal({ visible, onDismiss, reviews }: SeeAllReviewsModalProps) {
   const theme = useTheme();
+  const colors = theme.colors as any;
 
   return (
     <Portal>
@@ -38,7 +39,7 @@ export function SeeAllReviewsModal({ visible, onDismiss, reviews }: SeeAllReview
               style={[
                 styles.card,
                 {
-                  backgroundColor: theme.colors.surfaceContainerHighest || theme.colors.surface,
+                  backgroundColor: colors.surfaceContainerHighest ?? theme.colors.surface,
                 },
               ]}
             >

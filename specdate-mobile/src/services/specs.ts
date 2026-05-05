@@ -81,8 +81,10 @@ export const SpecService = {
         return response.data;
     },
 
-    async startRound(specId: string, question: string) {
-        const response = await api.post(`/specs/${specId}/rounds`, { question });
+    async startRound(specId: string, question: string, mediaId?: number) {
+        const payload: any = { question };
+        if (mediaId) payload.media_id = mediaId;
+        const response = await api.post(`/specs/${specId}/rounds`, payload);
         return response.data;
     },
 

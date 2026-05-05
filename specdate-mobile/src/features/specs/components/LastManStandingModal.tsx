@@ -99,7 +99,7 @@ export function LastManStandingModal({
                 {
                   color: theme.colors.onSurface,
                   borderColor: theme.colors.outline,
-                  backgroundColor: theme.colors.surfaceContainerHighest || theme.colors.surfaceVariant,
+                  backgroundColor: (theme.colors as any).surfaceContainerHighest ?? theme.colors.surfaceVariant,
                 },
               ]}
             />

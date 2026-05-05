@@ -36,7 +36,7 @@ class MediaService
      *
      * @param UploadedFile $file
      * @param User $user
-     * @param string $type (avatar, profile_gallery, chat, proof, round_answer_image, round_answer_video)
+     * @param string $type (avatar, profile_gallery, chat, proof, round_answer_image, round_answer_video, round_question_image, round_question_video, round_answer_audio, round_question_audio)
      * @param int|null $mediaId When provided (and type is profile_gallery), update this row instead of creating. Keeps slot count at 6.
      * @return Media
      */

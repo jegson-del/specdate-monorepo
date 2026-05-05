@@ -9,12 +9,10 @@ import { SpecService } from '../../services/specs';
 import { useUser } from '../../hooks/useUser';
 import { toImageUri } from '../../utils/imageUrl';
 import { VideoViewerModal } from '../../components';
-import { CloseRoundModal, LastManStandingModal, VideoThumbnailPlayer } from './components';
+import { AudioMessagePlayer, CloseRoundModal, LastManStandingModal, useRoundAudioRecorder, VideoThumbnailPlayer } from './components';
+import type { RoundMediaAsset } from './components';
 import * as ImagePicker from 'expo-image-picker';
 import { MediaService } from '../../services/media';
-
-type AnswerMedia = { uri: string; mimeType: string; assetType: 'image' | 'video' };
-
 
 export default function RoundDetailsScreen({ route, navigation }: any) {
     const specId = route.params?.specId != null ? String(route.params.specId) : undefined;
@@ -89,7 +87,12 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
         mutationFn: async ({ rId, text }: { rId: number, text: string }) => {
             let mediaId: number | undefined;
             if (answerMedia) {
-                const uploadType = answerMedia.assetType === 'video' ? 'round_answer_video' : 'round_answer_image';
+                const uploadType =
+                    answerMedia.assetType === 'audio'
+                        ? 'round_answer_audio'
+                        : answerMedia.assetType === 'video'
+                            ? 'round_answer_video'
+                            : 'round_answer_image';
                 const uploaded = await MediaService.upload(
                     answerMedia.uri,
                     uploadType,
@@ -173,8 +176,9 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
 
     // --- State ---
     const [answerText, setAnswerText] = useState('');
-    const [answerMedia, setAnswerMedia] = useState<AnswerMedia | null>(null);
+    const [answerMedia, setAnswerMedia] = useState<RoundMediaAsset | null>(null);
     const [nextRoundQuestion, setNextRoundQuestion] = useState('');
+    const [nextRoundQuestionMedia, setNextRoundQuestionMedia] = useState<RoundMediaAsset | null>(null);
     const [closeModalVisible, setCloseRoundModalVisible] = useState(false);
     const [videoViewerVisible, setVideoViewerVisible] = useState(false);
     const [videoViewerUri, setVideoViewerUri] = useState<string | null>(null);
@@ -185,6 +189,9 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
     // Edit Question State
     const [isEditing, setIsEditing] = useState(false);
     const [editQuestionText, setEditQuestionText] = useState('');
+
+    const answerAudioRecorder = useRoundAudioRecorder(setAnswerMedia);
+    const nextRoundAudioRecorder = useRoundAudioRecorder(setNextRoundQuestionMedia);
 
 
 
@@ -262,11 +269,108 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
         }
     };
 
+    const pickNextRoundQuestionMedia = async () => {
+        try {
+            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (status !== 'granted') {
+                Alert.alert('Permission Required', 'Allow access to your photos and videos.');
+                return;
+            }
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ['images', 'videos'],
+                allowsEditing: true,
+                aspect: [4, 3],
+                quality: 0.8,
+            });
+            if (!result.canceled) {
+                const asset = result.assets[0];
+                const assetType = (asset.type === 'video' ? 'video' : 'image') as 'image' | 'video';
+                setNextRoundQuestionMedia({
+                    uri: asset.uri,
+                    mimeType: asset.mimeType ?? (assetType === 'video' ? 'video/mp4' : 'image/jpeg'),
+                    assetType,
+                });
+            }
+        } catch (e: any) {
+            Alert.alert('Error', e.message || String(e));
+        }
+    };
+
+    const takeNextRoundQuestionPhoto = async () => {
+        try {
+            const cam = await ImagePicker.requestCameraPermissionsAsync();
+            if (!cam.granted) {
+                Alert.alert('Permission Required', 'Allow camera access to take a photo.');
+                return;
+            }
+            const result = await ImagePicker.launchCameraAsync({
+                mediaTypes: ['images'],
+                allowsEditing: true,
+                aspect: [4, 3],
+                quality: 0.8,
+            });
+            if (!result.canceled) {
+                const asset = result.assets[0];
+                setNextRoundQuestionMedia({
+                    uri: asset.uri,
+                    mimeType: asset.mimeType ?? 'image/jpeg',
+                    assetType: 'image',
+                });
+            }
+        } catch (e: any) {
+            Alert.alert('Error', e.message || String(e));
+        }
+    };
+
+    const recordNextRoundQuestionVideo = async () => {
+        try {
+            const cam = await ImagePicker.requestCameraPermissionsAsync();
+            if (!cam.granted) {
+                Alert.alert('Permission Required', 'Allow camera access to record video.');
+                return;
+            }
+            const result = await ImagePicker.launchCameraAsync({
+                mediaTypes: ['videos'],
+                videoMaxDuration: 60,
+            });
+            if (!result.canceled) {
+                const asset = result.assets[0];
+                setNextRoundQuestionMedia({
+                    uri: asset.uri,
+                    mimeType: asset.mimeType ?? 'video/mp4',
+                    assetType: 'video',
+                });
+            }
+        } catch (e: any) {
+            Alert.alert('Error', e.message || String(e));
+        }
+    };
+
     const startRoundMutation = useMutation({
-        mutationFn: (question: string) => SpecService.startRound(String(specId), question),
+        mutationFn: async (question: string) => {
+            let mediaId: number | undefined;
+            if (nextRoundQuestionMedia) {
+                const uploadType =
+                    nextRoundQuestionMedia.assetType === 'audio'
+                        ? 'round_question_audio'
+                        : nextRoundQuestionMedia.assetType === 'video'
+                            ? 'round_question_video'
+                            : 'round_question_image';
+                const uploaded = await MediaService.upload(
+                    nextRoundQuestionMedia.uri,
+                    uploadType,
+                    null,
+                    nextRoundQuestionMedia.mimeType
+                );
+                mediaId = uploaded.id;
+            }
+            return SpecService.startRound(String(specId), question, mediaId);
+        },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['spec', String(specId)] });
             Alert.alert('Success', 'Next round started!');
+            setNextRoundQuestion('');
+            setNextRoundQuestionMedia(null);
             navigation.goBack(); // Go back to list? Or stay?
         },
         onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to start round.'),
@@ -486,7 +590,26 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                             </View>
                         </View>
                     ) : (
-                        <Text style={[styles.questionText, { color: theme.colors.onSurface }]}>{roundToShow.question_text}</Text>
+                        <Text style={[styles.questionText, { color: theme.colors.onSurface }]}>
+                            {roundToShow.question_text?.trim() || 'Voice question'}
+                        </Text>
+                    )}
+
+                    {!isEditing && roundToShow.media?.url && (
+                        <View style={styles.questionMediaDisplay}>
+                            {roundToShow.media.mime_type?.startsWith('audio/') ? (
+                                <AudioMessagePlayer uri={roundToShow.media.url} />
+                            ) : roundToShow.media.mime_type?.startsWith('video/') ? (
+                                <VideoThumbnailPlayer
+                                    uri={roundToShow.media.url}
+                                    width={220}
+                                    height={130}
+                                    onPress={() => { setVideoViewerUri(roundToShow.media.url); setVideoViewerVisible(true); }}
+                                />
+                            ) : (
+                                <Image source={{ uri: roundToShow.media.url }} style={styles.questionMediaImageLarge} />
+                            )}
+                        </View>
                     )}
 
                     <View style={[styles.questionMeta, { borderTopColor: theme.colors.outlineVariant || theme.colors.outline + '30' }]}>
@@ -528,11 +651,76 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                                     numberOfLines={4}
                                     style={[styles.flatTextArea, { color: theme.colors.onSurface, borderColor: theme.colors.outlineVariant || theme.colors.outline + '50' }]}
                                 />
+                                {nextRoundQuestionMedia && (
+                                    <View style={[styles.mediaPreviewBox, { borderColor: theme.colors.outlineVariant || theme.colors.outline + '40' }]}>
+                                        {nextRoundQuestionMedia.assetType === 'image' ? (
+                                            <Image source={{ uri: nextRoundQuestionMedia.uri }} style={styles.questionMediaImage} />
+                                        ) : nextRoundQuestionMedia.assetType === 'video' ? (
+                                            <VideoThumbnailPlayer
+                                                uri={nextRoundQuestionMedia.uri}
+                                                width={160}
+                                                height={100}
+                                                onPress={() => { setVideoViewerUri(nextRoundQuestionMedia.uri); setVideoViewerVisible(true); }}
+                                            />
+                                        ) : (
+                                            <AudioMessagePlayer uri={nextRoundQuestionMedia.uri} compact />
+                                        )}
+                                        <Button mode="text" compact onPress={() => setNextRoundQuestionMedia(null)}>
+                                            Remove
+                                        </Button>
+                                    </View>
+                                )}
+                                <View style={styles.mediaActionsRow}>
+                                    <TouchableOpacity
+                                        activeOpacity={0.8}
+                                        style={[styles.mediaBtn, { borderColor: theme.colors.outlineVariant || theme.colors.outline + '50' }]}
+                                        onPress={pickNextRoundQuestionMedia}
+                                    >
+                                        <MaterialCommunityIcons name="image-multiple" size={18} color={theme.colors.primary} />
+                                        <Text style={[styles.mediaBtnLabel, { color: theme.colors.onSurface }]}>Library</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        activeOpacity={0.8}
+                                        style={[styles.mediaBtn, { borderColor: theme.colors.outlineVariant || theme.colors.outline + '50' }]}
+                                        onPress={takeNextRoundQuestionPhoto}
+                                    >
+                                        <MaterialCommunityIcons name="camera" size={18} color={theme.colors.primary} />
+                                        <Text style={[styles.mediaBtnLabel, { color: theme.colors.onSurface }]}>Photo</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        activeOpacity={0.8}
+                                        style={[styles.mediaBtn, { borderColor: theme.colors.outlineVariant || theme.colors.outline + '50' }]}
+                                        onPress={recordNextRoundQuestionVideo}
+                                    >
+                                        <MaterialCommunityIcons name="video" size={18} color={theme.colors.primary} />
+                                        <Text style={[styles.mediaBtnLabel, { color: theme.colors.onSurface }]}>Video</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        activeOpacity={0.8}
+                                        style={[
+                                            styles.mediaBtn,
+                                            {
+                                                borderColor: theme.colors.outlineVariant || theme.colors.outline + '50',
+                                                backgroundColor: nextRoundAudioRecorder.isRecording ? 'rgba(236,72,153,0.12)' : 'transparent',
+                                            },
+                                        ]}
+                                        onPress={nextRoundAudioRecorder.isRecording ? nextRoundAudioRecorder.stopRecording : nextRoundAudioRecorder.startRecording}
+                                    >
+                                        <MaterialCommunityIcons
+                                            name={nextRoundAudioRecorder.isRecording ? 'stop' : 'microphone'}
+                                            size={18}
+                                            color={theme.colors.primary}
+                                        />
+                                        <Text style={[styles.mediaBtnLabel, { color: theme.colors.onSurface }]}>
+                                            {nextRoundAudioRecorder.isRecording ? `${Math.floor(nextRoundAudioRecorder.durationMillis / 1000)}s` : 'Voice'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
                                 <TouchableOpacity
                                     activeOpacity={0.8}
                                     style={[styles.primaryButton, { backgroundColor: theme.colors.primary }]}
                                     onPress={() => startRoundMutation.mutate(nextRoundQuestion)}
-                                    disabled={!nextRoundQuestion.trim() || startRoundMutation.isPending}
+                                    disabled={(!nextRoundQuestion.trim() && !nextRoundQuestionMedia) || startRoundMutation.isPending}
                                 >
                                     {startRoundMutation.isPending ? (
                                         <ActivityIndicator size="small" color="#fff" />
@@ -556,7 +744,11 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
 
                         {myAnswer ? (
                             <View style={[styles.answerSubmitted, { backgroundColor: myAnswer.is_eliminated ? 'rgba(239,68,68,0.08)' : 'rgba(22,163,74,0.08)', borderColor: myAnswer.is_eliminated ? 'rgba(239,68,68,0.3)' : 'rgba(22,163,74,0.3)' }]}>
-                                <Text style={[styles.answerSubmittedText, { color: theme.colors.onSurface }]}>"{myAnswer.answer_text}"</Text>
+                                {myAnswer.answer_text?.trim() ? (
+                                    <Text style={[styles.answerSubmittedText, { color: theme.colors.onSurface }]}>"{myAnswer.answer_text}"</Text>
+                                ) : (
+                                    <Text style={[styles.answerSubmittedText, { color: theme.colors.onSurface }]}>Voice answer</Text>
+                                )}
                                 <View style={styles.answerSubmittedBadge}>
                                     {myAnswer.is_eliminated ? (
                                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -572,7 +764,9 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                                 </View>
                                 {myAnswer.media && (
                                     <View style={{ marginTop: 12 }}>
-                                        {myAnswer.media.mime_type?.startsWith('video/') ? (
+                                        {myAnswer.media.mime_type?.startsWith('audio/') ? (
+                                            <AudioMessagePlayer uri={myAnswer.media.url} />
+                                        ) : myAnswer.media.mime_type?.startsWith('video/') ? (
                                             <VideoThumbnailPlayer uri={myAnswer.media.url} width={200} height={120} onPress={() => { setVideoViewerUri(myAnswer.media.url); setVideoViewerVisible(true); }} />
                                         ) : (
                                             <Image source={{ uri: myAnswer.media?.url }} style={{ width: 120, height: 120, borderRadius: 8 }} />
@@ -595,8 +789,10 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                                     <View style={{ marginBottom: 12, position: 'relative', alignSelf: 'flex-start' }}>
                                         {answerMedia.assetType === 'image' ? (
                                             <Image source={{ uri: answerMedia.uri }} style={{ width: 120, height: 120, borderRadius: 8 }} />
-                                        ) : (
+                                        ) : answerMedia.assetType === 'video' ? (
                                             <VideoThumbnailPlayer uri={answerMedia.uri} width={160} height={100} onPress={() => { setVideoViewerUri(answerMedia.uri); setVideoViewerVisible(true); }} />
+                                        ) : (
+                                            <AudioMessagePlayer uri={answerMedia.uri} compact />
                                         )}
                                         <TouchableOpacity
                                             style={{ position: 'absolute', top: -8, right: -8, backgroundColor: theme.colors.error, borderRadius: 12, padding: 4 }}
@@ -628,12 +824,31 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                                         <MaterialCommunityIcons name="video" size={22} color={theme.colors.primary} />
                                         <Text style={[styles.mediaBtnLabel, { color: theme.colors.onSurface }]}>Record</Text>
                                     </TouchableOpacity>
+                                    <TouchableOpacity
+                                        onPress={answerAudioRecorder.isRecording ? answerAudioRecorder.stopRecording : answerAudioRecorder.startRecording}
+                                        style={[
+                                            styles.mediaBtn,
+                                            {
+                                                borderColor: theme.colors.outlineVariant,
+                                                backgroundColor: answerAudioRecorder.isRecording ? 'rgba(236,72,153,0.12)' : 'transparent',
+                                            },
+                                        ]}
+                                    >
+                                        <MaterialCommunityIcons
+                                            name={answerAudioRecorder.isRecording ? 'stop' : 'microphone'}
+                                            size={22}
+                                            color={theme.colors.primary}
+                                        />
+                                        <Text style={[styles.mediaBtnLabel, { color: theme.colors.onSurface }]}>
+                                            {answerAudioRecorder.isRecording ? `${Math.floor(answerAudioRecorder.durationMillis / 1000)}s` : 'Voice'}
+                                        </Text>
+                                    </TouchableOpacity>
                                 </View>
                                 <TouchableOpacity
                                     activeOpacity={0.8}
                                     style={[styles.primaryButton, { backgroundColor: theme.colors.primary, marginTop: 12 }]}
                                     onPress={() => submitAnswerMutation.mutate({ rId: roundToShow.id, text: answerText })}
-                                    disabled={!answerText.trim() || submitAnswerMutation.isPending}
+                                    disabled={(!answerText.trim() && !answerMedia) || submitAnswerMutation.isPending}
                                 >
                                     {submitAnswerMutation.isPending ? (
                                         <ActivityIndicator size="small" color="#fff" />
@@ -675,9 +890,15 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                                             <Avatar.Image size={44} source={{ uri: avatarUri }} style={styles.answerAvatar} />
                                             <View style={styles.answerBody}>
                                                 <Text style={[styles.answerName, { color: theme.colors.onSurface }]} numberOfLines={1}>{displayName}</Text>
-                                                <Text style={[styles.answerText, { color: theme.colors.onSurfaceVariant }]} numberOfLines={3}>{a.answer_text}</Text>
+                                                <Text style={[styles.answerText, { color: theme.colors.onSurfaceVariant }]} numberOfLines={3}>
+                                                    {a.answer_text?.trim() || 'Voice answer'}
+                                                </Text>
                                                 {a.media && (
-                                                    a.media.mime_type?.startsWith('video/') ? (
+                                                    a.media.mime_type?.startsWith('audio/') ? (
+                                                        <View style={{ marginTop: 8 }}>
+                                                            <AudioMessagePlayer uri={a.media.url} compact />
+                                                        </View>
+                                                    ) : a.media.mime_type?.startsWith('video/') ? (
                                                         <View style={{ marginTop: 8 }}>
                                                             <VideoThumbnailPlayer uri={a.media.url} width={160} height={100} onPress={() => { setVideoViewerUri(a.media.url); setVideoViewerVisible(true); }} />
                                                         </View>
@@ -789,6 +1010,12 @@ const styles = StyleSheet.create({
     },
     questionLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 0.6, marginBottom: 8 },
     questionText: { fontSize: 18, fontWeight: '700', lineHeight: 26 },
+    questionMediaDisplay: { marginTop: 14 },
+    questionMediaImageLarge: {
+        width: '100%',
+        height: 190,
+        borderRadius: 12,
+    },
     questionMeta: { marginTop: 14, paddingTop: 14, borderTopWidth: 1 },
     questionMetaText: { fontSize: 13 },
     section: { marginBottom: 28 },
@@ -876,4 +1103,21 @@ const styles = StyleSheet.create({
         minWidth: 72,
     },
     mediaBtnLabel: { fontSize: 12, fontWeight: '600' },
+    mediaActionsRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 10,
+    },
+    mediaPreviewBox: {
+        alignSelf: 'flex-start',
+        borderWidth: 1,
+        borderRadius: 12,
+        padding: 8,
+        gap: 6,
+    },
+    questionMediaImage: {
+        width: 120,
+        height: 120,
+        borderRadius: 8,
+    },
 });

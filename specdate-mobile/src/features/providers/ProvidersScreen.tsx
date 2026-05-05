@@ -185,7 +185,6 @@ export default function ProvidersScreen({ route, navigation }: any) {
           <View style={{ width: 48 }} />
         </View>
         <ScrollView
-          vertical
           showsVerticalScrollIndicator={true}
           contentContainerStyle={[
             styles.seeAllScrollContent,
@@ -234,7 +233,7 @@ export default function ProvidersScreen({ route, navigation }: any) {
             placeholder="Search providers…"
             value={query}
             onChangeText={setQuery}
-            style={[styles.searchBar, { backgroundColor: theme.colors.surfaceContainerHighest || theme.colors.elevation?.level2 }]}
+            style={[styles.searchBar, { backgroundColor: (theme.colors as any).surfaceContainerHighest ?? theme.colors.elevation?.level2 }]}
             iconColor={theme.colors.primary}
             inputStyle={{ color: theme.colors.onSurface }}
           />
