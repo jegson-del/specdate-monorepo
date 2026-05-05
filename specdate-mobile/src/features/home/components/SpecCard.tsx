@@ -30,11 +30,6 @@ type Props = {
 const SpecCard = memo(({ item, theme, homeColors, tagColor, withAlpha, onPress }: Props) => {
     const navigation = useNavigation<any>();
 
-    const handlePressProvider = (e: any) => {
-        e?.stopPropagation?.();
-        navigation.navigate('Providers', { specId: item.id });
-    };
-
     const handlePress = () => {
         if (onPress) onPress();
         else navigation.navigate('SpecDetails', { specId: item.id });
@@ -112,20 +107,6 @@ const SpecCard = memo(({ item, theme, homeColors, tagColor, withAlpha, onPress }
                                 <Text style={[styles.metaText, { color: homeColors.cardSubtext }]} numberOfLines={1}>
                                     {item.eliminatedCount} eliminated
                                 </Text>
-                            </View>
-
-                            <View style={styles.metaRow}>
-                                <MaterialCommunityIcons name="silverware-fork-knife" size={20} color={theme.colors.primary} />
-                                <TouchableOpacity
-                                    onPress={handlePressProvider}
-                                    style={{ flex: 1 }}
-                                    hitSlop={8}
-                                    activeOpacity={0.7}
-                                >
-                                    <Text style={[styles.metaText, { color: homeColors.cardSubtext }]} numberOfLines={1}>
-                                        First date: {item.firstDateProvider === '—' ? 'Choose provider' : item.firstDateProvider}
-                                    </Text>
-                                </TouchableOpacity>
                             </View>
 
                             <View style={styles.metaRow}>

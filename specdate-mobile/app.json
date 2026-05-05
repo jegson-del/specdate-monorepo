@@ -38,7 +38,8 @@
           "microphonePermission": "Allow DateUsher to record voice notes for Spec questions and answers.",
           "recordAudioAndroid": true
         }
-      ]
+      ],
+      "expo-video"
     ],
     "extra": {
       "eas": {

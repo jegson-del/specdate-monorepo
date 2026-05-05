@@ -2,7 +2,7 @@ import React from 'react';
 import { View, StyleSheet, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IconButton } from 'react-native-paper';
-import { Video, ResizeMode } from 'expo-av';
+import { useVideoPlayer, VideoView } from 'expo-video';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -15,6 +15,10 @@ export type VideoViewerModalProps = {
 /** Full-screen video viewer (like ImageViewerModal). Tap close to dismiss. */
 export function VideoViewerModal({ visible, uri, onClose }: VideoViewerModalProps) {
   const insets = useSafeAreaInsets();
+  const player = useVideoPlayer(uri, (videoPlayer) => {
+    videoPlayer.loop = false;
+    videoPlayer.pause();
+  });
 
   if (!visible || !uri) return null;
 
@@ -38,13 +42,12 @@ export function VideoViewerModal({ visible, uri, onClose }: VideoViewerModalProp
         />
       </View>
       <View style={styles.videoWrap}>
-        <Video
-          source={{ uri }}
+        <VideoView
+          player={player}
           style={styles.video}
-          resizeMode={ResizeMode.CONTAIN}
-          useNativeControls
-          shouldPlay={false}
-          isLooping={false}
+          contentFit="contain"
+          nativeControls
+          fullscreenOptions={{ enable: false }}
         />
       </View>
     </View>

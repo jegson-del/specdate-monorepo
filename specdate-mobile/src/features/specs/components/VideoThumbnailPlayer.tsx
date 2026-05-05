@@ -1,8 +1,8 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
+import { useVideoPlayer, VideoView } from 'expo-video';
 
 type VideoThumbnailPlayerProps = {
   uri: string;
@@ -13,7 +13,7 @@ type VideoThumbnailPlayerProps = {
 };
 
 /**
- * Shows video first frame as thumbnail; tap play to play. Uses expo-av (works in Expo Go).
+ * Shows video first frame as thumbnail; tap play to play.
  * Works with local (file://) and remote (https) URIs.
  */
 export function VideoThumbnailPlayer({
@@ -23,15 +23,29 @@ export function VideoThumbnailPlayer({
   onPress,
 }: VideoThumbnailPlayerProps) {
   const theme = useTheme();
-  const videoRef = useRef<Video>(null);
+  const player = useVideoPlayer(uri, (videoPlayer) => {
+    videoPlayer.loop = false;
+    videoPlayer.pause();
+  });
   const [loaded, setLoaded] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
 
-  const onPlaybackStatusUpdate = (status: AVPlaybackStatus) => {
-    if (!status.isLoaded) return;
-    setLoaded(true);
-    setIsPlaying(status.isPlaying);
-  };
+  useEffect(() => {
+    const statusSubscription = (player as any).addListener?.('statusChange', ({ status }: { status: string }) => {
+      setLoaded(status === 'readyToPlay');
+    });
+    const playingSubscription = (player as any).addListener?.('playingChange', ({ isPlaying: playing }: { isPlaying: boolean }) => {
+      setIsPlaying(playing);
+    });
+
+    setLoaded(player.status === 'readyToPlay');
+    setIsPlaying(player.playing);
+
+    return () => {
+      statusSubscription?.remove?.();
+      playingSubscription?.remove?.();
+    };
+  }, [player]);
 
   const handleTap = () => {
     if (onPress) {
@@ -41,9 +55,9 @@ export function VideoThumbnailPlayer({
     (async () => {
       try {
         if (isPlaying) {
-          await videoRef.current?.pauseAsync();
+          player.pause();
         } else {
-          await videoRef.current?.playAsync();
+          player.play();
         }
       } catch (_) {
         // ignore
@@ -53,16 +67,13 @@ export function VideoThumbnailPlayer({
 
   return (
     <View style={[styles.wrap, { width, height }]}>
-      <Video
-        ref={videoRef}
-        source={{ uri }}
+      <VideoView
+        player={player}
         style={StyleSheet.absoluteFill}
-        resizeMode={ResizeMode.CONTAIN}
-        useNativeControls
-        isLooping={false}
-        shouldPlay={false}
-        onPlaybackStatusUpdate={onPlaybackStatusUpdate}
-        onLoad={() => setLoaded(true)}
+        contentFit="contain"
+        nativeControls={!onPress}
+        fullscreenOptions={{ enable: false }}
+        onFirstFrameRender={() => setLoaded(true)}
       />
       {!loaded && (
         <View style={[styles.loading, { backgroundColor: (theme.colors as any).surfaceContainerHighest ?? theme.colors.surface }]}>
