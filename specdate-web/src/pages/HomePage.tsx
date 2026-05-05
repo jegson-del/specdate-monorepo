@@ -151,8 +151,8 @@ export default function HomePage() {
       </Hero>
       <Gallery />
       <HowItWorksSection />
-      <SuccessStoriesSection />
       <DateProvidersSection />
+      <SuccessStoriesSection />
       <Footer />
     </div>
   )

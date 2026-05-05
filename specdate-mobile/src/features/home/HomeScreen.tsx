@@ -293,9 +293,9 @@ export default function HomeScreen({ navigation }: any) {
             paddingBottom: 6,
             paddingLeft: 12,
             paddingRight: 12,
-            backgroundColor: theme.colors.surface,
-            borderBottomWidth: 1,
-            borderBottomColor: theme.colors.outline,
+            backgroundColor: theme.colors.primary,
+            borderBottomWidth: 0,
+            borderBottomColor: theme.colors.primary,
             elevation: 4, // Android shadow
             shadowColor: '#000', // iOS shadow
             shadowOffset: { width: 0, height: 2 },
@@ -314,21 +314,21 @@ export default function HomeScreen({ navigation }: any) {
           {avatarUrl ? (
             <Avatar.Image size={40} source={{ uri: avatarUrl }} />
           ) : (
-            <MaterialCommunityIcons name="account-circle-outline" size={40} color={theme.colors.onSurfaceVariant} />
+            <MaterialCommunityIcons name="account-circle-outline" size={40} color="#FFFFFF" />
           )}
         </TouchableOpacity>
 
         {/* Center: Logo (same visual scale as icons) */}
         <View style={[styles.titleWrap, { paddingTop: insets.top + 8, paddingBottom: 8 }]} pointerEvents="none">
           <Image
-            source={require('../../../assets/homescreen_header_logo.png')}
+            source={require('../../../assets/dateusher_header_icon_white.png')}
             style={{
-              width: 160,
-              height: 60,
+              width: 52,
+              height: 42,
               resizeMode: 'contain',
-              shadowColor: theme.colors.primary,
+              shadowColor: '#000',
               shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.2,
+              shadowOpacity: 0.12,
               shadowRadius: 8,
             }}
           />
@@ -342,7 +342,7 @@ export default function HomeScreen({ navigation }: any) {
             activeOpacity={0.7}
           >
             <View>
-              <MaterialCommunityIcons name="chat-outline" size={28} color={theme.colors.onSurface} />
+              <MaterialCommunityIcons name="chat-outline" size={28} color="#FFFFFF" />
               {/* Message Count Badge (Placeholder) */}
             </View>
           </TouchableOpacity>
@@ -353,7 +353,7 @@ export default function HomeScreen({ navigation }: any) {
             activeOpacity={0.7}
           >
             <View>
-              <MaterialCommunityIcons name="bell-outline" size={28} color={theme.colors.onSurface} />
+              <MaterialCommunityIcons name="bell-outline" size={28} color="#FFFFFF" />
               {(user?.unread_notifications_count || 0) > 0 && (
                 <View style={styles.activeBadge} />
               )}
@@ -954,7 +954,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(0,0,0,0.05)',
+    backgroundColor: 'rgba(255,255,255,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
   },
