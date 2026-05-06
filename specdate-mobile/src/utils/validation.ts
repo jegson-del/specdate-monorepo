@@ -10,12 +10,31 @@ export const registerSchema = z.object({
         .min(7, "Mobile number seems too short")
         .max(20, "Mobile number is too long")
         .refine((v) => /\d/.test(v), "Mobile number must contain digits"),
+    dob: z
+        .string()
+        .min(1, "Date of birth is required")
+        .refine((date) => !isNaN(Date.parse(date)), { message: "Invalid date of birth" })
+        .refine((date) => {
+            const dob = new Date(date);
+            const latestAdultDob = new Date();
+            latestAdultDob.setFullYear(latestAdultDob.getFullYear() - 18);
+            return dob <= latestAdultDob;
+        }, { message: "You must be 18 or older to use DateUsher." }),
     password: z.string().min(8, "Password must be at least 8 characters"),
 });
 
 export const profileSchema = z.object({
     full_name: z.string().min(2, "Full Name is required"),
-    dob: z.string().min(1, "Date of birth is required").refine((date) => !isNaN(Date.parse(date)), { message: "Invalid date" }),
+    dob: z
+        .string()
+        .min(1, "Date of birth is required")
+        .refine((date) => !isNaN(Date.parse(date)), { message: "Invalid date" })
+        .refine((date) => {
+            const dob = new Date(date);
+            const latestAdultDob = new Date();
+            latestAdultDob.setFullYear(latestAdultDob.getFullYear() - 18);
+            return dob <= latestAdultDob;
+        }, { message: "You must be 18 or older to use DateUsher." }),
     sex: z.enum(['Male', 'Female', 'Other'], { message: "Please select a gender" }),
     // Required for spec filter/creation and profile complete
     occupation: z.string().min(1, "Occupation is required"),

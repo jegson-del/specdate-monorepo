@@ -16,6 +16,7 @@ class RegisterRequest extends ApiFormRequest
             'email' => 'required|string|email|max:255|unique:users',
             'mobile' => 'required|string|max:20|unique:users',
             'role' => 'nullable|string|in:user,provider',
+            'dob' => 'required|date|before_or_equal:' . now()->subYears(18)->toDateString(),
             'password' => 'required|string|min:8',
             // Optional location fields (sent from mobile via expo-location reverse geocode)
             'latitude' => 'nullable|numeric|between:-90,90',
@@ -31,5 +32,12 @@ class RegisterRequest extends ApiFormRequest
             'terms_accepted' => 'required|accepted',
         ];
     }
-}
 
+    public function messages(): array
+    {
+        return [
+            'dob.required' => 'Date of birth is required.',
+            'dob.before_or_equal' => 'You must be 18 or older to use DateUsher.',
+        ];
+    }
+}

@@ -11,7 +11,7 @@ class UpdateProfileRequest extends ApiFormRequest
         return [
             'latitude' => 'nullable|numeric|between:-90,90',
             'longitude' => 'nullable|numeric|between:-180,180',
-            'dob' => 'nullable|date',
+            'dob' => 'nullable|date|before_or_equal:' . now()->subYears(18)->toDateString(),
             'full_name' => 'nullable|string|max:255',
             'sex' => 'nullable|string|max:50',
             'occupation' => 'nullable|string|max:255',
@@ -29,5 +29,11 @@ class UpdateProfileRequest extends ApiFormRequest
             'religion' => 'nullable|string|max:100',
         ];
     }
-}
 
+    public function messages(): array
+    {
+        return [
+            'dob.before_or_equal' => 'You must be 18 or older to use DateUsher.',
+        ];
+    }
+}

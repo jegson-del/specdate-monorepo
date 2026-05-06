@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use App\Models\Notification;
 use App\Services\NotificationService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Log;
 
 class NotificationController extends Controller
 {
@@ -48,6 +49,11 @@ class NotificationController extends Controller
 
         $request->user()->update([
             'expo_push_token' => $request->input('token'),
+        ]);
+
+        Log::info('Expo push token updated.', [
+            'user_id' => $request->user()->id,
+            'token_prefix' => substr((string) $request->input('token'), 0, 24),
         ]);
 
         return response()->json(['message' => 'Token updated']);

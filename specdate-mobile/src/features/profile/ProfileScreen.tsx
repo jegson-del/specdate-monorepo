@@ -59,11 +59,19 @@ function formatYYYYMMDD(d: Date) {
     return `${yyyy}-${mm}-${dd}`;
 }
 
+function latestAdultDob() {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - 18);
+    d.setHours(23, 59, 59, 999);
+    return d;
+}
+
 export default function ProfileScreen({ navigation }: any) {
     const theme = useTheme();
     const insets = useSafeAreaInsets();
     const queryClient = useQueryClient();
     const { data: user, isRefetching, refetch: refetchUser } = useUser();
+    const adultDobLimit = latestAdultDob();
 
     // --- STATE ---
     const [loading, setLoading] = useState(false);
@@ -86,6 +94,8 @@ export default function ProfileScreen({ navigation }: any) {
 
     // Images (Mock for now, will connect to backend later)
     const [images, setImages] = useState<(string | null)[]>(new Array(6).fill(null));
+    const [localAvatarUri, setLocalAvatarUri] = useState<string | null>(null);
+    const [localAvatarMediaId, setLocalAvatarMediaId] = useState<number | undefined>(undefined);
     const [viewerVisible, setViewerVisible] = useState(false);
     const [viewerInitialIndex, setViewerInitialIndex] = useState(0);
 
@@ -114,9 +124,9 @@ export default function ProfileScreen({ navigation }: any) {
     // Cache-bust avatar and gallery URIs so Image components refetch when profile/avatar updates (same URL, new content)
     const profileUpdatedAt = user?.profile?.updated_at ?? null;
     const avatarUri = useMemo(
-        () => imageUriWithCacheBust(toImageUri(user?.profile?.avatar), profileUpdatedAt) ||
+        () => imageUriWithCacheBust(localAvatarUri || toImageUri(user?.profile?.avatar), profileUpdatedAt) ||
             `https://ui-avatars.com/api/?name=${encodeURIComponent(form?.full_name || user?.name || 'User')}&size=512&background=7C3AED&color=ffffff`,
-        [user?.profile?.avatar, profileUpdatedAt, form?.full_name, user?.name]
+        [localAvatarUri, user?.profile?.avatar, profileUpdatedAt, form?.full_name, user?.name]
     );
     const imagesWithCacheBust = useMemo(
         () => images.map((u) => (u ? (imageUriWithCacheBust(u, profileUpdatedAt) ?? u) : null)),
@@ -160,6 +170,8 @@ export default function ProfileScreen({ navigation }: any) {
         // Load user profile data into form only when we have a real user (id) so we never overwrite with empty/partial refetch
         if (!user || typeof user.id !== 'number') return;
         const profile = user.profile && typeof user.profile === 'object' ? user.profile : {};
+        setLocalAvatarUri(toImageUri(profile?.avatar));
+        setLocalAvatarMediaId(profile?.avatar_media_id);
         setForm({
             full_name: profile?.full_name || user.name || '',
             dob: profile?.dob ? formatYYYYMMDD(new Date(profile.dob)) : '',
@@ -221,30 +233,54 @@ export default function ProfileScreen({ navigation }: any) {
         return status === 'granted';
     };
 
-    const uploadImageAndRefresh = async (uri: string, type: 'avatar' | 'profile_gallery', mediaId?: number) => {
+    const uploadImageAndRefresh = async (uri: string, type: 'avatar' | 'profile_gallery', mediaId?: number, replaceSlotIndex?: number) => {
         setImgLoading(true);
         try {
             const media = await MediaService.upload(uri, type, mediaId);
             const uploadedUrl = media?.url && (media.url as string).startsWith('http') ? media.url : null;
             // Optimistic update: show the new image immediately using the URL returned from upload
             if (uploadedUrl) {
+                const cacheBustedUrl = imageUriWithCacheBust(uploadedUrl, Date.now()) ?? uploadedUrl;
                 queryClient.setQueryData(['user'], (old: any) => {
                     if (!old) return old;
                     if (type === 'avatar') {
-                        return { ...old, profile: { ...(old.profile || {}), avatar: uploadedUrl } };
+                        return {
+                            ...old,
+                            profile: {
+                                ...(old.profile || {}),
+                                avatar: uploadedUrl,
+                                avatar_media_id: media?.id ?? mediaId ?? old.profile?.avatar_media_id,
+                                updated_at: new Date().toISOString(),
+                            },
+                        };
                     }
                     const prev = (old.images || []) as string[];
-                    return { ...old, images: [...prev, uploadedUrl] };
+                    const nextImages = [...prev];
+                    if (replaceSlotIndex != null) {
+                        nextImages[replaceSlotIndex] = uploadedUrl;
+                    } else {
+                        nextImages.push(uploadedUrl);
+                    }
+                    return { ...old, images: nextImages.filter(Boolean).slice(0, 6) };
                 });
-                if (type === 'profile_gallery') {
+
+                if (type === 'avatar') {
+                    setLocalAvatarUri(cacheBustedUrl);
+                    setLocalAvatarMediaId(media?.id ?? mediaId);
+                } else {
                     setImages((prev) => {
+                        if (replaceSlotIndex != null) {
+                            const next = [...prev];
+                            next[replaceSlotIndex] = uploadedUrl;
+                            return [...next, ...new Array(6).fill(null)].slice(0, 6);
+                        }
                         const filled = prev.filter(Boolean) as string[];
-                        const next = [...filled, uploadedUrl, ...new Array(6 - filled.length - 1).fill(null)].slice(0, 6);
-                        return next;
+                        return [...filled, uploadedUrl, ...new Array(6 - filled.length - 1).fill(null)].slice(0, 6);
                     });
                 }
             }
             await queryClient.invalidateQueries({ queryKey: ['user'] });
+            await refetchUser();
             Alert.alert('Success', 'Image uploaded successfully.');
         } catch (e: any) {
             const msg = e?.message || e?.response?.data?.message || 'Upload failed. Try again.';
@@ -270,9 +306,9 @@ export default function ProfileScreen({ navigation }: any) {
             const mediaId = type === 'profile_gallery' && replaceSlotIndex != null
                 ? (user as any)?.profile_gallery_media?.[replaceSlotIndex]?.id
                 : type === 'avatar'
-                    ? (user as any)?.profile?.avatar_media_id
+                    ? localAvatarMediaId ?? (user as any)?.profile?.avatar_media_id
                     : undefined;
-            await uploadImageAndRefresh(result.assets[0].uri, type, mediaId);
+            await uploadImageAndRefresh(result.assets[0].uri, type, mediaId, replaceSlotIndex);
         }
     };
 
@@ -293,9 +329,9 @@ export default function ProfileScreen({ navigation }: any) {
             const mediaId = type === 'profile_gallery' && replaceSlotIndex != null
                 ? (user as any)?.profile_gallery_media?.[replaceSlotIndex]?.id
                 : type === 'avatar'
-                    ? (user as any)?.profile?.avatar_media_id
+                    ? localAvatarMediaId ?? (user as any)?.profile?.avatar_media_id
                     : undefined;
-            await uploadImageAndRefresh(result.assets[0].uri, type, mediaId);
+            await uploadImageAndRefresh(result.assets[0].uri, type, mediaId, replaceSlotIndex);
         }
     };
 
@@ -305,7 +341,7 @@ export default function ProfileScreen({ navigation }: any) {
                 value: dobDate,
                 mode: 'date',
                 is24Hour: true,
-                maximumDate: new Date(),
+                maximumDate: adultDobLimit,
                 onChange: (event: any, selected?: Date) => {
                     if (event?.type !== 'set' || !selected) return;
                     updateForm({ dob: formatYYYYMMDD(selected) });
@@ -323,7 +359,8 @@ export default function ProfileScreen({ navigation }: any) {
         try {
             profileSchema.parse(payload);
             await ProfileService.update(payload);
-            queryClient.invalidateQueries({ queryKey: ['user'] });
+            await queryClient.invalidateQueries({ queryKey: ['user'] });
+            await refetchUser();
             Alert.alert("Success", "Profile updated!");
         } catch (error: any) {
             if (error instanceof z.ZodError) {
@@ -531,7 +568,7 @@ export default function ProfileScreen({ navigation }: any) {
                                 </Text>
                             </TouchableOpacity>
                             <TouchableOpacity
-                                onPress={() => Alert.alert('Buy credits', 'RevenueCat in-app purchase will be available here. You can buy credit packs to join more specs.')}
+                                onPress={() => Alert.alert('Buy credits', 'RevenueCat in-app purchase will be available here. You can buy credit packs to create more specs. Joining specs is free.')}
                                 style={[styles.walletTopUp, { backgroundColor: theme.colors.primaryContainer }]}
                                 activeOpacity={0.8}
                             >
@@ -543,21 +580,23 @@ export default function ProfileScreen({ navigation }: any) {
                         </View>
                     </View>
                     <View style={styles.walletRow}>
-                        <View style={[styles.walletCard, { backgroundColor: theme.colors.primaryContainer, flex: 1 }]}>
-                            <Image
-                                source={require('../../../assets/specdate_coin.png')}
-                                style={{ width: 64, height: 64 }}
-                                resizeMode="contain"
-                            />
-                            <Text variant="headlineSmall" style={[styles.walletAmount, { color: theme.colors.onSurface }]}>
-                                {user?.balance?.credits ?? 0}
-                            </Text>
-                            <Text variant="bodySmall" numberOfLines={1} adjustsFontSizeToFit style={{ color: theme.colors.onSurfaceVariant, fontWeight: '600' }}>
-                                Credits
-                            </Text>
-                            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 4 }}>
-                                1 credit = join a spec or lost when eliminated
-                            </Text>
+                        <View style={[styles.walletCard, { backgroundColor: theme.colors.primary }]}>
+                            <View style={styles.walletBalanceRow}>
+                                <View style={styles.walletCoinWrap}>
+                                    <Image
+                                        source={require('../../../assets/specdate_coin.png')}
+                                        style={styles.walletCoin}
+                                        resizeMode="contain"
+                                    />
+                                </View>
+                                <View style={styles.walletBalanceCopy}>
+                                    <Text style={styles.walletBalanceLabel}>Credit balance</Text>
+                                    <Text style={styles.walletBalanceHint}>1 credit creates 1 spec</Text>
+                                </View>
+                                <Text style={styles.walletAmount}>
+                                    {user?.balance?.credits ?? 0}
+                                </Text>
+                            </View>
                         </View>
                     </View>
                 </Surface>
@@ -669,7 +708,7 @@ export default function ProfileScreen({ navigation }: any) {
                                 setShowDobPicker(false);
                                 if (d) updateForm({ dob: formatYYYYMMDD(d) });
                             }}
-                            maximumDate={new Date()}
+                            maximumDate={adultDobLimit}
                         />
                     )}
 
@@ -1068,21 +1107,48 @@ const styles = StyleSheet.create({
     walletCard: {
         flex: 1,
         borderRadius: 16,
-        padding: 12,
-        alignItems: 'center',
-        minHeight: 100,
+        padding: 16,
+        minHeight: 92,
         justifyContent: 'center',
     },
-    walletIconWrap: {
-        width: 108,
-        height: 108,
+    walletCoinWrap: {
+        width: 52,
+        height: 52,
+        borderRadius: 16,
         alignItems: 'center',
         justifyContent: 'center',
-        marginBottom: 8,
+        backgroundColor: 'rgba(255,255,255,0.18)',
+    },
+    walletCoin: {
+        width: 42,
+        height: 42,
+    },
+    walletBalanceRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
     },
     walletAmount: {
+        color: '#FFFFFF',
         fontWeight: '900',
-        marginBottom: 4,
+        fontSize: 34,
+        lineHeight: 38,
+        marginLeft: 'auto',
+    },
+    walletBalanceCopy: {
+        flex: 1,
+    },
+    walletBalanceLabel: {
+        color: '#FFFFFF',
+        fontWeight: '900',
+        fontSize: 16,
+    },
+    walletBalanceHint: {
+        color: 'rgba(255,255,255,0.82)',
+        fontWeight: '700',
+        fontSize: 12,
+        marginTop: 2,
+        lineHeight: 16,
     },
     sectionTitle: {
         marginBottom: 20,

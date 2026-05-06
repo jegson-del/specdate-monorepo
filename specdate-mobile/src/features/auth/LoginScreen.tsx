@@ -34,7 +34,7 @@ export default function LoginScreen({ navigation }: any) {
       const user = me.data?.data ?? me.data;
 
       if (user?.id) {
-        registerExpoPushToken();
+        await registerExpoPushToken();
       }
 
       // Use backend computed attribute
@@ -181,4 +181,3 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
 });
-

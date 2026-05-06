@@ -19,7 +19,7 @@ class SparkService
         // 1. Assign initial credits (single balance; user can buy more via RevenueCat)
         UserBalance::create([
             'user_id' => $user->id,
-            'credits' => 3,
+            'credits' => 1,
         ]);
 
         // 2. Create Default Skin (Basic Spark)

@@ -10,8 +10,10 @@ import { api } from '../services/api';
  */
 export async function registerExpoPushToken(): Promise<void> {
   try {
-    // Only run on physical device; push doesn't work on simulator
-    if (!Constants.isDevice) {
+    // Push is native-only. Some dev-client/device combos can report
+    // Constants.isDevice incorrectly, so let Expo attempt token generation on iOS/Android.
+    if (Platform.OS === 'web') {
+      if (__DEV__) console.warn('[Expo Push] Skipped: web platform.');
       return;
     }
 
@@ -22,6 +24,7 @@ export async function registerExpoPushToken(): Promise<void> {
       const { status } = await Notifications.requestPermissionsAsync();
       finalStatus = status;
       if (finalStatus !== 'granted') {
+        if (__DEV__) console.warn('[Expo Push] Skipped: notification permission not granted.');
         return;
       }
     }
@@ -34,18 +37,27 @@ export async function registerExpoPushToken(): Promise<void> {
       });
     }
 
-    // For EAS Build, set extra.eas.projectId in app.json/app.config.js
-    const projectId = (Constants.expoConfig as any)?.extra?.eas?.projectId;
+    // For EAS Build, support both common app.json shapes:
+    // extra.eas.projectId and this app's current extra.eas.build.projectId.
+    const easConfig = (Constants.expoConfig as any)?.extra?.eas;
+    const projectId = easConfig?.projectId ?? easConfig?.build?.projectId;
+    if (__DEV__) {
+      console.log('[Expo Push] Using projectId:', projectId || '(none)');
+    }
     const tokenResult = await Notifications.getExpoPushTokenAsync(
       projectId ? { projectId } : undefined
     );
     const token = tokenResult?.data;
 
     if (!token) {
+      if (__DEV__) console.warn('[Expo Push] Skipped: Expo returned no push token.');
       return;
     }
 
     await api.post('/user/push-token', { token });
+    if (__DEV__) {
+      console.log('[Expo Push] Token saved:', token);
+    }
   } catch (e) {
     // Non-blocking: e.g. Expo Go, or no network
     if (__DEV__) {

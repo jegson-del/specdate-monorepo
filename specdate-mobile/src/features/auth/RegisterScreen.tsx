@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Image as RNImage } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, Image as RNImage, Platform } from 'react-native';
 import { Text, TextInput, Button, IconButton, useTheme, RadioButton, SegmentedButtons, Checkbox } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MotiView } from 'moti';
@@ -11,6 +11,32 @@ import * as Location from 'expo-location';
 
 // Avoid re-prompting every time the user returns to this screen (per app run).
 let didTryAutoLocationPrefill = false;
+
+// --- DATE PICKER SETUP ---
+let DateTimePicker: any = null;
+let DateTimePickerAndroid: any = null;
+try {
+    const mod = require('@react-native-community/datetimepicker');
+    DateTimePicker = mod?.default ?? null;
+    DateTimePickerAndroid = mod?.DateTimePickerAndroid ?? null;
+} catch {
+    DateTimePicker = null;
+    DateTimePickerAndroid = null;
+}
+
+function formatYYYYMMDD(d: Date) {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+}
+
+function latestAdultDob() {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - 18);
+    d.setHours(23, 59, 59, 999);
+    return d;
+}
 
 const CALLING_CODE_BY_ISO: Record<string, string> = {
     NG: '234',
@@ -46,12 +72,14 @@ export default function RegisterScreen({ navigation }: any) {
     const [step, setStep] = useState(1); // 1: Details, 2: OTP Channel
     const [loading, setLoading] = useState(false);
     const [termsAccepted, setTermsAccepted] = useState(false);
+    const [showDobPicker, setShowDobPicker] = useState(false);
 
     // Form State
     const [form, setForm] = useState({
         username: '',
         email: '',
         mobile: '',
+        dob: '',
         password: '',
         // Optional location fields (sent to backend; stored in user_profiles)
         latitude: undefined as undefined | number,
@@ -65,6 +93,29 @@ export default function RegisterScreen({ navigation }: any) {
     const [otpChannel, setOtpChannel] = useState('email');
     const [locLoading, setLocLoading] = useState(false);
     const [locHint, setLocHint] = useState<string | null>(null);
+    const adultDobLimit = latestAdultDob();
+    const dobDate = (() => {
+        const raw = form.dob.trim();
+        if (!raw) return new Date(2000, 0, 1);
+        const parsed = new Date(raw);
+        return isNaN(parsed.getTime()) ? new Date(2000, 0, 1) : parsed;
+    })();
+
+    const openDobPicker = () => {
+        if (DateTimePickerAndroid) {
+            DateTimePickerAndroid.open({
+                value: dobDate,
+                mode: 'date',
+                maximumDate: adultDobLimit,
+                onChange: (event: any, selected?: Date) => {
+                    if (event?.type === 'dismissed') return;
+                    if (selected) setForm((prev) => ({ ...prev, dob: formatYYYYMMDD(selected) }));
+                },
+            });
+            return;
+        }
+        setShowDobPicker(true);
+    };
 
     const prefillFromLocation = async () => {
         setLocLoading(true);
@@ -267,6 +318,35 @@ export default function RegisterScreen({ navigation }: any) {
                                 activeOutlineColor={theme.colors.primary}
                                 placeholderTextColor={theme.colors.outline}
                             />
+                            <TextInput
+                                mode="outlined"
+                                label="Date of Birth"
+                                value={form.dob}
+                                onPressIn={openDobPicker}
+                                editable={false}
+                                style={styles.input}
+                                left={<TextInput.Icon icon="calendar" />}
+                                right={<TextInput.Icon icon="calendar-month" onPress={openDobPicker} />}
+                                textColor={theme.colors.onBackground}
+                                outlineColor={theme.colors.outline}
+                                activeOutlineColor={theme.colors.primary}
+                                placeholderTextColor={theme.colors.outline}
+                            />
+                            <Text style={{ color: theme.colors.onSurface, marginTop: -8, opacity: 0.75 }}>
+                                You must be 18 or older to create an account.
+                            </Text>
+                            {DateTimePicker && Platform.OS !== 'android' && showDobPicker && (
+                                <DateTimePicker
+                                    value={dobDate}
+                                    mode="date"
+                                    display="default"
+                                    maximumDate={adultDobLimit}
+                                    onChange={(e: any, d?: Date) => {
+                                        setShowDobPicker(false);
+                                        if (d) setForm((prev) => ({ ...prev, dob: formatYYYYMMDD(d) }));
+                                    }}
+                                />
+                            )}
                             {locLoading ? (
                                 <Text style={{ color: theme.colors.outline, marginTop: -6 }}>
                                     Detecting your location…

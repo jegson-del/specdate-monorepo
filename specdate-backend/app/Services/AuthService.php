@@ -189,6 +189,7 @@ class AuthService
         } else {
             // Create User Profile with Location
             $user->profile()->create([
+                'dob' => $data['dob'],
                 'latitude' => $data['latitude'] ?? null,
                 'longitude' => $data['longitude'] ?? null,
                 'city' => $data['city'] ?? null,

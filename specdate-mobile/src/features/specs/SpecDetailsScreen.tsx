@@ -228,8 +228,8 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                 });
             }
             queryClient.invalidateQueries({ queryKey: ['spec', specId] });
-            queryClient.invalidateQueries({ queryKey: ['user'] }); // refresh balance
-            Alert.alert('Applied', 'You have joined this spec!');
+            queryClient.invalidateQueries({ queryKey: ['user'] }); // refresh profile/application state
+            Alert.alert('Applied', 'You have joined this spec for free!');
         },
         onError: (err: any) => {
             const status = err?.response?.status;
@@ -271,6 +271,13 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
         if (!spec?.applications) return [];
         return spec.applications.filter((a: any) => a.user_role === 'participant');
     }, [spec]);
+
+    const acceptedParticipantCount = useMemo(
+        () => participants.filter((p: any) => p.status === 'ACCEPTED').length,
+        [participants]
+    );
+
+    const isFirstRound = useMemo(() => !spec?.rounds || spec.rounds.length === 0, [spec?.rounds]);
 
     const myApplication = useMemo(() => {
         if (!spec?.applications || !user) return null;
@@ -324,6 +331,29 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
         },
         onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to start round.'),
     });
+
+    const handleStartRoundPress = () => {
+        const maxParticipants = Number((spec as any)?.max_participants ?? 0);
+        const startsBelowCapacity =
+            isFirstRound &&
+            maxParticipants > 0 &&
+            acceptedParticipantCount > 0 &&
+            acceptedParticipantCount < maxParticipants;
+
+        if (startsBelowCapacity) {
+            Alert.alert(
+                'Start quest now?',
+                'Your spec has not reached the max number of participants you required. If you begin the quest, new participants cannot join this spec. Do you wish to start or cancel?',
+                [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Start quest', onPress: () => startRoundMutation.mutate(newRoundQuestion) },
+                ],
+            );
+            return;
+        }
+
+        startRoundMutation.mutate(newRoundQuestion);
+    };
 
     const pickRoundQuestionMedia = async () => {
         try {
@@ -426,27 +456,13 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
             return;
         }
 
-        // 2. Check credits
-        const credits = user?.balance?.credits ?? 0;
-        if (credits < 1) {
-            Alert.alert(
-                'Insufficient credits',
-                'You need at least 1 credit to join a spec. Buy more in Profile.',
-                [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Get credits', onPress: () => navigation.navigate('Profile') }
-                ]
-            );
-            return;
-        }
-
-        // 3. Confirm then call API
+        // 2. Confirm then call API
         Alert.alert(
             'Join Spec?',
-            'This will use 1 credit.',
+            'Join specs for free. Credits are only required to create a new spec.',
             [
                 { text: 'Cancel', style: 'cancel' },
-                { text: 'Join (-1 credit)', onPress: () => joinMutation.mutate() }
+                { text: 'Join for free', onPress: () => joinMutation.mutate() }
             ]
         );
     };
@@ -828,11 +844,11 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                             </View>
                             <Button
                                 mode="contained"
-                                onPress={() => startRoundMutation.mutate(newRoundQuestion)}
+                                onPress={handleStartRoundPress}
                                 loading={startRoundMutation.isPending}
-                                disabled={(!newRoundQuestion.trim() && !roundQuestionMedia) || startRoundMutation.isPending || participants.filter((p: any) => p.status === 'ACCEPTED').length < 1}
+                                disabled={(!newRoundQuestion.trim() && !roundQuestionMedia) || startRoundMutation.isPending || acceptedParticipantCount < 1}
                             >
-                                Start Round {participants.filter((p: any) => p.status === 'ACCEPTED').length < 1 ? '(Need accepted users)' : ''}
+                                Start Round {acceptedParticipantCount < 1 ? '(Need accepted users)' : ''}
                             </Button>
                         </Surface>
                     </View>
@@ -1116,6 +1132,16 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                     >
                         Applications Closed
                     </Button>
+                ) : spec.status !== 'OPEN' ? (
+                    <Button
+                        mode="contained"
+                        disabled
+                        style={[styles.footerBtn, { backgroundColor: theme.colors.surfaceVariant }]}
+                        textColor={theme.colors.onSurfaceVariant}
+                        labelStyle={{ fontSize: 16, fontWeight: '800' }}
+                    >
+                        Quest Started
+                    </Button>
                 ) : (
                     <Button
                         mode="contained"
@@ -1125,7 +1151,7 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                         buttonColor={theme.colors.primary}
                         labelStyle={{ fontSize: 16, fontWeight: '800' }}
                     >
-                        Join Spec (1 Blue Spark)
+                        Join Spec for Free
                     </Button>
                 )}
             </Surface>

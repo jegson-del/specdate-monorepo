@@ -8,6 +8,7 @@ import { Dropdown } from 'react-native-paper-dropdown';
 import { useUser } from '../../hooks/useUser';
 import { OCCUPATION_OPTIONS, QUALIFICATION_OPTIONS, RELIGION_OPTIONS, SEX_OPTIONS } from '../../constants/profileOptions';
 import { MultiSelectModal } from './components/MultiSelectModal';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 // --- Constants & Options ---
 
@@ -74,6 +75,8 @@ export default function CreateSpecScreen({ navigation }: any) {
     const me = useUser();
     const subtleText = { color: theme.colors.onSurface, opacity: 0.84 };
     const promptText = { color: theme.colors.primary, opacity: 0.98 };
+    const currentCredits = me.data?.balance?.credits ?? 0;
+    const creditsAfterCreate = Math.max(currentCredits - 1, 0);
 
     const [step, setStep] = useState<Step>(1);
 
@@ -355,8 +358,7 @@ export default function CreateSpecScreen({ navigation }: any) {
             });
         }
 
-        const credits = me.data?.balance?.credits ?? 0;
-        if (credits < 1) {
+        if (currentCredits < 1) {
             Alert.alert(
                 'Insufficient credits',
                 'You need at least 1 credit to create a spec. Buy more in Profile.',
@@ -389,7 +391,7 @@ export default function CreateSpecScreen({ navigation }: any) {
 
         Alert.alert(
             'Create Spec?',
-            'This will use 1 credit.',
+            'Creating a spec uses 1 credit. Joining specs is free.',
             [
                 { text: 'Cancel', style: 'cancel' },
                 { text: 'Create (-1 credit)', onPress: submitSpec },
@@ -750,6 +752,37 @@ export default function CreateSpecScreen({ navigation }: any) {
                 />
             </View>
 
+            <View style={styles.creditUsageCard}>
+                <View style={styles.creditUsageTop}>
+                    <View style={styles.creditIconWrap}>
+                        <MaterialCommunityIcons name="credit-card-check-outline" size={24} color={theme.colors.primary} />
+                    </View>
+                    <View style={styles.creditUsageCopy}>
+                        <Text variant="titleMedium" style={[styles.reqTitle, { color: theme.colors.onSurface }]}>
+                            Credit usage
+                        </Text>
+                        <Text variant="bodySmall" style={[subtleText, { marginTop: 2 }]}>
+                            Join specs for free. Credits are only required to create a new spec.
+                        </Text>
+                    </View>
+                </View>
+
+                <View style={styles.creditRows}>
+                    <View style={styles.creditRow}>
+                        <Text style={[styles.creditRowLabel, { color: theme.colors.onSurface }]}>Your balance</Text>
+                        <Text style={[styles.creditRowValue, { color: theme.colors.onSurface }]}>{currentCredits}</Text>
+                    </View>
+                    <View style={styles.creditRow}>
+                        <Text style={[styles.creditRowLabel, { color: theme.colors.onSurface }]}>Create this spec</Text>
+                        <Text style={[styles.creditDebit, { color: theme.colors.error }]}>-1 credit</Text>
+                    </View>
+                    <View style={[styles.creditRow, styles.creditRowFinal]}>
+                        <Text style={[styles.creditRowLabel, { color: theme.colors.onSurface }]}>After publishing</Text>
+                        <Text style={[styles.creditRowValue, { color: theme.colors.primary }]}>{creditsAfterCreate}</Text>
+                    </View>
+                </View>
+            </View>
+
             <View style={styles.summaryCard}>
                 <Text variant="titleSmall" style={{ color: theme.colors.primary }}>Ready to Post?</Text>
                 <View style={{ marginTop: 10, gap: 8 }}>
@@ -816,7 +849,7 @@ export default function CreateSpecScreen({ navigation }: any) {
                     style={{ flex: 2 }}
                     loading={createSpec.isPending}
                 >
-                    {step === 3 ? 'Publish Spec' : 'Next'}
+                    {step === 3 ? 'Publish Spec (-1 credit)' : 'Next'}
                 </Button>
             </View>
         </View>
@@ -858,5 +891,59 @@ const styles = StyleSheet.create({
         marginTop: 20,
         borderWidth: 1,
         borderColor: 'rgba(124, 58, 237, 0.2)',
-    }
+    },
+    creditUsageCard: {
+        backgroundColor: '#FFFFFF',
+        padding: 16,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(124, 58, 237, 0.18)',
+    },
+    creditUsageTop: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    creditIconWrap: {
+        width: 44,
+        height: 44,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(124, 58, 237, 0.10)',
+    },
+    creditUsageCopy: {
+        flex: 1,
+    },
+    creditRows: {
+        marginTop: 14,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(0,0,0,0.06)',
+        paddingTop: 12,
+        gap: 10,
+    },
+    creditRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+    },
+    creditRowFinal: {
+        paddingTop: 10,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(0,0,0,0.06)',
+    },
+    creditRowLabel: {
+        flex: 1,
+        fontWeight: '800',
+        opacity: 0.78,
+    },
+    creditRowValue: {
+        fontWeight: '900',
+        fontSize: 18,
+    },
+    creditDebit: {
+        fontWeight: '900',
+        fontSize: 16,
+    },
 });

@@ -42,7 +42,7 @@ export default function OtpVerificationScreen({ navigation, route }: any) {
             const payloadData = response.data?.data ?? response.data;
             if (response.data?.success || response.status === 201) {
                 if (payloadData?.user?.id) {
-                    registerExpoPushToken();
+                    await registerExpoPushToken();
                 }
 
                 Alert.alert("Success", "Account created! Welcome to DateUsher.", [

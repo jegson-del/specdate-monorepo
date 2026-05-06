@@ -70,7 +70,10 @@ export default function NotificationsScreen() {
                 type === 'round_nudge' ||
                 type === 'eliminated' ||
                 type === 'application_accepted' ||
-                type === 'round_answer';
+                type === 'round_answer' ||
+                type === 'spec_starts_today' ||
+                type === 'spec_starts_tomorrow' ||
+                type === 'spec_full';
             if (navigatesToSpec) {
                 queryClient.removeQueries({ queryKey: ['spec', specId] });
                 queryClient.removeQueries({ queryKey: ['spec', specId, 'round_details'] });
@@ -114,6 +117,14 @@ export default function NotificationsScreen() {
             iconName = 'comment-check-outline';
             color = '#3B82F6'; // Blue
             bgColor = 'rgba(59, 130, 246, 0.15)';
+        } else if (type === 'spec_starts_today' || type === 'spec_starts_tomorrow') {
+            iconName = 'calendar-heart';
+            color = '#7C3AED';
+            bgColor = 'rgba(124, 58, 237, 0.15)';
+        } else if (type === 'spec_full') {
+            iconName = 'account-group';
+            color = '#EC4899';
+            bgColor = 'rgba(236, 72, 153, 0.15)';
         }
 
         const timeText = item.created_at ? formatDistanceToNow(new Date(item.created_at), { addSuffix: true }) : '';

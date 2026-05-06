@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Spec;
 use App\Models\SpecDate;
+use App\Models\SpecNotificationLog;
 use App\Models\SpecRound;
 use App\Models\SpecRoundAnswer;
 use App\Models\User;
@@ -287,12 +288,6 @@ class SpecService
                 throw new HttpException(400, 'You have already applied to this spec.');
             }
 
-            $balance = $this->debitCredit(
-                $user,
-                "Joined Spec: {$spec->title}",
-                ['spec_id' => $spec->id, 'action' => 'join_spec']
-            );
-
             // Create Application
             $spec->applications()->create([
                 'user_id' => $user->id,
@@ -314,11 +309,11 @@ class SpecService
                 "Someone wants to join '{$spec->title}'"
             );
 
-            return $balance;
+            return UserBalance::where('user_id', $user->id)->first();
         });
 
         return [
-            'balance' => ['credits' => $balance->credits],
+            'balance' => ['credits' => $balance?->credits ?? 0],
         ];
     }
 
@@ -336,6 +331,8 @@ class SpecService
         }
 
         $application->update(['status' => 'ACCEPTED']);
+
+        $this->notifyOwnerWhenSpecIsFull($spec);
     }
 
     public function rejectApplication($user, $specId, $applicationId): void
@@ -381,7 +378,7 @@ class SpecService
 
         DB::transaction(function () use ($spec, $application) {
             $application->update(['status' => 'ELIMINATED']);
-            $this->chargeEliminationCredit($application->user, $spec, null);
+            $this->notifyEliminatedParticipant($application->user, $spec, null);
         });
 
         return $this->lastManStandingPayload($spec) ?? ['message' => 'Participant eliminated.'];
@@ -418,6 +415,10 @@ class SpecService
             throw new HttpException(403, 'Unauthorized.');
         }
 
+        if (in_array($spec->status, ['COMPLETED', 'EXPIRED'], true)) {
+            throw new HttpException(400, 'Cannot start a round on a closed or expired spec.');
+        }
+
         // Count active participants only; the owner also has an ACCEPTED application.
         $activeCount = $this->activeParticipantCount($spec);
         if ($activeCount < 1) {
@@ -431,6 +432,16 @@ class SpecService
         $latestRound = $spec->rounds()->latest('id')->first();
         if ($latestRound && ($latestRound->status === 'ACTIVE' || $latestRound->status === 'REVIEWING')) {
             $latestRound->update(['status' => 'COMPLETED']);
+        }
+
+        // Once the first round starts, applications close. If the owner starts below
+        // the originally requested capacity, lock capacity to the accepted count.
+        if ($spec->status === 'OPEN') {
+            $spec->status = 'ACTIVE';
+            if ($activeCount < (int) $spec->max_participants) {
+                $spec->max_participants = $activeCount;
+            }
+            $spec->save();
         }
         
         // Find next round number
@@ -610,8 +621,8 @@ class SpecService
             // 2. Update Application Status to ELIMINATED
             $application->update(['status' => 'ELIMINATED']);
 
-            // 3. Deduct 1 credit from eliminated user
-            $this->chargeEliminationCredit($application->user, $round->spec, $round);
+            // 3. Notify eliminated user. Elimination no longer costs credits.
+            $this->notifyEliminatedParticipant($application->user, $round->spec, $round);
         });
 
         // After elimination: if exactly one active participant remains, return last-man-standing info
@@ -744,6 +755,52 @@ class SpecService
         return $this->activeParticipantApplications($spec)->count();
     }
 
+    private function notifyOwnerWhenSpecIsFull(Spec $spec): void
+    {
+        $spec->loadMissing('owner');
+
+        if (!$spec->owner || $spec->status !== 'OPEN') {
+            return;
+        }
+
+        $maxParticipants = (int) $spec->max_participants;
+        if ($maxParticipants < 1 || $this->activeParticipantCount($spec) < $maxParticipants) {
+            return;
+        }
+
+        $type = 'spec_full';
+        $reminderKey = 'spec_full_capacity';
+
+        if (SpecNotificationLog::where('spec_id', $spec->id)
+            ->where('user_id', $spec->owner->id)
+            ->where('type', $type)
+            ->where('reminder_key', $reminderKey)
+            ->exists()) {
+            return;
+        }
+
+        $this->notificationService->notify(
+            $spec->owner,
+            $type,
+            [
+                'spec_id' => $spec->id,
+                'spec_title' => $spec->title,
+                'accepted_count' => $maxParticipants,
+            ],
+            'Your spec is full',
+            'Your spec is full. You can begin the quest before the spec start date.'
+        );
+
+        SpecNotificationLog::create([
+            'spec_id' => $spec->id,
+            'user_id' => $spec->owner->id,
+            'type' => $type,
+            'reminder_key' => $reminderKey,
+            'channels' => ['database', 'push'],
+            'sent_at' => now(),
+        ]);
+    }
+
     private function lastManStandingPayload(Spec $spec): ?array
     {
         if ($this->activeParticipantCount($spec) !== 1) {
@@ -771,31 +828,10 @@ class SpecService
         ];
     }
 
-    private function chargeEliminationCredit(?User $victim, Spec $spec, ?SpecRound $round): void
+    private function notifyEliminatedParticipant(?User $victim, Spec $spec, ?SpecRound $round): void
     {
         if (!$victim) {
             return;
-        }
-
-        $victim->loadMissing('balance');
-
-        if ($victim->balance) {
-            $victim->balance->decrement('credits');
-
-            $metadata = ['spec_id' => $spec->id];
-            if ($round) {
-                $metadata['round_id'] = $round->id;
-            }
-
-            $victim->transactions()->create([
-                'type' => 'DEBIT',
-                'item_type' => 'credit',
-                'quantity' => 1,
-                'amount' => null,
-                'currency' => null,
-                'purpose' => "Eliminated from Spec: {$spec->title}",
-                'metadata' => $metadata,
-            ]);
         }
 
         $payload = ['spec_id' => $spec->id];
@@ -803,11 +839,7 @@ class SpecService
             $payload['round_id'] = $round->id;
         }
 
-        $message = "You have been eliminated from '{$spec->title}'";
-        if ($victim->balance) {
-            $message .= ' and lost 1 credit';
-        }
-        $message .= '.';
+        $message = "You have been eliminated from '{$spec->title}'.";
 
         $this->notificationService->notify(
             $victim,

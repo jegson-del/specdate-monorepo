@@ -19,7 +19,7 @@ return new class extends Migration
             $table->integer('quantity'); // Amount of items
             $table->decimal('amount', 10, 2)->nullable(); // Money value (cost/price)
             $table->string('currency', 3)->nullable()->default('GBP');
-            $table->string('purpose'); // e.g. 'Joined Spec', 'Eliminated from Spec', 'Purchased (RevenueCat)'
+            $table->string('purpose'); // e.g. 'Created Spec', 'Purchased (RevenueCat)'
             $table->json('metadata')->nullable(); // Store { spec_id: 1 } etc.
             $table->timestamps();
         });
