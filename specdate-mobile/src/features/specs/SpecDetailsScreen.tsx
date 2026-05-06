@@ -14,7 +14,7 @@ import { useUser } from '../../hooks/useUser';
 import { toImageUri } from '../../utils/imageUrl';
 import { VideoViewerModal } from '../../components';
 import { EditSpecModal } from './components/EditSpecModal';
-import { AudioMessagePlayer, LastManStandingModal, useRoundAudioRecorder, VideoThumbnailPlayer } from './components';
+import { AudioMessagePlayer, LastManStandingModal, RecordingMediaButton, useRoundAudioRecorder, VideoThumbnailPlayer } from './components';
 import type { RoundMediaAsset } from './components';
 
 function formatExpires(expiresAt?: string) {
@@ -78,6 +78,14 @@ function toNumber(v: any): number | null {
         return Number.isFinite(n) ? n : null;
     }
     return null;
+}
+
+function isAudioMedia(media?: any) {
+    return String(media?.type ?? '').includes('_audio') || String(media?.mime_type ?? '').startsWith('audio/');
+}
+
+function isVideoMedia(media?: any) {
+    return String(media?.type ?? '').includes('_video') || String(media?.mime_type ?? '').startsWith('video/');
 }
 
 function cmToFeetInches(cm: number) {
@@ -793,7 +801,7 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                                             }}
                                         />
                                     ) : (
-                                        <AudioMessagePlayer uri={roundQuestionMedia.uri} compact />
+                                        <AudioMessagePlayer uri={roundQuestionMedia.uri} label="Audio question" compact />
                                     )}
                                     <Button mode="text" compact onPress={() => setRoundQuestionMedia(null)}>
                                         Remove
@@ -822,25 +830,12 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                                     <MaterialCommunityIcons name="video" size={22} color={theme.colors.primary} />
                                     <Text style={[styles.mediaBtnLabel, { color: theme.colors.onSurface }]}>Video</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity
+                                <RecordingMediaButton
+                                    isRecording={questionAudioRecorder.isRecording}
+                                    durationMillis={questionAudioRecorder.durationMillis}
                                     onPress={questionAudioRecorder.isRecording ? questionAudioRecorder.stopRecording : questionAudioRecorder.startRecording}
-                                    style={[
-                                        styles.mediaBtn,
-                                        {
-                                            borderColor: theme.colors.outlineVariant || theme.colors.outline + '50',
-                                            backgroundColor: questionAudioRecorder.isRecording ? 'rgba(236,72,153,0.12)' : 'transparent',
-                                        },
-                                    ]}
-                                >
-                                    <MaterialCommunityIcons
-                                        name={questionAudioRecorder.isRecording ? 'stop' : 'microphone'}
-                                        size={22}
-                                        color={theme.colors.primary}
-                                    />
-                                    <Text style={[styles.mediaBtnLabel, { color: theme.colors.onSurface }]}>
-                                        {questionAudioRecorder.isRecording ? `${Math.floor(questionAudioRecorder.durationMillis / 1000)}s` : 'Voice'}
-                                    </Text>
-                                </TouchableOpacity>
+                                    style={{ borderColor: theme.colors.outlineVariant || theme.colors.outline + '50' }}
+                                />
                             </View>
                             <Button
                                 mode="contained"
@@ -901,6 +896,8 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                                 const eliminated = answers.filter((a: any) => a.is_eliminated).length;
                                 const remaining = answers.length - eliminated;
                                 const statusColor = r.status === 'ACTIVE' ? '#16a34a' : r.status === 'REVIEWING' ? '#ca8a04' : theme.colors.outline;
+                                const hasAudioQuestion = isAudioMedia(r.media);
+                                const hasVideoQuestion = isVideoMedia(r.media);
                                 return (
                                     <TouchableOpacity
                                         key={r.id}
@@ -915,6 +912,30 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                                             <Text numberOfLines={2} style={[styles.roundCardFlatQuestion, { color: theme.colors.onSurface }]}>
                                                 {r.question_text?.trim() || 'Voice question'}
                                             </Text>
+                                            {(hasAudioQuestion || hasVideoQuestion) && (
+                                                <View
+                                                    style={[
+                                                        styles.roundCardMediaType,
+                                                        {
+                                                            backgroundColor: hasAudioQuestion ? theme.colors.primaryContainer : theme.colors.surfaceVariant,
+                                                        },
+                                                    ]}
+                                                >
+                                                    <MaterialCommunityIcons
+                                                        name={hasAudioQuestion ? 'waveform' : 'video-outline'}
+                                                        size={15}
+                                                        color={hasAudioQuestion ? theme.colors.onPrimaryContainer : theme.colors.onSurfaceVariant}
+                                                    />
+                                                    <Text
+                                                        style={[
+                                                            styles.roundCardMediaTypeText,
+                                                            { color: hasAudioQuestion ? theme.colors.onPrimaryContainer : theme.colors.onSurfaceVariant },
+                                                        ]}
+                                                    >
+                                                        {hasAudioQuestion ? 'Audio question' : 'Video question'}
+                                                    </Text>
+                                                </View>
+                                            )}
                                             <View style={styles.roundCardFlatMeta}>
                                                 <Text style={[styles.roundCardFlatStat, { color: theme.colors.onSurfaceVariant }]}>
                                                     {eliminated} out · {remaining} left
@@ -1508,6 +1529,20 @@ const styles = StyleSheet.create({
     roundCardFlatNumText: { fontSize: 15, fontWeight: '800' },
     roundCardFlatBody: { flex: 1, minWidth: 0 },
     roundCardFlatQuestion: { fontSize: 15, fontWeight: '600', lineHeight: 20 },
+    roundCardMediaType: {
+        alignSelf: 'flex-start',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        marginTop: 8,
+        paddingHorizontal: 8,
+        paddingVertical: 5,
+        borderRadius: 8,
+    },
+    roundCardMediaTypeText: {
+        fontSize: 12,
+        fontWeight: '700',
+    },
     roundCardFlatMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, gap: 8 },
     roundCardFlatStat: { fontSize: 12 },
     roundCardFlatPill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },

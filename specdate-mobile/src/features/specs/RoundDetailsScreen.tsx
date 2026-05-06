@@ -9,10 +9,18 @@ import { SpecService } from '../../services/specs';
 import { useUser } from '../../hooks/useUser';
 import { toImageUri } from '../../utils/imageUrl';
 import { VideoViewerModal } from '../../components';
-import { AudioMessagePlayer, CloseRoundModal, LastManStandingModal, useRoundAudioRecorder, VideoThumbnailPlayer } from './components';
+import { AudioMessagePlayer, CloseRoundModal, LastManStandingModal, RecordingMediaButton, useRoundAudioRecorder, VideoThumbnailPlayer } from './components';
 import type { RoundMediaAsset } from './components';
 import * as ImagePicker from 'expo-image-picker';
 import { MediaService } from '../../services/media';
+
+function isAudioMedia(media?: any) {
+    return String(media?.type ?? '').includes('_audio') || String(media?.mime_type ?? '').startsWith('audio/');
+}
+
+function isVideoMedia(media?: any) {
+    return String(media?.type ?? '').includes('_video') || String(media?.mime_type ?? '').startsWith('video/');
+}
 
 export default function RoundDetailsScreen({ route, navigation }: any) {
     const specId = route.params?.specId != null ? String(route.params.specId) : undefined;
@@ -597,9 +605,9 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
 
                     {!isEditing && roundToShow.media?.url && (
                         <View style={styles.questionMediaDisplay}>
-                            {roundToShow.media.mime_type?.startsWith('audio/') ? (
-                                <AudioMessagePlayer uri={roundToShow.media.url} />
-                            ) : roundToShow.media.mime_type?.startsWith('video/') ? (
+                            {isAudioMedia(roundToShow.media) ? (
+                                <AudioMessagePlayer uri={roundToShow.media.url} label="Audio question" />
+                            ) : isVideoMedia(roundToShow.media) ? (
                                 <VideoThumbnailPlayer
                                     uri={roundToShow.media.url}
                                     width={220}
@@ -663,7 +671,7 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                                                 onPress={() => { setVideoViewerUri(nextRoundQuestionMedia.uri); setVideoViewerVisible(true); }}
                                             />
                                         ) : (
-                                            <AudioMessagePlayer uri={nextRoundQuestionMedia.uri} compact />
+                                            <AudioMessagePlayer uri={nextRoundQuestionMedia.uri} label="Audio question" compact />
                                         )}
                                         <Button mode="text" compact onPress={() => setNextRoundQuestionMedia(null)}>
                                             Remove
@@ -695,26 +703,12 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                                         <MaterialCommunityIcons name="video" size={18} color={theme.colors.primary} />
                                         <Text style={[styles.mediaBtnLabel, { color: theme.colors.onSurface }]}>Video</Text>
                                     </TouchableOpacity>
-                                    <TouchableOpacity
-                                        activeOpacity={0.8}
-                                        style={[
-                                            styles.mediaBtn,
-                                            {
-                                                borderColor: theme.colors.outlineVariant || theme.colors.outline + '50',
-                                                backgroundColor: nextRoundAudioRecorder.isRecording ? 'rgba(236,72,153,0.12)' : 'transparent',
-                                            },
-                                        ]}
+                                    <RecordingMediaButton
+                                        isRecording={nextRoundAudioRecorder.isRecording}
+                                        durationMillis={nextRoundAudioRecorder.durationMillis}
                                         onPress={nextRoundAudioRecorder.isRecording ? nextRoundAudioRecorder.stopRecording : nextRoundAudioRecorder.startRecording}
-                                    >
-                                        <MaterialCommunityIcons
-                                            name={nextRoundAudioRecorder.isRecording ? 'stop' : 'microphone'}
-                                            size={18}
-                                            color={theme.colors.primary}
-                                        />
-                                        <Text style={[styles.mediaBtnLabel, { color: theme.colors.onSurface }]}>
-                                            {nextRoundAudioRecorder.isRecording ? `${Math.floor(nextRoundAudioRecorder.durationMillis / 1000)}s` : 'Voice'}
-                                        </Text>
-                                    </TouchableOpacity>
+                                        style={{ borderColor: theme.colors.outlineVariant || theme.colors.outline + '50' }}
+                                    />
                                 </View>
                                 <TouchableOpacity
                                     activeOpacity={0.8}
@@ -764,9 +758,9 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                                 </View>
                                 {myAnswer.media && (
                                     <View style={{ marginTop: 12 }}>
-                                        {myAnswer.media.mime_type?.startsWith('audio/') ? (
-                                            <AudioMessagePlayer uri={myAnswer.media.url} />
-                                        ) : myAnswer.media.mime_type?.startsWith('video/') ? (
+                                        {isAudioMedia(myAnswer.media) ? (
+                                            <AudioMessagePlayer uri={myAnswer.media.url} label="Audio answer" />
+                                        ) : isVideoMedia(myAnswer.media) ? (
                                             <VideoThumbnailPlayer uri={myAnswer.media.url} width={200} height={120} onPress={() => { setVideoViewerUri(myAnswer.media.url); setVideoViewerVisible(true); }} />
                                         ) : (
                                             <Image source={{ uri: myAnswer.media?.url }} style={{ width: 120, height: 120, borderRadius: 8 }} />
@@ -792,7 +786,7 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                                         ) : answerMedia.assetType === 'video' ? (
                                             <VideoThumbnailPlayer uri={answerMedia.uri} width={160} height={100} onPress={() => { setVideoViewerUri(answerMedia.uri); setVideoViewerVisible(true); }} />
                                         ) : (
-                                            <AudioMessagePlayer uri={answerMedia.uri} compact />
+                                            <AudioMessagePlayer uri={answerMedia.uri} label="Audio answer" compact />
                                         )}
                                         <TouchableOpacity
                                             style={{ position: 'absolute', top: -8, right: -8, backgroundColor: theme.colors.error, borderRadius: 12, padding: 4 }}
@@ -824,25 +818,12 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                                         <MaterialCommunityIcons name="video" size={22} color={theme.colors.primary} />
                                         <Text style={[styles.mediaBtnLabel, { color: theme.colors.onSurface }]}>Record</Text>
                                     </TouchableOpacity>
-                                    <TouchableOpacity
+                                    <RecordingMediaButton
+                                        isRecording={answerAudioRecorder.isRecording}
+                                        durationMillis={answerAudioRecorder.durationMillis}
                                         onPress={answerAudioRecorder.isRecording ? answerAudioRecorder.stopRecording : answerAudioRecorder.startRecording}
-                                        style={[
-                                            styles.mediaBtn,
-                                            {
-                                                borderColor: theme.colors.outlineVariant,
-                                                backgroundColor: answerAudioRecorder.isRecording ? 'rgba(236,72,153,0.12)' : 'transparent',
-                                            },
-                                        ]}
-                                    >
-                                        <MaterialCommunityIcons
-                                            name={answerAudioRecorder.isRecording ? 'stop' : 'microphone'}
-                                            size={22}
-                                            color={theme.colors.primary}
-                                        />
-                                        <Text style={[styles.mediaBtnLabel, { color: theme.colors.onSurface }]}>
-                                            {answerAudioRecorder.isRecording ? `${Math.floor(answerAudioRecorder.durationMillis / 1000)}s` : 'Voice'}
-                                        </Text>
-                                    </TouchableOpacity>
+                                        style={{ borderColor: theme.colors.outlineVariant }}
+                                    />
                                 </View>
                                 <TouchableOpacity
                                     activeOpacity={0.8}
@@ -894,11 +875,11 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                                                     {a.answer_text?.trim() || 'Voice answer'}
                                                 </Text>
                                                 {a.media && (
-                                                    a.media.mime_type?.startsWith('audio/') ? (
+                                                    isAudioMedia(a.media) ? (
                                                         <View style={{ marginTop: 8 }}>
-                                                            <AudioMessagePlayer uri={a.media.url} compact />
+                                                            <AudioMessagePlayer uri={a.media.url} label="Audio answer" compact />
                                                         </View>
-                                                    ) : a.media.mime_type?.startsWith('video/') ? (
+                                                    ) : isVideoMedia(a.media) ? (
                                                         <View style={{ marginTop: 8 }}>
                                                             <VideoThumbnailPlayer uri={a.media.url} width={160} height={100} onPress={() => { setVideoViewerUri(a.media.url); setVideoViewerVisible(true); }} />
                                                         </View>

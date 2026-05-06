@@ -28,8 +28,6 @@ class SpecService
         $query = Spec::query()
             ->with(['owner.profile', 'owner.media', 'requirements'])
             ->withCount(['applications', 'likes'])
-            ->where('status', 'OPEN')
-            ->where('expires_at', '>', now())
             ->whereHas('owner', fn ($q) => $q->where('is_paused', false));
 
         if ($excludeOwn) {
@@ -43,20 +41,26 @@ class SpecService
         // - HOTTEST: recent + popular
         switch ($filter) {
             case 'POPULAR':
-                $query->orderByDesc('applications_count');
+                $query->where('status', 'OPEN')
+                    ->where('expires_at', '>', now())
+                    ->orderByDesc('applications_count');
                 break;
             case 'HOTTEST':
-                $query->where('created_at', '>=', now()->subDays(3))
+                $query->where('status', 'OPEN')
+                    ->where('expires_at', '>', now())
+                    ->where('created_at', '>=', now()->subDays(3))
                     ->orderByDesc('applications_count');
                 break;
             case 'ONGOING':
-                $query->where('expires_at', '<=', now()->addDays(2))
+                $query->where('status', 'ACTIVE')
                     ->orderBy('expires_at', 'asc');
                 break;
             case 'LIVE':
             default:
                 // All active specs (default)
-                $query->latest();
+                $query->where('status', 'OPEN')
+                    ->where('expires_at', '>', now())
+                    ->latest();
                 break;
         }
 
