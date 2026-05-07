@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, TextInput } from 'react-native';
+import { Alert, View, StyleSheet, TextInput } from 'react-native';
 import { Button, Modal, Portal, Text, useTheme } from 'react-native-paper';
 
 export type LastManStandingModalProps = {
@@ -10,6 +10,7 @@ export type LastManStandingModalProps = {
   onMatchAndDate: () => void;
   /** Called with the comment to send to the eliminated user. */
   onExtendSearch: (comment: string) => void;
+  availableCredits?: number;
   matchLoading?: boolean;
   extendLoading?: boolean;
 };
@@ -21,6 +22,7 @@ export function LastManStandingModal({
   specId,
   onMatchAndDate,
   onExtendSearch,
+  availableCredits = 0,
   matchLoading = false,
   extendLoading = false,
 }: LastManStandingModalProps) {
@@ -36,7 +38,22 @@ export function LastManStandingModal({
   }, [visible]);
 
   const handleExtendSubmit = () => {
-    onExtendSearch(comment.trim());
+    if (availableCredits < 1) {
+      Alert.alert(
+        'Insufficient credits',
+        'Extending this quest costs 1 credit, just like creating a new spec. Buy more credits before extending your search.'
+      );
+      return;
+    }
+
+    Alert.alert(
+      'Extend this quest?',
+      'Extending will charge 1 credit, remove the last person standing, and reopen this spec for new applicants.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Use 1 credit', onPress: () => onExtendSearch(comment.trim()) },
+      ]
+    );
   };
 
   return (
@@ -55,7 +72,7 @@ export function LastManStandingModal({
               {winnerName} is the last one standing — the winner of the quest.
             </Text>
             <Text style={[styles.prompt, { color: theme.colors.onSurface }]}>
-              Do you want to match and make this a date, or extend your search?
+              Do you want to match and make this a date, or extend your search for 1 credit?
             </Text>
 
             <View style={styles.actions}>
@@ -86,6 +103,9 @@ export function LastManStandingModal({
             </Text>
             <Text style={[styles.message, { color: theme.colors.onSurfaceVariant }]}>
               Your message will be sent to the eliminated user so they know why you're extending the search.
+            </Text>
+            <Text style={[styles.costText, { color: theme.colors.error }]}>
+              Extending costs 1 credit. Your balance: {availableCredits}
             </Text>
             <TextInput
               placeholder="e.g. I'd like to see more options before deciding"
@@ -150,6 +170,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     marginBottom: 24,
+    textAlign: 'center',
+  },
+  costText: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 14,
     textAlign: 'center',
   },
   actions: {

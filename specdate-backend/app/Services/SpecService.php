@@ -698,9 +698,68 @@ class SpecService
         ];
     }
 
+    public function listDatesForUser($user)
+    {
+        $dates = SpecDate::query()
+            ->where(function ($q) use ($user) {
+                $q->where('owner_id', $user->id)
+                    ->orWhere('winner_user_id', $user->id);
+            })
+            ->with([
+                'spec:id,title,description,location_city,status,created_at',
+                'owner:id,name,username',
+                'owner.profile',
+                'owner.media',
+                'winner:id,name,username',
+                'winner.profile',
+                'winner.media',
+            ])
+            ->latest()
+            ->get();
+
+        return $dates->map(function (SpecDate $date) use ($user) {
+            $owner = $date->owner;
+            $winner = $date->winner;
+            $isOwner = (int) $date->owner_id === (int) $user->id;
+            $otherUser = $isOwner ? $winner : $owner;
+            $winnerAvatar = $winner?->media?->where('type', 'avatar')->sortByDesc('id')->first()?->url;
+            $ownerAvatar = $owner?->media?->where('type', 'avatar')->sortByDesc('id')->first()?->url;
+            $otherAvatar = $otherUser?->media?->where('type', 'avatar')->sortByDesc('id')->first()?->url;
+
+            return [
+                'id' => $date->id,
+                'spec_id' => $date->spec_id,
+                'owner_id' => $date->owner_id,
+                'winner_user_id' => $date->winner_user_id,
+                'date_code' => $date->date_code,
+                'matched_at' => $date->created_at,
+                'is_owner' => $isOwner,
+                'spec' => $date->spec,
+                'owner' => $owner ? [
+                    'id' => $owner->id,
+                    'name' => $owner->profile?->full_name ?? $owner->name,
+                    'username' => $owner->username,
+                    'avatar' => $ownerAvatar,
+                ] : null,
+                'winner' => $winner ? [
+                    'id' => $winner->id,
+                    'name' => $winner->profile?->full_name ?? $winner->name,
+                    'username' => $winner->username,
+                    'avatar' => $winnerAvatar,
+                ] : null,
+                'other_user' => $otherUser ? [
+                    'id' => $otherUser->id,
+                    'name' => $otherUser->profile?->full_name ?? $otherUser->name,
+                    'username' => $otherUser->username,
+                    'avatar' => $otherAvatar,
+                ] : null,
+            ];
+        });
+    }
+
     /**
-     * Extend search: eliminate the last remaining participant and set spec status to OPEN.
-     * Owner can then edit the spec and get more applicants.
+     * Extend search: charge the owner one credit, eliminate the last remaining
+     * participant, and set spec status to OPEN so the owner can recruit again.
      * $comment is sent to the eliminated user in the notification.
      */
     public function extendSearch($user, $specId, ?string $comment = null)
@@ -725,7 +784,13 @@ class SpecService
             $body .= "\n\nMessage from the owner: " . trim($comment);
         }
 
-        DB::transaction(function () use ($spec, $winnerApp, $round, $body) {
+        $balance = DB::transaction(function () use ($user, $spec, $winnerApp, $round, $body) {
+            $balance = $this->debitCredit(
+                $user,
+                "Extended Spec: {$spec->title}",
+                ['spec_id' => $spec->id, 'action' => 'extend_search']
+            );
+
             $round->answers()->where('user_id', $winnerApp->user_id)->update(['is_eliminated' => true]);
             $winnerApp->update(['status' => 'ELIMINATED']);
             $spec->update(['status' => 'OPEN']);
@@ -740,10 +805,13 @@ class SpecService
                     $body
                 );
             }
+
+            return $balance;
         });
 
         return [
             'message' => 'Search extended. Edit your spec and keep it open to get more applicants.',
+            'balance' => ['credits' => $balance->credits],
         ];
     }
 
@@ -1076,8 +1144,12 @@ class SpecService
 
 
 
-        if (in_array($spec->status, ['COMPLETED', 'EXPIRED'])) {
-            throw new HttpException(400, 'Cannot edit a closed or expired spec.');
+        if ($spec->status !== 'OPEN') {
+            throw new HttpException(400, 'This spec quest has already started or closed, so it can no longer be edited.');
+        }
+
+        if (isset($data['status']) && !in_array($data['status'], ['OPEN', 'COMPLETED'], true)) {
+            throw new HttpException(400, 'Status can only be changed to open or completed from the edit screen.');
         }
 
         // Handle status change

@@ -39,6 +39,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/users/{id}', [\App\Http\Controllers\UserController::class, 'show']);
     
     Route::get('/my-specs', [\App\Http\Controllers\SpecController::class, 'mySpecs']);
+    Route::get('/dates', [\App\Http\Controllers\SpecController::class, 'myDates']);
     Route::post('/specs/{id}/join', [\App\Http\Controllers\SpecController::class, 'join']);
     Route::post('/specs/{id}/applications/{applicationId}/approve', [\App\Http\Controllers\SpecController::class, 'approveApplication']);
     Route::post('/specs/{id}/applications/{applicationId}/reject', [\App\Http\Controllers\SpecController::class, 'rejectApplication']);

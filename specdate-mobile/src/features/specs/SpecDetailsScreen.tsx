@@ -208,7 +208,20 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
     const extendSearchMutation = useMutation({
         mutationFn: ({ specIdToUse, comment }: { specIdToUse: string; comment: string }) =>
             SpecService.extendSearch(specIdToUse, comment),
-        onSuccess: async () => {
+        onSuccess: async (res: any) => {
+            const credits = res?.data?.balance?.credits;
+            if (typeof credits === 'number') {
+                queryClient.setQueryData(['user'], (current: any) => {
+                    if (!current) return current;
+                    return {
+                        ...current,
+                        balance: {
+                            ...(current.balance ?? {}),
+                            credits,
+                        },
+                    };
+                });
+            }
             queryClient.invalidateQueries({ queryKey: ['spec', specId] });
             await refetchSpec();
             setLastManStandingVisible(false);
@@ -677,7 +690,7 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                         />
 
                         {/* Edit Button for Owner */}
-                        {isOwner && !['COMPLETED', 'EXPIRED'].includes(spec?.status) && (
+                        {isOwner && spec?.status === 'OPEN' && (
                             <IconButton
                                 icon="pencil"
                                 iconColor="#FFFFFF"
@@ -1190,6 +1203,7 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                 specId={lastManStandingSpecId ?? ''}
                 onMatchAndDate={() => lastManStandingSpecId && createDateMutation.mutate(lastManStandingSpecId)}
                 onExtendSearch={(comment) => lastManStandingSpecId && extendSearchMutation.mutate({ specIdToUse: lastManStandingSpecId, comment })}
+                availableCredits={user?.balance?.credits ?? 0}
                 matchLoading={createDateMutation.isPending}
                 extendLoading={extendSearchMutation.isPending}
             />

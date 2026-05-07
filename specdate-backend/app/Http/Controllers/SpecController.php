@@ -52,6 +52,12 @@ class SpecController extends Controller
         return $this->sendResponse($specs, 'My specs retrieved successfully.');
     }
 
+    public function myDates(Request $request)
+    {
+        $dates = $this->specService->listDatesForUser($request->user());
+        return $this->sendResponse($dates, 'Dates retrieved successfully.');
+    }
+
     /**
      * Store a newly created spec in storage.
      */
@@ -130,6 +136,16 @@ class SpecController extends Controller
         }
 
         return $this->sendResponse($data, 'Spec retrieved successfully.');
+    }
+
+    public function update(UpdateSpecRequest $request, $id)
+    {
+        try {
+            $spec = $this->specService->updateSpec($request->user(), $id, $request->validated());
+            return $this->sendResponse($spec, 'Spec updated successfully.');
+        } catch (HttpException $e) {
+            return $this->sendError($e->getMessage(), [], $e->getStatusCode());
+        }
     }
 
     /**

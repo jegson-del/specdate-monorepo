@@ -40,6 +40,11 @@ export const SpecService = {
         return response.data;
     },
 
+    async getDates() {
+        const response = await api.get('/dates');
+        return response.data;
+    },
+
     async updateSpec(id: number, data: any) {
         return api.put(`/specs/${id}`, data).then(res => res.data);
     },

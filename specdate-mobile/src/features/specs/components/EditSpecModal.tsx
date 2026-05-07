@@ -48,7 +48,7 @@ export const EditSpecModal = ({ visible, onClose, spec }: EditSpecModalProps) =>
             onClose();
         },
         onError: (err: any) => {
-            Alert.alert('Error', err.message || 'Failed to update spec');
+            Alert.alert('Error', err?.response?.data?.message || err.message || 'Failed to update spec');
         }
     });
 
@@ -72,9 +72,13 @@ export const EditSpecModal = ({ visible, onClose, spec }: EditSpecModalProps) =>
         const data: any = {
             title,
             description,
-            max_participants: maxParticipants ? parseInt(maxParticipants) : null,
-            expires_at,
         };
+        if (maxParticipants.trim()) {
+            data.max_participants = parseInt(maxParticipants, 10);
+        }
+        if (expires_at) {
+            data.expires_at = expires_at;
+        }
 
         // Handle Status
         if (status !== spec.status) {
@@ -88,7 +92,6 @@ export const EditSpecModal = ({ visible, onClose, spec }: EditSpecModalProps) =>
 
     const STATUS_OPTIONS = [
         { label: 'Open (Accepting Apps)', value: 'OPEN' },
-        { label: 'Active (In Progress)', value: 'ACTIVE' },
         { label: 'Closed (Final)', value: 'COMPLETED' },
     ];
 
@@ -115,8 +118,7 @@ export const EditSpecModal = ({ visible, onClose, spec }: EditSpecModalProps) =>
         }
     };
 
-    // Status can manage its own disabled state or we rely on logic
-    const isEditable = !['COMPLETED', 'EXPIRED'].includes(spec?.status);
+    const isEditable = spec?.status === 'OPEN';
 
     return (
         <Portal>
@@ -198,15 +200,13 @@ export const EditSpecModal = ({ visible, onClose, spec }: EditSpecModalProps) =>
                             <Text style={styles.helperText}>
                                 {status === 'COMPLETED'
                                     ? 'Warning: Closing is final.'
-                                    : status === 'ACTIVE'
-                                        ? 'Spec is in progress (no new joins).'
-                                        : 'Spec is open for applications.'}
+                                    : 'Spec is open for applications.'}
                             </Text>
                         </View>
                     ) : (
                         <View style={styles.infoBox}>
                             <Ionicons name="lock-closed" size={20} color={theme.colors.onSurfaceVariant} />
-                            <Text style={styles.infoText}>This spec is {spec?.status?.toLowerCase()} and cannot be edited.</Text>
+                            <Text style={styles.infoText}>This spec quest has already started or closed and cannot be edited.</Text>
                         </View>
                     )}
 
