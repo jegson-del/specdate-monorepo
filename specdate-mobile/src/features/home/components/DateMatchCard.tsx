@@ -2,6 +2,7 @@ import React from 'react';
 import { Alert, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Avatar, Surface, Text } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
 import { toImageUri } from '../../../utils/imageUrl';
 import { formatMatchedDate, withAlpha } from '../homeUtils';
 import { HomeColors, SpecDateItem } from '../types';
@@ -17,18 +18,24 @@ export default function DateMatchCard({ item, theme, homeColors, onOpenQuest }: 
   const winnerAvatar = toImageUri(item.winner?.avatar);
   const otherName = item.other_user?.name || 'Your match';
   const winnerName = item.winner?.name || 'Winner';
+  const specMeta = [item.spec?.title || 'Spec quest', item.spec?.location_city].filter(Boolean).join(' • ');
+
+  const handleCopyCode = async () => {
+    await Clipboard.setStringAsync(item.date_code);
+    Alert.alert('Date code copied', 'Use this code when booking your date with a provider.');
+  };
 
   return (
     <Surface style={[styles.card, { backgroundColor: theme.colors.surface }]}>
       <View style={styles.cardTop}>
         <View style={styles.avatarWrap}>
           {winnerAvatar ? (
-            <Avatar.Image size={64} source={{ uri: winnerAvatar }} />
+            <Avatar.Image size={52} source={{ uri: winnerAvatar }} />
           ) : (
-            <Avatar.Text size={64} label={winnerName.slice(0, 2).toUpperCase()} />
+            <Avatar.Text size={52} label={winnerName.slice(0, 2).toUpperCase()} />
           )}
           <View style={[styles.avatarBadge, { backgroundColor: theme.colors.primary }]}>
-            <MaterialCommunityIcons name="crown" size={13} color={theme.colors.onPrimary} />
+            <MaterialCommunityIcons name="crown" size={11} color={theme.colors.onPrimary} />
           </View>
         </View>
 
@@ -42,47 +49,50 @@ export default function DateMatchCard({ item, theme, homeColors, onOpenQuest }: 
           <Text style={[styles.subText, { color: homeColors.subtext }]} numberOfLines={1}>
             {item.is_owner ? 'Spec quest winner' : `Matched with ${otherName}`}
           </Text>
-        </View>
-
-        <TouchableOpacity
-          style={[styles.chatButton, { backgroundColor: withAlpha(theme.colors.primary, 0.1) }]}
-          activeOpacity={0.75}
-          onPress={() => Alert.alert('Chat coming soon', 'This will open the private chat between both parties when chat is enabled.')}
-        >
-          <MaterialCommunityIcons name="chat-outline" size={22} color={theme.colors.primary} />
-        </TouchableOpacity>
-      </View>
-
-      <View style={[styles.infoPanel, { backgroundColor: withAlpha(theme.colors.primary, 0.06) }]}>
-        <View style={styles.infoRow}>
-          <MaterialCommunityIcons name="target" size={18} color={theme.colors.primary} />
-          <Text style={[styles.infoText, { color: theme.colors.onSurface }]} numberOfLines={1}>
-            {item.spec?.title || 'Spec quest'}
-          </Text>
-        </View>
-        {item.spec?.location_city ? (
-          <View style={styles.infoRow}>
-            <MaterialCommunityIcons name="map-marker-outline" size={18} color={homeColors.subtext} />
-            <Text style={[styles.metaText, { color: homeColors.subtext }]} numberOfLines={1}>
-              {item.spec.location_city}
+          <View style={styles.questInline}>
+            <MaterialCommunityIcons name="target" size={14} color={homeColors.subtext} />
+            <Text style={[styles.questInlineText, { color: homeColors.subtext }]} numberOfLines={1}>
+              {specMeta}
             </Text>
           </View>
-        ) : null}
+        </View>
+
+        <View style={styles.sideActions}>
+          <TouchableOpacity
+            style={[styles.iconButton, { backgroundColor: withAlpha(theme.colors.primary, 0.1) }]}
+            activeOpacity={0.75}
+            onPress={() => Alert.alert('Chat coming soon', 'This will open the private chat between both parties when chat is enabled.')}
+          >
+            <MaterialCommunityIcons name="chat-outline" size={20} color={theme.colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            activeOpacity={0.75}
+            onPress={() => onOpenQuest(item.spec_id)}
+            style={[styles.iconButton, { backgroundColor: withAlpha(theme.colors.primary, 0.06) }]}
+          >
+            <MaterialCommunityIcons name="chevron-right" size={22} color={theme.colors.primary} />
+          </TouchableOpacity>
+        </View>
       </View>
 
-      <View style={styles.codeRow}>
-        <View>
-          <Text style={[styles.codeLabel, { color: homeColors.subtext }]}>Date code</Text>
-          <Text style={[styles.codeValue, { color: theme.colors.onSurface }]}>{item.date_code}</Text>
+      <View style={[styles.codePanel, { backgroundColor: withAlpha(theme.colors.primary, 0.06) }]}>
+        <View style={styles.codeCopyRow}>
+          <View style={styles.codeTextWrap}>
+            <Text style={[styles.codeLabel, { color: homeColors.subtext }]}>Date code</Text>
+            <Text style={[styles.codeValue, { color: theme.colors.onSurface }]}>{item.date_code}</Text>
+          </View>
+          <TouchableOpacity
+            activeOpacity={0.75}
+            onPress={handleCopyCode}
+            style={[styles.copyButton, { borderColor: withAlpha(theme.colors.primary, 0.22) }]}
+          >
+            <MaterialCommunityIcons name="content-copy" size={18} color={theme.colors.primary} />
+            <Text style={[styles.copyText, { color: theme.colors.primary }]}>Copy</Text>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          activeOpacity={0.75}
-          onPress={() => onOpenQuest(item.spec_id)}
-          style={[styles.questButton, { borderColor: withAlpha(theme.colors.primary, 0.22) }]}
-        >
-          <Text style={[styles.questButtonText, { color: theme.colors.primary }]}>Quest</Text>
-          <MaterialCommunityIcons name="chevron-right" size={18} color={theme.colors.primary} />
-        </TouchableOpacity>
+        <Text style={[styles.codeHint, { color: homeColors.subtext }]}>
+          Copy this code to book your date with a provider.
+        </Text>
       </View>
     </Surface>
   );
@@ -91,8 +101,8 @@ export default function DateMatchCard({ item, theme, homeColors, onOpenQuest }: 
 const styles = StyleSheet.create({
   card: {
     borderRadius: 8,
-    padding: 16,
-    marginBottom: 14,
+    padding: 12,
+    marginBottom: 10,
     shadowColor: '#111827',
     shadowOpacity: 0.08,
     shadowRadius: 14,
@@ -102,7 +112,7 @@ const styles = StyleSheet.create({
   cardTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
   avatarWrap: {
     position: 'relative',
@@ -111,9 +121,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: -2,
     bottom: -2,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
@@ -124,80 +134,88 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   matchedText: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '900',
     letterSpacing: 0.3,
     textTransform: 'uppercase',
   },
   winnerName: {
-    fontSize: 19,
+    fontSize: 16,
     fontWeight: '900',
     letterSpacing: 0,
     marginTop: 3,
   },
   subText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
     marginTop: 2,
   },
-  chatButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  questInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
+  questInlineText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  sideActions: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  iconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  infoPanel: {
+  codePanel: {
     borderRadius: 8,
-    padding: 12,
-    marginTop: 16,
-    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginTop: 10,
   },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  infoText: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  metaText: {
-    flex: 1,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  codeRow: {
+  codeCopyRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 16,
-    gap: 12,
+    gap: 10,
+  },
+  codeTextWrap: {
+    flex: 1,
+    minWidth: 0,
   },
   codeLabel: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '900',
     letterSpacing: 0.5,
     textTransform: 'uppercase',
   },
   codeValue: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '900',
     letterSpacing: 1,
     marginTop: 1,
   },
-  questButton: {
-    height: 38,
+  copyButton: {
+    height: 34,
     paddingHorizontal: 12,
     borderRadius: 999,
     borderWidth: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
+    gap: 6,
   },
-  questButtonText: {
-    fontSize: 13,
+  copyText: {
+    fontSize: 12,
     fontWeight: '900',
+  },
+  codeHint: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 4,
   },
 });
