@@ -2,7 +2,6 @@ import React from 'react';
 import { Alert, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Avatar, Surface, Text } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import * as Clipboard from 'expo-clipboard';
 import { toImageUri } from '../../../utils/imageUrl';
 import { formatMatchedDate, withAlpha } from '../homeUtils';
 import { HomeColors, SpecDateItem } from '../types';
@@ -12,17 +11,23 @@ type Props = {
   theme: any;
   homeColors: HomeColors;
   onOpenQuest: (specId: number) => void;
+  onOpenChat: (threadId: number) => void;
 };
 
-export default function DateMatchCard({ item, theme, homeColors, onOpenQuest }: Props) {
+export default function DateMatchCard({ item, theme, homeColors, onOpenQuest, onOpenChat }: Props) {
   const winnerAvatar = toImageUri(item.winner?.avatar);
   const otherName = item.other_user?.name || 'Your match';
   const winnerName = item.winner?.name || 'Winner';
   const specMeta = [item.spec?.title || 'Spec quest', item.spec?.location_city].filter(Boolean).join(' • ');
 
   const handleCopyCode = async () => {
-    await Clipboard.setStringAsync(item.date_code);
-    Alert.alert('Date code copied', 'Use this code when booking your date with a provider.');
+    try {
+      const Clipboard = await import('expo-clipboard');
+      await Clipboard.setStringAsync(item.date_code);
+      Alert.alert('Date code copied', 'Use this code when booking your date with a provider.');
+    } catch {
+      Alert.alert('Copy unavailable', 'Rebuild the app to enable code copying on this device.');
+    }
   };
 
   return (
@@ -61,7 +66,7 @@ export default function DateMatchCard({ item, theme, homeColors, onOpenQuest }: 
           <TouchableOpacity
             style={[styles.iconButton, { backgroundColor: withAlpha(theme.colors.primary, 0.1) }]}
             activeOpacity={0.75}
-            onPress={() => Alert.alert('Chat coming soon', 'This will open the private chat between both parties when chat is enabled.')}
+            onPress={() => item.chat_thread_id ? onOpenChat(item.chat_thread_id) : Alert.alert('Chat unavailable', 'This date does not have a chat yet.')}
           >
             <MaterialCommunityIcons name="chat-outline" size={20} color={theme.colors.primary} />
           </TouchableOpacity>

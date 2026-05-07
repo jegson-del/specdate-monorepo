@@ -1,5 +1,6 @@
 import Echo from 'laravel-echo';
 import Pusher from 'pusher-js';
+import { getApiBaseUrl, getAuthToken } from '../services/api';
 
 // Required for laravel-echo to find the globally available Pusher library
 (global as any).Pusher = Pusher;
@@ -10,4 +11,11 @@ export const echo = new Echo({
     key: process.env.EXPO_PUBLIC_PUSHER_APP_KEY,
     cluster: process.env.EXPO_PUBLIC_PUSHER_APP_CLUSTER,
     forceTLS: true,
+    authEndpoint: getApiBaseUrl().replace(/\/api$/, '/broadcasting/auth'),
+    auth: {
+        headers: {
+            Authorization: getAuthToken() ? `Bearer ${getAuthToken()}` : '',
+            Accept: 'application/json',
+        },
+    },
 });

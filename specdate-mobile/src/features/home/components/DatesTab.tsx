@@ -67,6 +67,7 @@ export default function DatesTab({ theme, homeColors, insets, bottomNavHeight, n
             theme={theme}
             homeColors={homeColors}
             onOpenQuest={(specId) => navigation.navigate('SpecDetails', { specId: String(specId) })}
+            onOpenChat={(threadId) => navigation.navigate('ChatThread', { threadId })}
           />
         )}
       />

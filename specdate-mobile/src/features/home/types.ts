@@ -32,6 +32,7 @@ export type SpecDateItem = {
   id: number;
   spec_id: number;
   date_code: string;
+  chat_thread_id?: number | null;
   matched_at: string;
   is_owner: boolean;
   spec?: {

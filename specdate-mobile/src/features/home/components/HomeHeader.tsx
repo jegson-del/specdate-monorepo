@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Image, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Avatar, Surface } from 'react-native-paper';
+import { Avatar, Surface, Text } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { toImageUri } from '../../../utils/imageUrl';
 
@@ -13,6 +13,7 @@ type Props = {
 
 export default function HomeHeader({ user, insets, theme, navigation }: Props) {
   const avatarUrl = useMemo(() => toImageUri(user?.profile?.avatar), [user?.profile?.avatar]);
+  const unreadChatCount = Number(user?.unread_chat_count ?? 0);
 
   return (
     <Surface
@@ -50,7 +51,14 @@ export default function HomeHeader({ user, insets, theme, navigation }: Props) {
 
       <View style={styles.rightIcons}>
         <TouchableOpacity style={styles.headerIconBtn} onPress={() => navigation.navigate('Messages')} activeOpacity={0.7}>
-          <MaterialCommunityIcons name="chat-outline" size={28} color="#FFFFFF" />
+          <View>
+            <MaterialCommunityIcons name="chat-outline" size={28} color="#FFFFFF" />
+            {unreadChatCount > 0 && (
+              <View style={styles.countBadge}>
+                <Text style={styles.countBadgeText}>{unreadChatCount > 99 ? '99+' : unreadChatCount}</Text>
+              </View>
+            )}
+          </View>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.headerIconBtn} onPress={() => navigation.navigate('Notifications')} activeOpacity={0.7}>
@@ -111,5 +119,25 @@ const styles = StyleSheet.create({
     backgroundColor: '#EF4444',
     borderWidth: 1.5,
     borderColor: '#FFFFFF',
+  },
+  countBadge: {
+    position: 'absolute',
+    top: -7,
+    right: -9,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
+    borderRadius: 999,
+    backgroundColor: '#EF4444',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  countBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '900',
+    lineHeight: 11,
   },
 });

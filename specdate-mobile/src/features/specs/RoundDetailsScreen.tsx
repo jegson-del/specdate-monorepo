@@ -1,15 +1,14 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, TextInput, Image } from 'react-native';
-import { Text, useTheme, Button, ActivityIndicator, Avatar, IconButton } from 'react-native-paper';
+import { Text, useTheme, Button, ActivityIndicator, IconButton } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect } from '@react-navigation/native';
 import { SpecService } from '../../services/specs';
 import { useUser } from '../../hooks/useUser';
-import { toImageUri } from '../../utils/imageUrl';
 import { VideoViewerModal } from '../../components';
-import { AudioMessagePlayer, CloseRoundModal, LastManStandingModal, RecordingMediaButton, useRoundAudioRecorder, VideoThumbnailPlayer } from './components';
+import { AudioMessagePlayer, CloseRoundModal, LastManStandingModal, PrivateRoundState, RecordingMediaButton, RoundQuestionCard, RoundResponsesList, useRoundAudioRecorder, VideoThumbnailPlayer } from './components';
 import type { RoundMediaAsset } from './components';
 import * as ImagePicker from 'expo-image-picker';
 import { MediaService } from '../../services/media';
@@ -88,6 +87,11 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
         if (!spec?.applications || !user) return null;
         return spec.applications.find((a: any) => a.user_id === user.id);
     }, [spec, user]);
+
+    const canViewRoundDetails = useMemo(() => {
+        const status = String(myApplication?.status ?? '').toUpperCase();
+        return isOwner || status === 'ACCEPTED' || status === 'ELIMINATED';
+    }, [isOwner, myApplication?.status]);
 
     // --- Mutations ---
 
@@ -531,6 +535,16 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
     // but we were showing ACTIVE/REVIEWING (so Close button and round UI don't disappear after a few seconds)
 
 
+    if (roundToShow && !canViewRoundDetails) {
+        return (
+            <PrivateRoundState
+                theme={theme}
+                topInset={insets.top}
+                onBack={() => navigation.goBack()}
+            />
+        );
+    }
+
     if (!roundToShow) {
         if (isFetching) {
             return (
@@ -574,69 +588,26 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
 
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
-                {/* Question – flat card, high contrast */}
-                <View style={[styles.questionCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant || theme.colors.outline + '40' }]}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <Text style={[styles.questionLabel, { color: theme.colors.onSurfaceVariant }]}>QUESTION</Text>
-                        {isOwner && roundToShow.status === 'ACTIVE' && !isEditing && (
-                            <TouchableOpacity onPress={() => {
-                                setEditQuestionText(roundToShow.question_text);
-                                setIsEditing(true);
-                            }}>
-                                <MaterialCommunityIcons name="pencil" size={20} color={theme.colors.primary} />
-                            </TouchableOpacity>
-                        )}
-                    </View>
-
-                    {isEditing ? (
-                        <View style={{ gap: 10, marginBottom: 10 }}>
-                            <TextInput
-                                value={editQuestionText}
-                                onChangeText={setEditQuestionText}
-                                style={[styles.flatInput, { color: theme.colors.onSurface, borderColor: theme.colors.primary, borderWidth: 2 }]}
-                                autoFocus
-                                multiline
-                            />
-                            <View style={{ flexDirection: 'row', gap: 10, justifyContent: 'flex-end' }}>
-                                <Button mode="text" onPress={() => setIsEditing(false)} compact>Cancel</Button>
-                                <Button
-                                    mode="contained"
-                                    onPress={() => updateRoundMutation.mutate({ rId: roundToShow.id, text: editQuestionText })}
-                                    loading={updateRoundMutation.isPending}
-                                    disabled={!editQuestionText.trim() || updateRoundMutation.isPending}
-                                    compact
-                                >
-                                    Save
-                                </Button>
-                            </View>
-                        </View>
-                    ) : (
-                        <Text style={[styles.questionText, { color: theme.colors.onSurface }]}>
-                            {roundToShow.question_text?.trim() || 'Voice question'}
-                        </Text>
-                    )}
-
-                    {!isEditing && roundToShow.media?.url && (
-                        <View style={styles.questionMediaDisplay}>
-                            {isAudioMedia(roundToShow.media) ? (
-                                <AudioMessagePlayer uri={roundToShow.media.url} label="Audio question" />
-                            ) : isVideoMedia(roundToShow.media) ? (
-                                <VideoThumbnailPlayer
-                                    uri={roundToShow.media.url}
-                                    width={220}
-                                    height={130}
-                                    onPress={() => { setVideoViewerUri(roundToShow.media.url); setVideoViewerVisible(true); }}
-                                />
-                            ) : (
-                                <Image source={{ uri: roundToShow.media.url }} style={styles.questionMediaImageLarge} />
-                            )}
-                        </View>
-                    )}
-
-                    <View style={[styles.questionMeta, { borderTopColor: theme.colors.outlineVariant || theme.colors.outline + '30' }]}>
-                        <Text style={[styles.questionMetaText, { color: theme.colors.onSurfaceVariant }]}>{answers.length} response{answers.length !== 1 ? 's' : ''}</Text>
-                    </View>
-                </View>
+                <RoundQuestionCard
+                    round={roundToShow}
+                    answersCount={answers.length}
+                    theme={theme}
+                    isOwner={isOwner}
+                    isEditing={isEditing}
+                    editQuestionText={editQuestionText}
+                    updatePending={updateRoundMutation.isPending}
+                    onStartEditing={() => {
+                        setEditQuestionText(roundToShow.question_text);
+                        setIsEditing(true);
+                    }}
+                    onCancelEditing={() => setIsEditing(false)}
+                    onChangeEditQuestionText={setEditQuestionText}
+                    onSaveEdit={() => updateRoundMutation.mutate({ rId: roundToShow.id, text: editQuestionText })}
+                    onOpenVideo={(uri) => {
+                        setVideoViewerUri(uri);
+                        setVideoViewerVisible(true);
+                    }}
+                />
 
                 {/* OWNER ACTIONS – flat sections */}
                 {isOwner && (
@@ -855,85 +826,18 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                     </View>
                 )}
 
-                {/* Responses list – flat rows, high contrast */}
-                {
-                    isOwner && (
-                        <View style={styles.section}>
-                            <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Responses</Text>
-                            <Text style={[styles.sectionSubtitle, { color: theme.colors.onSurfaceVariant }]}>{answers.length} answer{answers.length !== 1 ? 's' : ''}</Text>
-
-                            {answers.length === 0 && (
-                                <Text style={[styles.hintText, { color: theme.colors.onSurfaceVariant }]}>No answers yet.</Text>
-                            )}
-
-                            <View style={styles.answersList}>
-                                {answers.map((a: any) => {
-                                    const displayName = a.user?.profile?.full_name || a.user?.name || 'User';
-                                    const avatarUri = toImageUri(a.user?.profile?.avatar) || undefined;
-                                    const isEliminated = a.is_eliminated;
-
-                                    return (
-                                        <View
-                                            key={a.id}
-                                            style={[
-                                                styles.answerRow,
-                                                { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant || theme.colors.outline + '30' },
-                                                isEliminated && styles.answerRowEliminated
-                                            ]}
-                                        >
-                                            <Avatar.Image size={44} source={{ uri: avatarUri }} style={styles.answerAvatar} />
-                                            <View style={styles.answerBody}>
-                                                <Text style={[styles.answerName, { color: theme.colors.onSurface }]} numberOfLines={1}>{displayName}</Text>
-                                                <Text style={[styles.answerText, { color: theme.colors.onSurfaceVariant }]} numberOfLines={3}>
-                                                    {a.answer_text?.trim() || 'Voice answer'}
-                                                </Text>
-                                                {a.media && (
-                                                    isAudioMedia(a.media) ? (
-                                                        <View style={{ marginTop: 8 }}>
-                                                            <AudioMessagePlayer uri={a.media.url} label="Audio answer" compact />
-                                                        </View>
-                                                    ) : isVideoMedia(a.media) ? (
-                                                        <View style={{ marginTop: 8 }}>
-                                                            <VideoThumbnailPlayer uri={a.media.url} width={160} height={100} onPress={() => { setVideoViewerUri(a.media.url); setVideoViewerVisible(true); }} />
-                                                        </View>
-                                                    ) : (
-                                                        <TouchableOpacity onPress={() => { }}>
-                                                            <Image
-                                                                source={{ uri: a.media.url }}
-                                                                style={{ width: 120, height: 120, borderRadius: 8, marginTop: 8, backgroundColor: theme.colors.surfaceVariant }}
-                                                            />
-                                                        </TouchableOpacity>
-                                                    )
-                                                )}
-                                            </View>
-                                            {(isOwner && (String(roundToShow.status).toUpperCase() === 'REVIEWING' || String(roundToShow.status).toUpperCase() === 'ACTIVE') && !isEliminated) ? (
-                                                <TouchableOpacity
-                                                    onPress={() => {
-                                                        Alert.alert('Eliminate?', `Eliminate ${displayName}?`, [
-                                                            { text: 'Cancel' },
-                                                            { text: 'Eliminate', style: 'destructive', onPress: () => eliminateUserMutation.mutate({ rId: roundToShow.id, userId: a.user_id }) }
-                                                        ]);
-                                                    }}
-                                                    style={styles.eliminateButton}
-                                                    accessibilityLabel="Eliminate participant"
-                                                >
-                                                    <MaterialCommunityIcons name="account-remove" size={22} color={theme.colors.error} />
-                                                    <Text style={[styles.eliminateButtonLabel, { color: theme.colors.error }]}>Eliminate</Text>
-                                                </TouchableOpacity>
-                                            ) : null}
-                                            {isEliminated && (
-                                                <View style={styles.eliminatedChip}>
-                                                    <MaterialCommunityIcons name="account-off" size={20} color={theme.colors.onSurfaceVariant} />
-                                                    <Text style={[styles.eliminatedLabel, { color: theme.colors.onSurfaceVariant }]}>Eliminated</Text>
-                                                </View>
-                                            )}
-                                        </View>
-                                    );
-                                })}
-                            </View>
-                        </View>
-                    )
-                }
+                {isOwner && (
+                    <RoundResponsesList
+                        answers={answers}
+                        roundStatus={roundToShow.status}
+                        theme={theme}
+                        onEliminate={(userId) => eliminateUserMutation.mutate({ rId: roundToShow.id, userId })}
+                        onOpenVideo={(uri) => {
+                            setVideoViewerUri(uri);
+                            setVideoViewerVisible(true);
+                        }}
+                    />
+                )}
 
             </ScrollView>
 
@@ -997,22 +901,6 @@ const styles = StyleSheet.create({
     headerStatusDot: { width: 6, height: 6, borderRadius: 3 },
     headerStatusText: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
     scrollContent: { padding: 16, paddingBottom: 40 },
-    questionCard: {
-        padding: 20,
-        borderRadius: 12,
-        borderWidth: 1,
-        marginBottom: 24,
-    },
-    questionLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 0.6, marginBottom: 8 },
-    questionText: { fontSize: 18, fontWeight: '700', lineHeight: 26 },
-    questionMediaDisplay: { marginTop: 14 },
-    questionMediaImageLarge: {
-        width: '100%',
-        height: 190,
-        borderRadius: 12,
-    },
-    questionMeta: { marginTop: 14, paddingTop: 14, borderTopWidth: 1 },
-    questionMetaText: { fontSize: 13 },
     section: { marginBottom: 28 },
     sectionTitle: { fontSize: 16, fontWeight: '800', marginBottom: 4 },
     sectionSubtitle: { fontSize: 13, marginBottom: 12 },
@@ -1025,13 +913,6 @@ const styles = StyleSheet.create({
     flatBlockHint: { fontSize: 13, lineHeight: 20 },
     flatBlockLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 0.3 },
     divider: { height: 1 },
-    flatInput: {
-        borderWidth: 1,
-        borderRadius: 10,
-        paddingHorizontal: 14,
-        paddingVertical: 12,
-        fontSize: 16,
-    },
     flatTextArea: {
         minHeight: 120,
         textAlignVertical: 'top',
@@ -1056,38 +937,6 @@ const styles = StyleSheet.create({
     answerSubmittedText: { fontSize: 16, lineHeight: 24, fontStyle: 'italic' },
     answerSubmittedBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 },
     answerSubmittedBadgeText: { color: '#16a34a', fontWeight: '700', fontSize: 14 },
-    answersList: { gap: 10 },
-    answerRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 14,
-        borderRadius: 12,
-        borderWidth: 1,
-        gap: 14,
-    },
-    answerRowEliminated: { opacity: 0.55 },
-    answerAvatar: {},
-    answerBody: { flex: 1, minWidth: 0 },
-    answerName: { fontSize: 15, fontWeight: '700', marginBottom: 4 },
-    answerText: { fontSize: 14, lineHeight: 20 },
-    eliminateButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        paddingVertical: 8,
-        paddingHorizontal: 10,
-        borderRadius: 8,
-        backgroundColor: 'transparent',
-    },
-    eliminateButtonLabel: { fontSize: 13, fontWeight: '700' },
-    eliminatedChip: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        paddingVertical: 8,
-        paddingHorizontal: 10,
-    },
-    eliminatedLabel: { fontSize: 13, fontWeight: '600' },
     mediaBtn: {
         borderWidth: 1,
         borderRadius: 10,

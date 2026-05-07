@@ -27,4 +27,9 @@ class SpecDate extends Model
     {
         return $this->belongsTo(User::class, 'winner_user_id');
     }
+
+    public function chatThread()
+    {
+        return $this->hasOne(ChatThread::class);
+    }
 }

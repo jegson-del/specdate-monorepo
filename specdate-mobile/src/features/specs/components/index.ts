@@ -6,5 +6,8 @@ export { MultiSelectModal } from './MultiSelectModal';
 export { VideoThumbnailPlayer } from './VideoThumbnailPlayer';
 export { AudioMessagePlayer } from './AudioMessagePlayer';
 export { RecordingMediaButton } from './RecordingMediaButton';
+export { PrivateRoundState } from './PrivateRoundState';
+export { RoundQuestionCard } from './RoundQuestionCard';
+export { RoundResponsesList } from './RoundResponsesList';
 export { useRoundAudioRecorder } from './useRoundAudioRecorder';
 export type { RoundMediaAsset } from './useRoundAudioRecorder';

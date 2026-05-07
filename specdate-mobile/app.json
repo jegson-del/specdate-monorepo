@@ -5,6 +5,11 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/app_icon.png",
+    "notification": {
+      "icon": "./assets/notification_icon.png",
+      "color": "#7C3AED",
+      "iosDisplayInForeground": true
+    },
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
@@ -24,6 +29,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
+      "softwareKeyboardLayoutMode": "resize",
       "googleServicesFile": "./google-services.json",
       "package": "com.raphaeljegede.specdatemobile"
     },
@@ -33,7 +39,14 @@
     "plugins": [
       "@react-native-community/datetimepicker",
       "expo-secure-store",
-      "expo-notifications",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification_icon.png",
+          "color": "#7C3AED",
+          "defaultChannel": "default"
+        }
+      ],
       [
         "expo-audio",
         {

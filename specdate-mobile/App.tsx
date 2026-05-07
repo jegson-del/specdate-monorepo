@@ -25,6 +25,8 @@ import CreateSpecScreen from './src/features/specs/CreateSpecScreen';
 import SpecDetailsScreen from './src/features/specs/SpecDetailsScreen';
 import RoundDetailsScreen from './src/features/specs/RoundDetailsScreen';
 import NotificationsScreen from './src/features/notifications/NotificationsScreen';
+import ChatListScreen from './src/features/chat/ChatListScreen';
+import ChatThreadScreen from './src/features/chat/ChatThreadScreen';
 import CreditsTransactionScreen from './src/features/profile/CreditsTransactionScreen';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
@@ -118,7 +120,8 @@ export default function App() {
 
               <Stack.Screen name="Notifications" component={NotificationsScreen} />
               <Stack.Screen name="CreditsTransactions" component={CreditsTransactionScreen} />
-              <Stack.Screen name="Messages" component={HomeScreen} />
+              <Stack.Screen name="Messages" component={ChatListScreen} />
+              <Stack.Screen name="ChatThread" component={ChatThreadScreen} />
               <Stack.Screen name="SpecDetails" component={SpecDetailsScreen} />
               <Stack.Screen name="RoundDetails" component={RoundDetailsScreen} />
               <Stack.Screen

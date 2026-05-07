@@ -305,6 +305,11 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
         return spec.applications.find((a: any) => a.user_id === user.id);
     }, [spec, user]);
 
+    const canOpenRoundDetails = useMemo(() => {
+        const status = String(myApplication?.status ?? '').toUpperCase();
+        return isOwner || status === 'ACCEPTED' || status === 'ELIMINATED';
+    }, [isOwner, myApplication?.status]);
+
     const [answerText, setAnswerText] = React.useState('');
 
     const submitAnswerMutation = useMutation({
@@ -914,9 +919,20 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                                 return (
                                     <TouchableOpacity
                                         key={r.id}
-                                        activeOpacity={0.7}
-                                        onPress={() => navigation.navigate('RoundDetails', { specId: spec.id, roundId: r.id })}
-                                        style={[styles.roundCardFlat, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant || theme.colors.outline + '40' }]}
+                                        activeOpacity={canOpenRoundDetails ? 0.7 : 1}
+                                        disabled={!canOpenRoundDetails}
+                                        onPress={() => {
+                                            if (!canOpenRoundDetails) return;
+                                            navigation.navigate('RoundDetails', { specId: spec.id, roundId: r.id });
+                                        }}
+                                        style={[
+                                            styles.roundCardFlat,
+                                            {
+                                                backgroundColor: theme.colors.surface,
+                                                borderColor: theme.colors.outlineVariant || theme.colors.outline + '40',
+                                                opacity: canOpenRoundDetails ? 1 : 0.78,
+                                            },
+                                        ]}
                                     >
                                         <View style={[styles.roundCardFlatNum, { backgroundColor: theme.colors.surfaceVariant }]}>
                                             <Text style={[styles.roundCardFlatNumText, { color: theme.colors.onSurface }]}>{r.round_number}</Text>
@@ -957,9 +973,18 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                                                     <View style={[styles.roundCardFlatPillDot, { backgroundColor: statusColor }]} />
                                                     <Text style={[styles.roundCardFlatPillText, { color: theme.colors.onSurface }]}>{r.status}</Text>
                                                 </View>
+                                                {!canOpenRoundDetails ? (
+                                                    <Text style={[styles.roundCardFlatStat, { color: theme.colors.onSurfaceVariant }]}>
+                                                        Host/participant only
+                                                    </Text>
+                                                ) : null}
                                             </View>
                                         </View>
-                                        <MaterialCommunityIcons name="chevron-right" size={22} color={theme.colors.onSurfaceVariant} />
+                                        <MaterialCommunityIcons
+                                            name={canOpenRoundDetails ? 'chevron-right' : 'lock-outline'}
+                                            size={22}
+                                            color={theme.colors.onSurfaceVariant}
+                                        />
                                     </TouchableOpacity>
                                 );
                             })}

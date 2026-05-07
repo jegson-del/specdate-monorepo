@@ -1,8 +1,17 @@
 <?php
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\AccountController;
+use App\Http\Controllers\Api\CreditsController;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\ChatController;
+use App\Http\Controllers\MeController;
+use App\Http\Controllers\MediaController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ProviderController;
+use App\Http\Controllers\SpecController;
+use App\Http\Controllers\UserController;
+use Illuminate\Support\Facades\Route;
 
 Route::post('/send-otp', [AuthController::class, 'sendOtp']);
 Route::post('/register', [AuthController::class, 'register']);
@@ -10,71 +19,52 @@ Route::post('/login', [AuthController::class, 'login']);
 
 Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
-    Route::post('/account/pause', [\App\Http\Controllers\AccountController::class, 'pause']);
-    Route::post('/account/unpause', [\App\Http\Controllers\AccountController::class, 'unpause']);
-    Route::delete('/account', [\App\Http\Controllers\AccountController::class, 'delete']);
+    Route::post('/account/pause', [AccountController::class, 'pause']);
+    Route::post('/account/unpause', [AccountController::class, 'unpause']);
+    Route::delete('/account', [AccountController::class, 'delete']);
 
-    Route::get('/user', function (Request $request) {
-        $user = $request->user()->load(['balance', 'profile', 'sparkSkin', 'media']);
+    Route::get('/user', [MeController::class, 'show']);
+    Route::put('/profile', [ProfileController::class, 'update']);
+    Route::get('/users', [UserController::class, 'index']);
+    Route::get('/users/{id}', [UserController::class, 'show']);
 
-        $data = $user->toArray();
-        // Expose avatar URL and media id so mobile can send media_id when editing (update that row).
-        $avatarMedia = $user->media->where('type', 'avatar')->sortByDesc('id')->first();
-        if (isset($data['profile']) && is_array($data['profile'])) {
-            $data['profile']['avatar'] = $avatarMedia ? $avatarMedia->url : null;
-            $data['profile']['avatar_media_id'] = $avatarMedia?->id;
-        }
-        // Expose profile_gallery with id+url so mobile can send media_id when replacing a slot (max 6).
-        $gallery = $user->media->where('type', 'profile_gallery')->sortByDesc('id')->take(6)->values();
-        $data['profile_gallery_media'] = $gallery->map(fn ($m) => ['id' => $m->id, 'url' => $m->url])->all();
+    Route::get('/my-specs', [SpecController::class, 'mySpecs']);
+    Route::get('/dates', [SpecController::class, 'myDates']);
+    Route::get('/chats', [ChatController::class, 'index']);
+    Route::get('/chats/{thread}', [ChatController::class, 'show']);
+    Route::post('/chats/{thread}/messages', [ChatController::class, 'sendMessage']);
+    Route::post('/chats/{thread}/read', [ChatController::class, 'markRead']);
+    Route::post('/specs/{id}/join', [SpecController::class, 'join']);
+    Route::post('/specs/{id}/applications/{applicationId}/approve', [SpecController::class, 'approveApplication']);
+    Route::post('/specs/{id}/applications/{applicationId}/reject', [SpecController::class, 'rejectApplication']);
+    Route::post('/specs/{id}/applications/{applicationId}/eliminate', [SpecController::class, 'eliminateApplication']);
+    Route::post('/specs/{id}/like', [SpecController::class, 'toggleLike']);
+    Route::post('/specs/{id}/match', [SpecController::class, 'createDate']);
+    Route::post('/specs/{id}/extend-search', [SpecController::class, 'extendSearch']);
+    Route::post('/media/upload', [MediaController::class, 'upload']);
+    Route::get('/user/requests', [SpecController::class, 'pendingRequests']);
+    Route::apiResource('specs', SpecController::class);
 
-        // Unread counts: requests show on Request tab badge; other notifications on bell badge only.
-        $data['unread_requests_count'] = $user->notifications()->whereNull('read_at')->where('type', 'join_request')->count();
-        $data['unread_notifications_count'] = $user->notifications()->whereNull('read_at')->where('type', '!=', 'join_request')->count();
+    Route::post('/specs/{id}/rounds', [SpecController::class, 'startRound']);
+    Route::post('/rounds/{roundId}/answer', [SpecController::class, 'submitAnswer']);
+    Route::post('/rounds/{roundId}/close', [SpecController::class, 'closeRound']);
+    Route::post('/rounds/{roundId}/eliminate/{userId}', [SpecController::class, 'eliminateUser']);
+    Route::post('/rounds/{roundId}/eliminate', [SpecController::class, 'eliminateUsers']);
+    Route::post('/rounds/{roundId}/nudge', [SpecController::class, 'nudgeUsers']);
+    Route::post('/rounds/{roundId}/update', [SpecController::class, 'updateRound']);
 
-        return response()->json($data, 200, [], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
-    });
-    Route::put('/profile', [\App\Http\Controllers\ProfileController::class, 'update']);
-    Route::get('/users', [\App\Http\Controllers\UserController::class, 'index']);
-    Route::get('/users/{id}', [\App\Http\Controllers\UserController::class, 'show']);
-    
-    Route::get('/my-specs', [\App\Http\Controllers\SpecController::class, 'mySpecs']);
-    Route::get('/dates', [\App\Http\Controllers\SpecController::class, 'myDates']);
-    Route::post('/specs/{id}/join', [\App\Http\Controllers\SpecController::class, 'join']);
-    Route::post('/specs/{id}/applications/{applicationId}/approve', [\App\Http\Controllers\SpecController::class, 'approveApplication']);
-    Route::post('/specs/{id}/applications/{applicationId}/reject', [\App\Http\Controllers\SpecController::class, 'rejectApplication']);
-    Route::post('/specs/{id}/applications/{applicationId}/eliminate', [\App\Http\Controllers\SpecController::class, 'eliminateApplication']);
-    Route::post('/specs/{id}/like', [\App\Http\Controllers\SpecController::class, 'toggleLike']);
-    Route::post('/specs/{id}/match', [\App\Http\Controllers\SpecController::class, 'createDate']);
-    Route::post('/specs/{id}/extend-search', [\App\Http\Controllers\SpecController::class, 'extendSearch']);
-    Route::post('/media/upload', [\App\Http\Controllers\MediaController::class, 'upload']);
-    Route::get('/user/requests', [\App\Http\Controllers\SpecController::class, 'pendingRequests']);
-    Route::apiResource('specs', \App\Http\Controllers\SpecController::class);
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::post('/notifications/{notification}/read', [NotificationController::class, 'markRead']);
+    Route::post('/user/push-token', [NotificationController::class, 'updatePushToken']);
 
-    // Rounds
-    Route::post('/specs/{id}/rounds', [\App\Http\Controllers\SpecController::class, 'startRound']);
-    Route::post('/rounds/{roundId}/answer', [\App\Http\Controllers\SpecController::class, 'submitAnswer']);
-    Route::post('/rounds/{roundId}/close', [\App\Http\Controllers\SpecController::class, 'closeRound']);
-    Route::post('/rounds/{roundId}/eliminate/{userId}', [\App\Http\Controllers\SpecController::class, 'eliminateUser']);
-    Route::post('/rounds/{roundId}/eliminate', [\App\Http\Controllers\SpecController::class, 'eliminateUsers']);
-    Route::post('/rounds/{roundId}/nudge', [\App\Http\Controllers\SpecController::class, 'nudgeUsers']);
-    Route::post('/rounds/{roundId}/update', [\App\Http\Controllers\SpecController::class, 'updateRound']);
+    Route::get('/credits/products', [CreditsController::class, 'products']);
+    Route::post('/credits/grant', [CreditsController::class, 'grant']);
+    Route::get('/credits/transactions', [CreditsController::class, 'transactions']);
 
-    // Notifications
-    Route::get('/notifications', [\App\Http\Controllers\Api\NotificationController::class, 'index']);
-    Route::post('/notifications/{notification}/read', [\App\Http\Controllers\Api\NotificationController::class, 'markRead']);
-    Route::post('/user/push-token', [\App\Http\Controllers\Api\NotificationController::class, 'updatePushToken']);
-
-    // Credits (single balance; RevenueCat sends product_id, we get quantity from credit_products)
-    Route::get('/credits/products', [\App\Http\Controllers\Api\CreditsController::class, 'products']);
-    Route::post('/credits/grant', [\App\Http\Controllers\Api\CreditsController::class, 'grant']);
-    Route::get('/credits/transactions', [\App\Http\Controllers\Api\CreditsController::class, 'transactions']);
-
-    // Provider
     Route::prefix('provider')->group(function () {
-        Route::get('/dashboard', [\App\Http\Controllers\ProviderController::class, 'getDashboard']);
-        Route::post('/settings', [\App\Http\Controllers\ProviderController::class, 'updateSettings']);
-        Route::post('/scan-qr', [\App\Http\Controllers\ProviderController::class, 'scanQRCode']);
-        Route::get('/categories', [\App\Http\Controllers\ProviderController::class, 'getCategories']);
+        Route::get('/dashboard', [ProviderController::class, 'getDashboard']);
+        Route::post('/settings', [ProviderController::class, 'updateSettings']);
+        Route::post('/scan-qr', [ProviderController::class, 'scanQRCode']);
+        Route::get('/categories', [ProviderController::class, 'getCategories']);
     });
 });

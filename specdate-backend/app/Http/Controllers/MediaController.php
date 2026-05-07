@@ -57,14 +57,17 @@ class MediaController extends Controller
         }
 
         $fileRules = ['required', 'file'];
-        if (in_array($type, ['round_answer_video', 'round_question_video'], true)) {
+        if (in_array($type, ['round_answer_video', 'round_question_video', 'chat_video'], true)) {
             $fileRules[] = 'max:51200'; // 50MB in KB
             // Extension-based so device-recorded videos (varying MIME) are accepted
-            $fileRules[] = 'mimes:mp4,mov,m4v,3gp';
-        } elseif (in_array($type, ['round_answer_image', 'round_question_image'], true)) {
+            $fileRules[] = 'mimes:mp4,mov,m4v,3gp,webm';
+        } elseif ($type === 'chat') {
+            $fileRules[] = 'max:51200'; // 50MB for chat videos; images/audio are usually much smaller
+            $fileRules[] = 'mimes:jpg,jpeg,png,gif,webp,mp4,mov,m4v,3gp,m4a,mp3,wav,webm,aac';
+        } elseif (in_array($type, ['round_answer_image', 'round_question_image', 'chat_image'], true)) {
             $fileRules[] = 'max:10240'; // 10MB
             $fileRules[] = 'mimetypes:image/jpeg,image/png,image/gif,image/webp';
-        } elseif (in_array($type, ['round_answer_audio', 'round_question_audio'], true)) {
+        } elseif (in_array($type, ['round_answer_audio', 'round_question_audio', 'chat_audio'], true)) {
             $fileRules[] = 'max:10240'; // 10MB
             $fileRules[] = 'mimes:m4a,mp4,mp3,wav,webm,aac,3gp';
         } else {
@@ -73,7 +76,7 @@ class MediaController extends Controller
 
         $validator = Validator::make($request->all(), [
             'file' => $fileRules,
-            'type' => 'required|string|in:avatar,profile_gallery,provider_gallery,chat,proof,round_answer_image,round_answer_video,round_question_image,round_question_video,round_answer_audio,round_question_audio',
+            'type' => 'required|string|in:avatar,profile_gallery,provider_gallery,chat,chat_image,chat_video,chat_audio,proof,round_answer_image,round_answer_video,round_question_image,round_question_video,round_answer_audio,round_question_audio',
             'media_id' => 'nullable|integer|exists:media,id',
         ]);
 

@@ -1,0 +1,217 @@
+<?php
+
+namespace App\Services;
+
+use App\Events\MessageSent;
+use App\Models\ChatMessage;
+use App\Models\ChatThread;
+use App\Models\Media;
+use App\Models\SpecDate;
+use App\Models\User;
+use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpKernel\Exception\HttpException;
+
+class ChatService
+{
+    public function __construct(private NotificationService $notificationService)
+    {
+    }
+
+    public function ensureThreadForDate(SpecDate $date): ChatThread
+    {
+        return ChatThread::firstOrCreate(
+            ['spec_date_id' => $date->id],
+            [
+                'spec_id' => $date->spec_id,
+                'owner_id' => $date->owner_id,
+                'winner_user_id' => $date->winner_user_id,
+            ]
+        );
+    }
+
+    public function listThreads(User $user)
+    {
+        $threads = ChatThread::query()
+            ->where(fn ($q) => $q->where('owner_id', $user->id)->orWhere('winner_user_id', $user->id))
+            ->with([
+                'spec:id,title,location_city',
+                'specDate:id,date_code,created_at',
+                'owner:id,name,username',
+                'owner.profile',
+                'owner.media',
+                'winner:id,name,username',
+                'winner.profile',
+                'winner.media',
+                'lastMessage.sender:id,name,username',
+            ])
+            ->withCount(['messages as unread_count' => function ($q) use ($user) {
+                $q->where('sender_id', '!=', $user->id)->whereNull('read_at');
+            }])
+            ->orderByDesc(DB::raw('COALESCE(last_message_at, created_at)'))
+            ->get();
+
+        return $threads->map(fn (ChatThread $thread) => $this->threadPayload($thread, $user));
+    }
+
+    public function getThread(User $user, int $threadId): array
+    {
+        $thread = ChatThread::with([
+            'spec:id,title,location_city',
+            'specDate:id,date_code,created_at',
+            'owner:id,name,username',
+            'owner.profile',
+            'owner.media',
+            'winner:id,name,username',
+            'winner.profile',
+            'winner.media',
+        ])->findOrFail($threadId);
+
+        $this->authorizeThread($thread, $user);
+
+        $messages = $thread->messages()
+            ->with('sender:id,name,username', 'sender.profile', 'sender.media', 'media')
+            ->orderBy('created_at')
+            ->get()
+            ->map(fn (ChatMessage $message) => $this->messagePayload($message));
+
+        return [
+            'thread' => $this->threadPayload($thread, $user),
+            'messages' => $messages,
+        ];
+    }
+
+    public function sendMessage(User $user, int $threadId, ?string $body, $mediaId = null): ChatMessage
+    {
+        $thread = ChatThread::findOrFail($threadId);
+        $this->authorizeThread($thread, $user);
+
+        $body = $body !== null ? trim($body) : null;
+        if (($body === null || $body === '') && !$mediaId) {
+            throw new HttpException(422, 'Message text or media is required.');
+        }
+
+        if ($mediaId) {
+            $media = Media::where('id', $mediaId)
+                ->where('user_id', $user->id)
+                ->whereIn('type', ['chat', 'chat_image', 'chat_video', 'chat_audio'])
+                ->first();
+            if (!$media) {
+                throw new HttpException(422, 'Chat media not found.');
+            }
+        }
+
+        $message = DB::transaction(function () use ($thread, $user, $body, $mediaId) {
+            $message = $thread->messages()->create([
+                'sender_id' => $user->id,
+                'body' => $body,
+                'media_id' => $mediaId,
+            ]);
+
+            $thread->update([
+                'last_message_id' => $message->id,
+                'last_message_at' => $message->created_at,
+            ]);
+
+            return $message;
+        });
+
+        $message->load('sender.profile', 'sender.media', 'media', 'thread.spec');
+        MessageSent::dispatch($message);
+
+        $recipientId = $thread->otherParticipantId((int) $user->id);
+        $recipient = User::find($recipientId);
+        if ($recipient) {
+            $senderName = $user->profile?->full_name ?? $user->name ?? 'Your match';
+            $this->notificationService->notify(
+                $recipient,
+                'chat_message',
+                [
+                    'thread_id' => $thread->id,
+                    'spec_date_id' => $thread->spec_date_id,
+                    'sender_id' => $user->id,
+                ],
+                'New message',
+                "{$senderName} sent you a message."
+            );
+        }
+
+        return $message;
+    }
+
+    public function markThreadRead(User $user, int $threadId): void
+    {
+        $thread = ChatThread::findOrFail($threadId);
+        $this->authorizeThread($thread, $user);
+
+        $thread->messages()
+            ->where('sender_id', '!=', $user->id)
+            ->whereNull('read_at')
+            ->update(['read_at' => now()]);
+    }
+
+    public function userCanAccessThread(User $user, int $threadId): bool
+    {
+        $thread = ChatThread::find($threadId);
+        return $thread ? $thread->hasParticipant((int) $user->id) : false;
+    }
+
+    private function authorizeThread(ChatThread $thread, User $user): void
+    {
+        if (!$thread->hasParticipant((int) $user->id)) {
+            throw new HttpException(403, 'You are not part of this chat.');
+        }
+    }
+
+    private function threadPayload(ChatThread $thread, User $user): array
+    {
+        $owner = $thread->owner;
+        $winner = $thread->winner;
+        $other = (int) $thread->owner_id === (int) $user->id ? $winner : $owner;
+        $otherAvatar = $other?->media?->where('type', 'avatar')->sortByDesc('id')->first()?->url;
+
+        return [
+            'id' => $thread->id,
+            'spec_date_id' => $thread->spec_date_id,
+            'spec_id' => $thread->spec_id,
+            'date_code' => $thread->specDate?->date_code,
+            'spec' => $thread->spec,
+            'other_user' => $other ? [
+                'id' => $other->id,
+                'name' => $other->profile?->full_name ?? $other->name,
+                'username' => $other->username,
+                'avatar' => $otherAvatar,
+            ] : null,
+            'last_message' => $thread->lastMessage ? [
+                'id' => $thread->lastMessage->id,
+                'body' => $thread->lastMessage->body,
+                'sender_id' => $thread->lastMessage->sender_id,
+                'created_at' => $thread->lastMessage->created_at,
+            ] : null,
+            'last_message_at' => $thread->last_message_at,
+            'unread_count' => $thread->unread_count ?? 0,
+            'created_at' => $thread->created_at,
+        ];
+    }
+
+    public function messagePayload(ChatMessage $message): array
+    {
+        $sender = $message->sender;
+        $senderAvatar = $sender?->media?->where('type', 'avatar')->sortByDesc('id')->first()?->url;
+
+        return [
+            'id' => $message->id,
+            'chat_thread_id' => $message->chat_thread_id,
+            'sender_id' => $message->sender_id,
+            'body' => $message->body,
+            'media' => $message->media,
+            'read_at' => $message->read_at,
+            'created_at' => $message->created_at,
+            'sender' => $sender ? [
+                'id' => $sender->id,
+                'name' => $sender->profile?->full_name ?? $sender->name,
+                'username' => $sender->username,
+                'avatar' => $senderAvatar,
+            ] : null,
+        ];
+    }
+}

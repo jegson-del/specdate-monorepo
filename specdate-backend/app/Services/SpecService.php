@@ -9,6 +9,7 @@ use App\Models\SpecRound;
 use App\Models\SpecRoundAnswer;
 use App\Models\User;
 use App\Models\UserBalance;
+use App\Services\ChatService;
 use App\Services\NotificationService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -17,10 +18,12 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 class SpecService
 {
     protected $notificationService;
+    protected $chatService;
 
-    public function __construct(NotificationService $notificationService)
+    public function __construct(NotificationService $notificationService, ChatService $chatService)
     {
         $this->notificationService = $notificationService;
+        $this->chatService = $chatService;
     }
 
     public function listForFeed($user, string $filter = 'LIVE', bool $excludeOwn = false)
@@ -145,7 +148,7 @@ class SpecService
              // Privacy Logic for Answers:
              // If User is Owner -> See ALL answers
              // If User is Participant -> See ONLY OWN answer; if ELIMINATED, only show rounds up to the round they were eliminated in
-             if ($spec->user_id === $user->id) {
+             if ((int) $spec->user_id === (int) $user->id) {
                  // Owner: Load all answers for active rounds
                  $spec->load(['rounds.answers.user.profile', 'rounds.answers.user.media', 'rounds.answers.media']);
              } else {
@@ -682,11 +685,12 @@ class SpecService
         $dateCode = $this->generateDateCode();
 
         DB::transaction(function () use ($spec, $winnerApp, $dateCode) {
-            $spec->dates()->create([
+            $date = $spec->dates()->create([
                 'owner_id' => $spec->user_id,
                 'winner_user_id' => $winnerApp->user_id,
                 'date_code' => $dateCode,
             ]);
+            $this->chatService->ensureThreadForDate($date);
             $winnerApp->update(['status' => 'WINNER']);
             $spec->update(['status' => 'COMPLETED']);
         });
@@ -722,6 +726,7 @@ class SpecService
             $winner = $date->winner;
             $isOwner = (int) $date->owner_id === (int) $user->id;
             $otherUser = $isOwner ? $winner : $owner;
+            $chatThread = $this->chatService->ensureThreadForDate($date);
             $winnerAvatar = $winner?->media?->where('type', 'avatar')->sortByDesc('id')->first()?->url;
             $ownerAvatar = $owner?->media?->where('type', 'avatar')->sortByDesc('id')->first()?->url;
             $otherAvatar = $otherUser?->media?->where('type', 'avatar')->sortByDesc('id')->first()?->url;
@@ -732,6 +737,7 @@ class SpecService
                 'owner_id' => $date->owner_id,
                 'winner_user_id' => $date->winner_user_id,
                 'date_code' => $date->date_code,
+                'chat_thread_id' => $chatThread->id,
                 'matched_at' => $date->created_at,
                 'is_owner' => $isOwner,
                 'spec' => $date->spec,
