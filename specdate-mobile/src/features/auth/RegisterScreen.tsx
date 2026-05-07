@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Image as RNImage, Platform } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, Image as RNImage, Platform, TouchableOpacity } from 'react-native';
 import { Text, TextInput, Button, IconButton, useTheme, RadioButton, SegmentedButtons, Checkbox } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MotiView } from 'moti';
@@ -407,9 +407,19 @@ export default function RegisterScreen({ navigation }: any) {
                                     onPress={() => setTermsAccepted(!termsAccepted)}
                                     color={theme.colors.primary}
                                 />
-                                <Text style={{ flex: 1, marginLeft: 8, color: theme.colors.onSurface }} onPress={() => setTermsAccepted(!termsAccepted)}>
-                                    I accept the Terms and Conditions and confirm I am over 18 years of age.
-                                </Text>
+                                <View style={{ flex: 1, marginLeft: 8 }}>
+                                    <Text style={{ color: theme.colors.onSurface }} onPress={() => setTermsAccepted(!termsAccepted)}>
+                                        I accept the Terms and Conditions and confirm I am over 18 years of age.
+                                    </Text>
+                                    <View style={{ flexDirection: 'row', gap: 12, marginTop: 6 }}>
+                                        <TouchableOpacity onPress={() => navigation.navigate('Legal', { type: 'terms' })}>
+                                            <Text style={{ color: theme.colors.primary, fontWeight: '800' }}>Terms</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity onPress={() => navigation.navigate('Legal', { type: 'privacy' })}>
+                                            <Text style={{ color: theme.colors.primary, fontWeight: '800' }}>Privacy Policy</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
                             </View>
                         </View>
                     )}

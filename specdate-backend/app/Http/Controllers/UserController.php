@@ -5,12 +5,17 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Models\Spec;
 use App\Models\SpecApplication;
+use App\Services\BlockService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 
 class UserController extends Controller
 {
     use ApiResponse;
+
+    public function __construct(private BlockService $blockService)
+    {
+    }
 
     /**
      * Return public profile for a user (read-only).
@@ -21,7 +26,9 @@ class UserController extends Controller
     {
         $query = User::with(['profile', 'media'])
             ->where('id', '!=', $request->user()->id)
-            ->where('is_paused', false);
+            ->where('is_paused', false)
+            ->whereDoesntHave('blockedUsers', fn ($q) => $q->where('blocked_id', $request->user()->id))
+            ->whereDoesntHave('blockedByUsers', fn ($q) => $q->where('blocker_id', $request->user()->id));
 
         // Filter by Sex
         if ($request->has('sex') && $request->sex !== 'All') {
@@ -56,7 +63,7 @@ class UserController extends Controller
         // Format for public display
         $data = $users->getCollection()->map(function ($user) {
             $profile = $user->profile;
-            $avatarMedia = $user->media->where('type', 'avatar')->sortByDesc('id')->first();
+            $avatarMedia = $user->media->where('type', 'avatar')->whereNull('hidden_at')->sortByDesc('id')->first();
             $avatarUrl = $avatarMedia ? $avatarMedia->url : null;
 
             return [
@@ -95,6 +102,10 @@ class UserController extends Controller
             return $this->sendError('User not found.', [], 404);
         }
 
+        if ($this->blockService->hasBlockBetween((int) $request->user()->id, (int) $user->id)) {
+            return $this->sendError('User not found.', [], 404);
+        }
+
         $profile = $user->profile;
         $specsCreated = Spec::where('user_id', $id)->count();
         $specsParticipated = SpecApplication::where('user_id', $id)
@@ -102,7 +113,7 @@ class UserController extends Controller
             ->count();
         $datesCount = 0; // placeholder: first-dates / meetups when we have that data
 
-        $avatarMedia = $user->media->where('type', 'avatar')->sortByDesc('id')->first();
+        $avatarMedia = $user->media->where('type', 'avatar')->whereNull('hidden_at')->sortByDesc('id')->first();
         $avatarUrl = $avatarMedia ? $avatarMedia->url : null;
 
         $public = [
@@ -126,8 +137,11 @@ class UserController extends Controller
                 'is_drug_user' => $profile->is_drug_user,
                 'sexual_orientation' => $profile->sexual_orientation,
             ] : null,
-            'images' => $user->media->where('type', 'profile_gallery')->map(function ($media) {
+            'images' => $user->media->where('type', 'profile_gallery')->whereNull('hidden_at')->map(function ($media) {
                 return $media->url; // Uses the getUrlAttribute accessor (ImageKit)
+            })->values()->all(),
+            'profile_gallery_media' => $user->media->where('type', 'profile_gallery')->whereNull('hidden_at')->map(function ($media) {
+                return ['id' => $media->id, 'url' => $media->url];
             })->values()->all(),
             'specs_created_count' => $specsCreated,
             'specs_participated_count' => $specsParticipated,

@@ -10,12 +10,19 @@ import * as ImagePicker from 'expo-image-picker';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SpecService } from '../../services/specs';
 import { MediaService } from '../../services/media';
+import { ModerationService, type ReportTargetType } from '../../services/moderation';
 import { useUser } from '../../hooks/useUser';
 import { toImageUri } from '../../utils/imageUrl';
 import { VideoViewerModal } from '../../components';
 import { EditSpecModal } from './components/EditSpecModal';
 import { AudioMessagePlayer, LastManStandingModal, RecordingMediaButton, useRoundAudioRecorder, VideoThumbnailPlayer } from './components';
 import type { RoundMediaAsset } from './components';
+import ChatSafetySheet from '../chat/components/ChatSafetySheet';
+
+type ReportSheetState =
+    | null
+    | { mode: 'report'; targetType: ReportTargetType; targetId: number; label: string }
+    | { mode: 'success'; title: string; subtitle: string };
 
 function formatExpires(expiresAt?: string) {
     if (!expiresAt) return '—';
@@ -106,6 +113,9 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
     const [lastManStandingVisible, setLastManStandingVisible] = React.useState(false);
     const [lastManStandingWinnerName, setLastManStandingWinnerName] = React.useState('');
     const [lastManStandingSpecId, setLastManStandingSpecId] = React.useState<string | null>(null);
+    const [reportSheet, setReportSheet] = React.useState<ReportSheetState>(null);
+    const [reportLoading, setReportLoading] = React.useState(false);
+    const [reportError, setReportError] = React.useState<string | null>(null);
 
     const { data: spec, isLoading, isFetching, error, refetch: refetchSpec } = useQuery({
         queryKey: ['spec', specId],
@@ -630,6 +640,38 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
         Alert.alert('Share', `Sharing spec: ${spec?.title}`);
     };
 
+    const closeReportSheet = React.useCallback(() => {
+        setReportSheet(null);
+        setReportError(null);
+    }, []);
+
+    const openReportSheet = React.useCallback((targetType: ReportTargetType, targetId: number, label: string) => {
+        setReportError(null);
+        setReportSheet({ mode: 'report', targetType, targetId, label });
+    }, []);
+
+    const submitReport = React.useCallback(async (reason: string) => {
+        if (reportSheet?.mode !== 'report') return;
+        setReportLoading(true);
+        setReportError(null);
+        try {
+            await ModerationService.reportContent({
+                target_type: reportSheet.targetType,
+                target_id: reportSheet.targetId,
+                reason,
+            });
+            setReportSheet({
+                mode: 'success',
+                title: 'Report submitted',
+                subtitle: 'Thanks. Our moderation team will review this and take action where needed.',
+            });
+        } catch (e: any) {
+            setReportError(e?.response?.data?.message || e?.message || 'Could not submit report.');
+        } finally {
+            setReportLoading(false);
+        }
+    }, [reportSheet]);
+
     // Early return for missing specId - but all hooks must be called first
     if (!specId) {
         return (
@@ -888,6 +930,15 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                             <Text style={[styles.actionPillText, { color: theme.colors.onSurface }]}>Share</Text>
                         </Surface>
                     </TouchableOpacity>
+
+                    {!isOwner ? (
+                        <TouchableOpacity onPress={() => openReportSheet('spec', Number(spec.id), 'spec')} activeOpacity={0.9}>
+                            <Surface style={[styles.actionPill, { backgroundColor: theme.colors.elevation.level2 }]} elevation={0}>
+                                <MaterialCommunityIcons name="flag-outline" size={18} color={theme.colors.error} />
+                                <Text style={[styles.actionPillText, { color: theme.colors.error }]}>Report</Text>
+                            </Surface>
+                        </TouchableOpacity>
+                    ) : null}
                 </View>
 
                 {/* About */}
@@ -1237,6 +1288,21 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                 visible={questionVideoViewerVisible}
                 uri={questionVideoViewerUri}
                 onClose={() => { setQuestionVideoViewerVisible(false); setQuestionVideoViewerUri(null); }}
+            />
+
+            <ChatSafetySheet
+                visible={!!reportSheet}
+                mode={reportSheet?.mode ?? 'report'}
+                title={reportSheet?.mode === 'report' ? `Report ${reportSheet.label}?` : reportSheet?.title ?? ''}
+                subtitle={
+                    reportSheet?.mode === 'report'
+                        ? 'Choose the reason. Our moderation team will review it.'
+                        : reportSheet?.subtitle
+                }
+                loading={reportLoading}
+                error={reportError}
+                onDismiss={closeReportSheet}
+                onSubmitReport={submitReport}
             />
         </View>
     );

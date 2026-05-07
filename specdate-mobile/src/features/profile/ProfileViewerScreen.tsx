@@ -4,10 +4,19 @@ import { Text, useTheme, Avatar, IconButton, Button, Surface, Divider, ActivityI
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { UserService } from '../../services/users';
+import { ModerationService, type ReportTargetType } from '../../services/moderation';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ProfileImageGrid, ImageViewerModal } from './components';
 import { toImageUri } from '../../utils/imageUrl';
+import ChatSafetySheet from '../chat/components/ChatSafetySheet';
+
+type SafetySheetState =
+    | null
+    | { mode: 'actions'; userId: number; name: string }
+    | { mode: 'report'; targetType: ReportTargetType; targetId: number; label: string }
+    | { mode: 'block'; userId: number; name: string }
+    | { mode: 'success'; title: string; subtitle: string; afterDismiss?: () => void };
 
 function formatAge(dob?: string) {
     if (!dob) return null;
@@ -52,6 +61,9 @@ export default function ProfileViewerScreen({ route, navigation }: any) {
 
     const [viewerVisible, setViewerVisible] = useState(false);
     const [viewerInitialIndex, setViewerInitialIndex] = useState(0);
+    const [safetySheet, setSafetySheet] = useState<SafetySheetState>(null);
+    const [safetyLoading, setSafetyLoading] = useState(false);
+    const [safetyError, setSafetyError] = useState<string | null>(null);
 
     const images = useMemo(() => {
         const raw = (user?.images ?? []) as string[];
@@ -62,10 +74,16 @@ export default function ProfileViewerScreen({ route, navigation }: any) {
     }, [user?.images]);
 
     const imagesFilled = useMemo(() => {
-        const raw = (user?.images ?? []) as string[];
-        const valid = raw.map((u) => toImageUri(u)).filter(Boolean) as string[];
+        const mediaUrls = user?.profile_gallery_media?.map((m) => toImageUri(m.url)).filter(Boolean) as string[] | undefined;
+        const raw = mediaUrls?.length ? mediaUrls : ((user?.images ?? []) as string[]).map((u) => toImageUri(u)).filter(Boolean) as string[];
+        const valid = raw.filter(Boolean) as string[];
         return valid.length > 0 ? valid : DUMMY_IMAGES;
-    }, [user?.images]);
+    }, [user?.images, user?.profile_gallery_media]);
+
+    const galleryMediaByViewerIndex = useMemo(() => {
+        const media = user?.profile_gallery_media ?? [];
+        return media.filter((m) => toImageUri(m.url));
+    }, [user?.profile_gallery_media]);
 
     const openViewer = useCallback((index: number) => {
         const filled = images.filter(Boolean) as string[];
@@ -73,6 +91,59 @@ export default function ProfileViewerScreen({ route, navigation }: any) {
         setViewerInitialIndex(idx >= 0 ? idx : 0);
         setViewerVisible(true);
     }, [images]);
+
+    const closeSafetySheet = useCallback(() => {
+        const afterDismiss = safetySheet?.mode === 'success' ? safetySheet.afterDismiss : undefined;
+        setSafetySheet(null);
+        setSafetyError(null);
+        afterDismiss?.();
+    }, [safetySheet]);
+
+    const openReportSheet = useCallback((targetType: ReportTargetType, targetId: number, label: string) => {
+        setSafetyError(null);
+        setSafetySheet({ mode: 'report', targetType, targetId, label });
+    }, []);
+
+    const submitReport = useCallback(async (reason: string) => {
+        if (safetySheet?.mode !== 'report') return;
+        setSafetyLoading(true);
+        setSafetyError(null);
+        try {
+            await ModerationService.reportContent({
+                target_type: safetySheet.targetType,
+                target_id: safetySheet.targetId,
+                reason,
+            });
+            setSafetySheet({
+                mode: 'success',
+                title: 'Report submitted',
+                subtitle: 'Thanks. Our moderation team will review this profile and take action where needed.',
+            });
+        } catch (e: any) {
+            setSafetyError(e?.response?.data?.message || e?.message || 'Could not submit report.');
+        } finally {
+            setSafetyLoading(false);
+        }
+    }, [safetySheet]);
+
+    const confirmBlock = useCallback(async () => {
+        if (safetySheet?.mode !== 'block') return;
+        setSafetyLoading(true);
+        setSafetyError(null);
+        try {
+            await ModerationService.blockUser(safetySheet.userId);
+            setSafetySheet({
+                mode: 'success',
+                title: 'User blocked',
+                subtitle: `${safetySheet.name} cannot message you or view your profile now.`,
+                afterDismiss: () => navigation.goBack(),
+            });
+        } catch (e: any) {
+            setSafetyError(e?.response?.data?.message || e?.message || 'Could not block this user.');
+        } finally {
+            setSafetyLoading(false);
+        }
+    }, [navigation, safetySheet]);
 
     const specsCreated = user?.specs_created_count ?? 0;
     const specsParticipated = user?.specs_participated_count ?? 0;
@@ -129,7 +200,16 @@ export default function ProfileViewerScreen({ route, navigation }: any) {
                     <Text variant="titleLarge" style={[styles.screenTitle, { color: theme.colors.onSurface }]}>
                         Profile
                     </Text>
-                    <View style={{ width: 40 }} />
+                    <IconButton
+                        icon="dots-vertical"
+                        iconColor={theme.colors.onSurface}
+                        size={24}
+                        onPress={() => {
+                            setSafetyError(null);
+                            setSafetySheet({ mode: 'actions', userId: Number(userId), name: displayName });
+                        }}
+                        style={styles.backBtn}
+                    />
                 </View>
 
                 <View style={styles.header}>
@@ -330,8 +410,41 @@ export default function ProfileViewerScreen({ route, navigation }: any) {
                     images={imagesFilled}
                     initialIndex={viewerInitialIndex}
                     onClose={() => setViewerVisible(false)}
+                    onReport={(index) => {
+                        const mediaId = galleryMediaByViewerIndex[index]?.id;
+                        openReportSheet(mediaId ? 'media' : 'profile', mediaId ? Number(mediaId) : Number(userId), mediaId ? 'photo' : 'profile photo');
+                    }}
                 />
             )}
+            <ChatSafetySheet
+                visible={!!safetySheet}
+                mode={safetySheet?.mode ?? 'actions'}
+                title={
+                    safetySheet?.mode === 'actions'
+                        ? displayName
+                        : safetySheet?.mode === 'report'
+                            ? `Report ${safetySheet.label}?`
+                            : safetySheet?.mode === 'block'
+                                ? `Block ${safetySheet.name}?`
+                                : safetySheet?.title ?? ''
+                }
+                subtitle={
+                    safetySheet?.mode === 'actions'
+                        ? 'Choose a safety action for this profile.'
+                        : safetySheet?.mode === 'report'
+                            ? 'Choose the reason. Our moderation team will review it.'
+                            : safetySheet?.mode === 'block'
+                                ? 'They will not be able to message you or view your profile. You will not see their profile either.'
+                                : safetySheet?.subtitle
+                }
+                loading={safetyLoading}
+                error={safetyError}
+                onDismiss={closeSafetySheet}
+                onOpenReport={() => openReportSheet('profile', Number(userId), 'profile')}
+                onOpenBlock={() => setSafetySheet({ mode: 'block', userId: Number(userId), name: displayName })}
+                onSubmitReport={submitReport}
+                onConfirmBlock={confirmBlock}
+            />
         </View>
     );
 }

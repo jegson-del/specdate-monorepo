@@ -14,10 +14,8 @@ import { Dropdown } from 'react-native-paper-dropdown';
 import { OCCUPATION_OPTIONS, QUALIFICATION_OPTIONS, RELIGION_OPTIONS } from '../../constants/profileOptions';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { ProfileImageGrid, ImageViewerModal, ConfirmModal } from './components';
+import { ProfileImageGrid, ImageViewerModal } from './components';
 import { MediaService } from '../../services/media';
-import { AuthService } from '../../services/auth';
-import { AccountService } from '../../services/account';
 import { toImageUri, imageUriWithCacheBust } from '../../utils/imageUrl';
 
 // --- OPTIONS & CONSTANTS ---
@@ -133,10 +131,6 @@ export default function ProfileScreen({ navigation }: any) {
         [images, profileUpdatedAt]
     );
     const imagesFilled = useMemo(() => imagesWithCacheBust.filter(Boolean) as string[], [imagesWithCacheBust]);
-    type ConfirmAction = 'pause' | 'unpause' | 'delete' | null;
-    const [confirmModal, setConfirmModal] = useState<ConfirmAction>(null);
-    const [accountActionLoading, setAccountActionLoading] = useState(false);
-
     // --- HELPERS ---
     const updateForm = (patch: Partial<ProfileFormData>) => setForm((prev) => ({ ...prev, ...patch }));
 
@@ -382,76 +376,6 @@ export default function ProfileScreen({ navigation }: any) {
         }
     };
 
-    const handleLogout = async () => {
-        await AuthService.logout();
-        queryClient.removeQueries({ queryKey: ['user'] });
-        navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
-    };
-
-    const handlePauseAccount = () => {
-        if (user?.is_paused) {
-            setConfirmModal('unpause');
-        } else {
-            setConfirmModal('pause');
-        }
-    };
-
-    const handleDeleteAccount = () => {
-        setConfirmModal('delete');
-    };
-
-    const handleConfirmModalConfirm = async () => {
-        if (!confirmModal) return;
-        setAccountActionLoading(true);
-        try {
-            if (confirmModal === 'pause') {
-                await AccountService.pause();
-                queryClient.invalidateQueries({ queryKey: ['user'] });
-            } else if (confirmModal === 'unpause') {
-                await AccountService.unpause();
-                queryClient.invalidateQueries({ queryKey: ['user'] });
-            } else if (confirmModal === 'delete') {
-                await AccountService.deleteAccount();
-                await AuthService.logout();
-                queryClient.removeQueries({ queryKey: ['user'] });
-                setConfirmModal(null);
-                navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
-                return;
-            }
-            setConfirmModal(null);
-        } catch (e: any) {
-            const msg = e?.response?.data?.message ?? e?.message ?? 'Something went wrong.';
-            Alert.alert('Error', msg);
-        } finally {
-            setAccountActionLoading(false);
-        }
-    };
-
-    const confirmModalConfig =
-        confirmModal === 'pause'
-            ? {
-                title: 'Pause account?',
-                message:
-                    'Your profile will be hidden from others and you won\'t be able to create specs. You can still log in and unpause anytime.',
-                confirmLabel: 'Pause',
-                destructive: false,
-            }
-            : confirmModal === 'unpause'
-                ? {
-                    title: 'Unpause account?',
-                    message: 'Your profile will be visible again and you can create specs.',
-                    confirmLabel: 'Unpause',
-                    destructive: false,
-                }
-                : confirmModal === 'delete'
-                    ? {
-                        title: 'Delete account?',
-                        message: 'This is permanent. All your data will be removed. You will not be able to recover your account.',
-                        confirmLabel: 'Delete account',
-                        destructive: true,
-                    }
-                    : null;
-
     const openImageViewer = (index: number) => {
         const filled = imagesWithCacheBust.filter(Boolean) as string[];
         const idx = filled.indexOf(imagesWithCacheBust[index] as string);
@@ -496,7 +420,14 @@ export default function ProfileScreen({ navigation }: any) {
                     <Text variant="titleLarge" style={[styles.screenTitle, { color: theme.colors.onSurface }]}>
                         Edit Profile
                     </Text>
-                    <View style={{ width: 40 }} />
+                    <IconButton
+                        icon="cog-outline"
+                        iconColor={theme.colors.onSurface}
+                        size={24}
+                        onPress={() => navigation.navigate('Settings')}
+                        style={styles.backButton}
+                        accessibilityLabel="Open settings"
+                    />
                 </View>
 
                 {/* Header */}
@@ -912,86 +843,6 @@ export default function ProfileScreen({ navigation }: any) {
                     Save Changes
                 </Button>
 
-                {/* Account Actions */}
-                <Surface style={[styles.accountSection, { backgroundColor: theme.colors.elevation.level1 }]} elevation={0}>
-                    <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
-                        Account
-                    </Text>
-
-                    <TouchableOpacity
-                        onPress={handlePauseAccount}
-                        style={[styles.accountActionItem, { borderColor: theme.colors.outline }]}
-                        activeOpacity={0.7}
-                    >
-                        <View style={styles.accountActionLeft}>
-                            <View style={[styles.accountIconContainer, { backgroundColor: theme.colors.secondaryContainer }]}>
-                                <MaterialCommunityIcons
-                                    name={user?.is_paused ? 'play-circle' : 'pause-circle'}
-                                    size={22}
-                                    color={theme.colors.secondary}
-                                />
-                            </View>
-                            <View style={styles.accountActionText}>
-                                <Text variant="bodyLarge" style={{ color: theme.colors.onSurface, fontWeight: '600' }}>
-                                    {user?.is_paused ? 'Paused' : 'Pause Account'}
-                                </Text>
-                                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 2 }}>
-                                    {user?.is_paused
-                                        ? 'Your profile is hidden. Tap to unpause.'
-                                        : 'Hide your profile temporarily'}
-                                </Text>
-                            </View>
-                        </View>
-                        <MaterialCommunityIcons name="chevron-right" size={20} color={theme.colors.onSurfaceVariant} />
-                    </TouchableOpacity>
-
-                    <Divider style={styles.divider} />
-
-                    <TouchableOpacity
-                        onPress={handleLogout}
-                        style={[styles.accountActionItem, { borderColor: theme.colors.outline }]}
-                        activeOpacity={0.7}
-                    >
-                        <View style={styles.accountActionLeft}>
-                            <View style={[styles.accountIconContainer, { backgroundColor: theme.colors.errorContainer }]}>
-                                <MaterialCommunityIcons name="logout" size={22} color={theme.colors.error} />
-                            </View>
-                            <View style={styles.accountActionText}>
-                                <Text variant="bodyLarge" style={{ color: theme.colors.onSurface, fontWeight: '600' }}>
-                                    Log Out
-                                </Text>
-                                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 2 }}>
-                                    Sign out of your account
-                                </Text>
-                            </View>
-                        </View>
-                        <MaterialCommunityIcons name="chevron-right" size={20} color={theme.colors.onSurfaceVariant} />
-                    </TouchableOpacity>
-
-                    <Divider style={styles.divider} />
-
-                    <TouchableOpacity
-                        onPress={handleDeleteAccount}
-                        style={[styles.accountActionItem, styles.deleteActionItem, { borderColor: theme.colors.error }]}
-                        activeOpacity={0.7}
-                    >
-                        <View style={styles.accountActionLeft}>
-                            <View style={[styles.accountIconContainer, { backgroundColor: theme.colors.errorContainer }]}>
-                                <MaterialCommunityIcons name="delete-outline" size={22} color={theme.colors.error} />
-                            </View>
-                            <View style={styles.accountActionText}>
-                                <Text variant="bodyLarge" style={{ color: theme.colors.error, fontWeight: '700' }}>
-                                    Delete My Account
-                                </Text>
-                                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 2 }}>
-                                    Permanently delete your account
-                                </Text>
-                            </View>
-                        </View>
-                        <MaterialCommunityIcons name="chevron-right" size={20} color={theme.colors.error} />
-                    </TouchableOpacity>
-                </Surface>
-
             </ScrollView>
 
             <ImageViewerModal
@@ -1002,18 +853,6 @@ export default function ProfileScreen({ navigation }: any) {
                 onReplace={(index) => { setViewerVisible(false); pickFromGallery('profile_gallery', index); }}
             />
 
-            {confirmModalConfig && (
-                <ConfirmModal
-                    visible={!!confirmModal}
-                    title={confirmModalConfig.title}
-                    message={confirmModalConfig.message}
-                    confirmLabel={confirmModalConfig.confirmLabel}
-                    onConfirm={handleConfirmModalConfirm}
-                    onCancel={() => setConfirmModal(null)}
-                    destructive={confirmModalConfig.destructive}
-                    loading={accountActionLoading}
-                />
-            )}
         </View>
     );
 }
@@ -1207,43 +1046,5 @@ const styles = StyleSheet.create({
         marginBottom: 8,
         borderRadius: 16,
         elevation: 2,
-    },
-    accountSection: {
-        marginHorizontal: 16,
-        marginTop: 24,
-        marginBottom: 20,
-        padding: 20,
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.05)',
-    },
-    accountActionItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingVertical: 16,
-        paddingHorizontal: 4,
-        borderRadius: 12,
-        borderWidth: 1,
-        marginBottom: 8,
-    },
-    deleteActionItem: {
-        borderWidth: 1.5,
-    },
-    accountActionLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-        flex: 1,
-    },
-    accountIconContainer: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    accountActionText: {
-        flex: 1,
     },
 });

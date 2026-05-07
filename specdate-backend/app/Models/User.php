@@ -95,6 +95,16 @@ class User extends Authenticatable
         return $this->hasMany(Discount::class, 'provider_id');
     }
 
+    public function blockedUsers()
+    {
+        return $this->hasMany(BlockedUser::class, 'blocker_id');
+    }
+
+    public function blockedByUsers()
+    {
+        return $this->hasMany(BlockedUser::class, 'blocked_id');
+    }
+
     /**
      * Get the profile completion status.
      *
@@ -117,6 +127,7 @@ class User extends Authenticatable
     {
         return $this->media
             ->where('type', 'profile_gallery')
+            ->whereNull('hidden_at')
             ->sortByDesc('id')
             ->take(6)
             ->values()
@@ -133,6 +144,7 @@ class User extends Authenticatable
     {
         return $this->media
             ->where('type', 'avatar')
+            ->whereNull('hidden_at')
             ->sortByDesc('id')
             ->first()
             ?->url;

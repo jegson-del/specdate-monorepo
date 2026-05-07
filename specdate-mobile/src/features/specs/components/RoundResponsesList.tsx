@@ -12,6 +12,8 @@ type Props = {
   theme: any;
   onEliminate: (userId: number) => void;
   onOpenVideo: (uri: string) => void;
+  onReportAnswer?: (answer: any) => void;
+  onReportMedia?: (answer: any) => void;
 };
 
 function isAudioMedia(media?: any) {
@@ -22,7 +24,7 @@ function isVideoMedia(media?: any) {
   return String(media?.type ?? '').includes('_video') || String(media?.mime_type ?? '').startsWith('video/');
 }
 
-export function RoundResponsesList({ answers, roundStatus, theme, onEliminate, onOpenVideo }: Props) {
+export function RoundResponsesList({ answers, roundStatus, theme, onEliminate, onOpenVideo, onReportAnswer, onReportMedia }: Props) {
   const canEliminate = String(roundStatus).toUpperCase() === 'REVIEWING' || String(roundStatus).toUpperCase() === 'ACTIVE';
 
   return (
@@ -75,6 +77,28 @@ export function RoundResponsesList({ answers, roundStatus, theme, onEliminate, o
                     </TouchableOpacity>
                   )
                 )}
+                <View style={styles.reportActions}>
+                  {onReportAnswer ? (
+                    <TouchableOpacity
+                      onPress={() => onReportAnswer(answer)}
+                      style={[styles.reportButton, { borderColor: theme.colors.outlineVariant }]}
+                      accessibilityLabel="Report answer"
+                    >
+                      <MaterialCommunityIcons name="flag-outline" size={16} color={theme.colors.error} />
+                      <Text style={[styles.reportButtonLabel, { color: theme.colors.error }]}>Report answer</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  {answer.media && onReportMedia ? (
+                    <TouchableOpacity
+                      onPress={() => onReportMedia(answer)}
+                      style={[styles.reportButton, { borderColor: theme.colors.outlineVariant }]}
+                      accessibilityLabel="Report answer media"
+                    >
+                      <MaterialCommunityIcons name="file-image-outline" size={16} color={theme.colors.error} />
+                      <Text style={[styles.reportButtonLabel, { color: theme.colors.error }]}>Report media</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
               </View>
               {(canEliminate && !isEliminated) ? (
                 <TouchableOpacity
@@ -130,6 +154,29 @@ const styles = StyleSheet.create({
     height: 120,
     borderRadius: 8,
     marginTop: 8,
+  },
+  reportActions: {
+    flexDirection: 'row',
+    flexWrap: 'nowrap',
+    gap: 8,
+    marginTop: 10,
+  },
+  reportButton: {
+    height: 30,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  reportButtonLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    flexShrink: 1,
   },
   eliminateButton: {
     flexDirection: 'row',

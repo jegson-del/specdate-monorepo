@@ -23,6 +23,7 @@ export type PublicProfile = {
         religion?: string;
     } | null;
     images?: string[];
+    profile_gallery_media?: { id: number; url: string }[];
     specs_created_count?: number;
     specs_participated_count?: number;
     dates_count?: number;

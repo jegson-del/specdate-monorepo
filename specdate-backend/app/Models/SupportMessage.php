@@ -4,35 +4,27 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class ChatMessage extends Model
+class SupportMessage extends Model
 {
     protected $fillable = [
-        'chat_thread_id',
+        'support_ticket_id',
         'sender_id',
+        'sender_role',
         'body',
-        'media_id',
         'read_at',
-        'hidden_at',
-        'hidden_reason',
     ];
 
     protected $casts = [
         'read_at' => 'datetime',
-        'hidden_at' => 'datetime',
     ];
 
-    public function thread()
+    public function ticket()
     {
-        return $this->belongsTo(ChatThread::class, 'chat_thread_id');
+        return $this->belongsTo(SupportTicket::class, 'support_ticket_id');
     }
 
     public function sender()
     {
         return $this->belongsTo(User::class, 'sender_id');
-    }
-
-    public function media()
-    {
-        return $this->belongsTo(Media::class);
     }
 }

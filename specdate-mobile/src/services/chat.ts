@@ -7,6 +7,18 @@ export type ChatUser = {
   avatar?: string | null;
 };
 
+export type ChatMedia = {
+  id: number;
+  user_id?: number | null;
+  file_path?: string | null;
+  url: string;
+  type?: string | null;
+  mime_type?: string | null;
+  size?: number | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
 export type ChatThread = {
   id: number;
   spec_date_id: number;
@@ -34,7 +46,7 @@ export type ChatMessage = {
   chat_thread_id: number;
   sender_id: number;
   body?: string | null;
-  media?: any;
+  media?: ChatMedia | null;
   read_at?: string | null;
   created_at: string;
   sender?: ChatUser | null;

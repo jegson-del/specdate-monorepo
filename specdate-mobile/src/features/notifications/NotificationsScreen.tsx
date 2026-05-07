@@ -58,9 +58,15 @@ export default function NotificationsScreen() {
         }
         const specId = navData?.spec_id != null ? String(navData.spec_id) : null;
         const roundId = navData?.round_id != null ? navData.round_id : null;
+        const ticketId = navData?.ticket_id != null ? navData.ticket_id : null;
 
         if (type === 'join_request') {
             navigation.navigate('Home', { initialTab: 'Requests' });
+            return;
+        }
+
+        if ((type === 'support_reply' || type === 'support_ticket') && ticketId != null) {
+            navigation.navigate('SupportThread', { ticketId });
             return;
         }
 
@@ -125,6 +131,10 @@ export default function NotificationsScreen() {
             iconName = 'account-group';
             color = '#EC4899';
             bgColor = 'rgba(236, 72, 153, 0.15)';
+        } else if (type === 'support_reply' || type === 'support_ticket') {
+            iconName = 'lifebuoy';
+            color = '#0EA5E9';
+            bgColor = 'rgba(14, 165, 233, 0.15)';
         }
 
         const timeText = item.created_at ? formatDistanceToNow(new Date(item.created_at), { addSuffix: true }) : '';

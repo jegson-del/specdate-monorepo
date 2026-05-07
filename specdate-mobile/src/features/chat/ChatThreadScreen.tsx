@@ -6,13 +6,23 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
 import { ChatMessage, ChatService } from '../../services/chat';
 import { MediaService, type MediaUploadType } from '../../services/media';
+import { ModerationService, type ReportTargetType } from '../../services/moderation';
 import { useUser } from '../../hooks/useUser';
 import { toImageUri } from '../../utils/imageUrl';
 import { VideoViewerModal } from '../../components';
 import { useRoundAudioRecorder, type RoundMediaAsset } from '../specs/components';
 import ChatMediaPickerSheet from './components/ChatMediaPickerSheet';
+import ChatSafetySheet from './components/ChatSafetySheet';
 import MessageBubble from './components/MessageBubble';
 import MessageComposer from './components/MessageComposer';
+
+type SafetySheetState =
+  | null
+  | { mode: 'actions'; userId: number; name: string }
+  | { mode: 'message_actions'; messageId: number; mediaId?: number }
+  | { mode: 'report'; targetType: ReportTargetType; targetId: number; label: string; userId?: number; name?: string }
+  | { mode: 'block'; userId: number; name: string }
+  | { mode: 'success'; title: string; subtitle: string; afterDismiss?: () => void };
 
 export default function ChatThreadScreen({ route, navigation }: any) {
   const threadId = route.params?.threadId;
@@ -24,6 +34,9 @@ export default function ChatThreadScreen({ route, navigation }: any) {
   const [mediaSending, setMediaSending] = React.useState(false);
   const [mediaSheet, setMediaSheet] = React.useState<'file' | 'camera' | null>(null);
   const [videoViewerUri, setVideoViewerUri] = React.useState<string | null>(null);
+  const [safetySheet, setSafetySheet] = React.useState<SafetySheetState>(null);
+  const [safetyLoading, setSafetyLoading] = React.useState(false);
+  const [safetyError, setSafetyError] = React.useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['chat-thread', String(threadId)],
@@ -64,6 +77,83 @@ export default function ChatThreadScreen({ route, navigation }: any) {
   }, [sendMutation]);
 
   const audioRecorder = useRoundAudioRecorder(sendMediaAsset);
+
+  const closeSafetySheet = React.useCallback(() => {
+    const afterDismiss = safetySheet?.mode === 'success' ? safetySheet.afterDismiss : undefined;
+    setSafetySheet(null);
+    setSafetyError(null);
+    afterDismiss?.();
+  }, [safetySheet]);
+
+  const openUserActions = React.useCallback((userId: number, displayName: string) => {
+    setSafetyError(null);
+    setSafetySheet({ mode: 'actions', userId, name: displayName });
+  }, []);
+
+  const openReportSheet = React.useCallback((input: {
+    targetType: ReportTargetType;
+    targetId: number;
+    label: string;
+    userId?: number;
+    name?: string;
+  }) => {
+    setSafetyError(null);
+    setSafetySheet({ mode: 'report', ...input });
+  }, []);
+
+  const openBlockSheet = React.useCallback((userId: number, displayName: string) => {
+    setSafetyError(null);
+    setSafetySheet({ mode: 'block', userId, name: displayName });
+  }, []);
+
+  const openMessageActions = React.useCallback((message: ChatMessage) => {
+    const mediaId = message.media?.id ? Number(message.media.id) : undefined;
+    setSafetyError(null);
+    setSafetySheet({ mode: 'message_actions', messageId: Number(message.id), mediaId });
+  }, []);
+
+  const submitReport = React.useCallback(async (reason: string) => {
+    if (safetySheet?.mode !== 'report') return;
+    setSafetyLoading(true);
+    setSafetyError(null);
+    try {
+      await ModerationService.reportContent({
+        target_type: safetySheet.targetType,
+        target_id: safetySheet.targetId,
+        reason,
+      });
+      setSafetySheet({
+        mode: 'success',
+        title: 'Report submitted',
+        subtitle: 'Thanks. Our moderation team will review this and take action where needed.',
+      });
+    } catch (e: any) {
+      setSafetyError(e?.response?.data?.message || e?.message || 'Could not submit report.');
+    } finally {
+      setSafetyLoading(false);
+    }
+  }, [safetySheet]);
+
+  const confirmBlock = React.useCallback(async () => {
+    if (safetySheet?.mode !== 'block') return;
+    setSafetyLoading(true);
+    setSafetyError(null);
+    try {
+      await ModerationService.blockUser(safetySheet.userId);
+      queryClient.invalidateQueries({ queryKey: ['chat-threads'] });
+      queryClient.invalidateQueries({ queryKey: ['user'] });
+      setSafetySheet({
+        mode: 'success',
+        title: 'User blocked',
+        subtitle: `${safetySheet.name} cannot message you or view your profile now.`,
+        afterDismiss: () => navigation.goBack(),
+      });
+    } catch (e: any) {
+      setSafetyError(e?.response?.data?.message || e?.message || 'Could not block this user.');
+    } finally {
+      setSafetyLoading(false);
+    }
+  }, [navigation, queryClient, safetySheet]);
 
   const pickChatMedia = React.useCallback(async (assetType: 'image' | 'video') => {
     try {
@@ -212,6 +302,15 @@ export default function ChatThreadScreen({ route, navigation }: any) {
             {thread?.spec?.title || 'Spec date'}{thread?.date_code ? ` • ${thread.date_code}` : ''}
           </Text>
         </View>
+        <IconButton
+          icon="dots-vertical"
+          size={22}
+          onPress={() => {
+            const otherUserId = thread?.other_user?.id;
+            if (!otherUserId) return;
+            openUserActions(Number(otherUserId), name);
+          }}
+        />
       </View>
 
       <FlatList
@@ -228,6 +327,8 @@ export default function ChatThreadScreen({ route, navigation }: any) {
             isMine={Number(item.sender_id) === Number(user?.id)}
             theme={theme}
             onOpenVideo={setVideoViewerUri}
+            onReport={openMessageActions}
+            onOpenMenu={openMessageActions}
           />
         )}
         ListEmptyComponent={
@@ -269,6 +370,69 @@ export default function ChatThreadScreen({ route, navigation }: any) {
                 { icon: 'file-video-outline', label: 'Choose video', helper: 'Share a saved video clip', onPress: () => pickChatMedia('video') },
               ]
         }
+      />
+
+      <ChatSafetySheet
+        visible={!!safetySheet}
+        mode={safetySheet?.mode ?? 'actions'}
+        title={
+          safetySheet?.mode === 'actions'
+            ? safetySheet.name
+            : safetySheet?.mode === 'message_actions'
+              ? 'Message options'
+            : safetySheet?.mode === 'report'
+              ? `Report ${safetySheet.label}?`
+              : safetySheet?.mode === 'block'
+                ? `Block ${safetySheet.name}?`
+                : safetySheet?.title ?? ''
+        }
+        subtitle={
+          safetySheet?.mode === 'actions'
+            ? 'Choose a safety action for this chat.'
+            : safetySheet?.mode === 'message_actions'
+              ? safetySheet.mediaId ? 'Choose whether to report the message or the attached media.' : 'Choose an action for this message.'
+            : safetySheet?.mode === 'report'
+              ? 'Choose the reason. Our moderation team will review it.'
+              : safetySheet?.mode === 'block'
+                ? 'They will not be able to message you or view your profile. You will not see their profile either.'
+                : safetySheet?.subtitle
+        }
+        loading={safetyLoading}
+        error={safetyError}
+        onDismiss={closeSafetySheet}
+        onOpenReport={() => {
+          if (safetySheet?.mode !== 'actions') return;
+          openReportSheet({
+            targetType: 'user',
+            targetId: safetySheet.userId,
+            label: 'user',
+            userId: safetySheet.userId,
+            name: safetySheet.name,
+          });
+        }}
+        onOpenBlock={() => {
+          if (safetySheet?.mode !== 'actions') return;
+          openBlockSheet(safetySheet.userId, safetySheet.name);
+        }}
+        hasMedia={safetySheet?.mode === 'message_actions' ? Boolean(safetySheet.mediaId) : false}
+        onReportMessage={() => {
+          if (safetySheet?.mode !== 'message_actions') return;
+          openReportSheet({
+            targetType: 'message',
+            targetId: safetySheet.messageId,
+            label: 'message',
+          });
+        }}
+        onReportMedia={() => {
+          if (safetySheet?.mode !== 'message_actions' || !safetySheet.mediaId) return;
+          openReportSheet({
+            targetType: 'media',
+            targetId: safetySheet.mediaId,
+            label: 'media',
+          });
+        }}
+        onSubmitReport={submitReport}
+        onConfirmBlock={confirmBlock}
       />
 
       <VideoViewerModal

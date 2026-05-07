@@ -30,6 +30,10 @@ export type User = {
     unread_notifications_count?: number;
     /** Unread join requests count (shown on Request tab badge). */
     unread_requests_count?: number;
+    /** Unread match chat messages. */
+    unread_chat_count?: number;
+    /** Unread support replies from admin. */
+    unread_support_count?: number;
 };
 
 async function fetchUser(): Promise<User> {

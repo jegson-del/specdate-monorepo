@@ -21,10 +21,11 @@ export type ImageViewerModalProps = {
     onClose: () => void;
     /** When set, show "Replace" button; call with current index (e.g. for profile gallery slot). */
     onReplace?: (index: number) => void;
+    onReport?: (index: number) => void;
 };
 
 /** Full-screen image viewer overlay (swipe between images, close via X). */
-export function ImageViewerModal({ visible, images, initialIndex = 0, onClose, onReplace }: ImageViewerModalProps) {
+export function ImageViewerModal({ visible, images, initialIndex = 0, onClose, onReplace, onReport }: ImageViewerModalProps) {
     const insets = useSafeAreaInsets();
     const listRef = useRef<FlatList>(null);
     const [currentIndex, setCurrentIndex] = useState(initialIndex);
@@ -69,17 +70,27 @@ export function ImageViewerModal({ visible, images, initialIndex = 0, onClose, o
                 <Text variant="bodyMedium" style={styles.counter}>
                     {currentIndex + 1} / {images.length}
                 </Text>
-                {onReplace ? (
-                    <IconButton
-                        icon="image-edit"
-                        iconColor="#fff"
-                        size={24}
-                        onPress={() => { onReplace(currentIndex); onClose(); }}
-                        style={styles.closeBtn}
-                    />
-                ) : (
-                    <View style={{ width: 40 }} />
-                )}
+                <View style={styles.headerActions}>
+                    {onReport ? (
+                        <IconButton
+                            icon="flag-outline"
+                            iconColor="#fff"
+                            size={24}
+                            onPress={() => onReport(currentIndex)}
+                            style={styles.closeBtn}
+                        />
+                    ) : null}
+                    {onReplace ? (
+                        <IconButton
+                            icon="image-edit"
+                            iconColor="#fff"
+                            size={24}
+                            onPress={() => { onReplace(currentIndex); onClose(); }}
+                            style={styles.closeBtn}
+                        />
+                    ) : null}
+                    {!onReplace && !onReport ? <View style={{ width: 40 }} /> : null}
+                </View>
             </View>
 
             {images.length === 0 ? (
@@ -139,6 +150,11 @@ const styles = StyleSheet.create({
     },
     closeBtn: {
         margin: 0,
+    },
+    headerActions: {
+        minWidth: 40,
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
     },
     flatList: {
         flex: 1,

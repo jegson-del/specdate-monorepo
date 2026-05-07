@@ -12,10 +12,13 @@ class SpecRoundAnswer extends Model
         'answer_text',
         'is_eliminated',
         'media_id',
+        'hidden_at',
+        'hidden_reason',
     ];
 
     protected $casts = [
         'is_eliminated' => 'boolean',
+        'hidden_at' => 'datetime',
     ];
 
     public function round()

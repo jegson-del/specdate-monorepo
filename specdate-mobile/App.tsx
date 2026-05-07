@@ -15,6 +15,7 @@ import OtpVerificationScreen from './src/features/auth/OtpVerificationScreen';
 import LoginScreen from './src/features/auth/LoginScreen';
 import ProfileScreen from './src/features/profile/ProfileScreen';
 import ProfileViewerScreen from './src/features/profile/ProfileViewerScreen';
+import SettingsScreen from './src/features/profile/SettingsScreen';
 import HomeScreen from './src/features/home/HomeScreen';
 import ProvidersScreen from './src/features/providers/ProvidersScreen';
 import ProviderDetailScreen from './src/features/providers/ProviderDetailScreen';
@@ -27,6 +28,11 @@ import RoundDetailsScreen from './src/features/specs/RoundDetailsScreen';
 import NotificationsScreen from './src/features/notifications/NotificationsScreen';
 import ChatListScreen from './src/features/chat/ChatListScreen';
 import ChatThreadScreen from './src/features/chat/ChatThreadScreen';
+import LegalScreen from './src/features/legal/LegalScreen';
+import SafetyCenterScreen from './src/features/safety/SafetyCenterScreen';
+import SupportTicketsScreen from './src/features/support/SupportTicketsScreen';
+import SupportThreadScreen from './src/features/support/SupportThreadScreen';
+import CreateSupportTicketScreen from './src/features/support/CreateSupportTicketScreen';
 import CreditsTransactionScreen from './src/features/profile/CreditsTransactionScreen';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
@@ -110,6 +116,7 @@ export default function App() {
               <Stack.Screen name="Login" component={LoginScreen} />
               <Stack.Screen name="Profile" component={ProfileScreen} />
               <Stack.Screen name="ProfileViewer" component={ProfileViewerScreen} />
+              <Stack.Screen name="Settings" component={SettingsScreen} />
               <Stack.Screen name="Home" component={HomeScreen} />
               <Stack.Screen name="Providers" component={ProvidersScreen} />
               <Stack.Screen name="ProviderDetail" component={ProviderDetailScreen} />
@@ -122,6 +129,11 @@ export default function App() {
               <Stack.Screen name="CreditsTransactions" component={CreditsTransactionScreen} />
               <Stack.Screen name="Messages" component={ChatListScreen} />
               <Stack.Screen name="ChatThread" component={ChatThreadScreen} />
+              <Stack.Screen name="Legal" component={LegalScreen} />
+              <Stack.Screen name="SafetyCenter" component={SafetyCenterScreen} />
+              <Stack.Screen name="SupportTickets" component={SupportTicketsScreen} />
+              <Stack.Screen name="SupportThread" component={SupportThreadScreen} />
+              <Stack.Screen name="CreateSupportTicket" component={CreateSupportTicketScreen} />
               <Stack.Screen name="SpecDetails" component={SpecDetailsScreen} />
               <Stack.Screen name="RoundDetails" component={RoundDetailsScreen} />
               <Stack.Screen

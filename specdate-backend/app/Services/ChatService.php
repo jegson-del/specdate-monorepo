@@ -13,7 +13,7 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class ChatService
 {
-    public function __construct(private NotificationService $notificationService)
+    public function __construct(private NotificationService $notificationService, private BlockService $blockService)
     {
     }
 
@@ -33,6 +33,10 @@ class ChatService
     {
         $threads = ChatThread::query()
             ->where(fn ($q) => $q->where('owner_id', $user->id)->orWhere('winner_user_id', $user->id))
+            ->whereDoesntHave('owner.blockedUsers', fn ($q) => $q->where('blocked_id', $user->id))
+            ->whereDoesntHave('winner.blockedUsers', fn ($q) => $q->where('blocked_id', $user->id))
+            ->whereDoesntHave('owner.blockedByUsers', fn ($q) => $q->where('blocker_id', $user->id))
+            ->whereDoesntHave('winner.blockedByUsers', fn ($q) => $q->where('blocker_id', $user->id))
             ->with([
                 'spec:id,title,location_city',
                 'specDate:id,date_code,created_at',
@@ -67,9 +71,11 @@ class ChatService
         ])->findOrFail($threadId);
 
         $this->authorizeThread($thread, $user);
+        $this->authorizeNotBlocked($thread);
 
         $messages = $thread->messages()
             ->with('sender:id,name,username', 'sender.profile', 'sender.media', 'media')
+            ->whereNull('hidden_at')
             ->orderBy('created_at')
             ->get()
             ->map(fn (ChatMessage $message) => $this->messagePayload($message));
@@ -84,6 +90,7 @@ class ChatService
     {
         $thread = ChatThread::findOrFail($threadId);
         $this->authorizeThread($thread, $user);
+        $this->authorizeNotBlocked($thread);
 
         $body = $body !== null ? trim($body) : null;
         if (($body === null || $body === '') && !$mediaId) {
@@ -94,6 +101,7 @@ class ChatService
             $media = Media::where('id', $mediaId)
                 ->where('user_id', $user->id)
                 ->whereIn('type', ['chat', 'chat_image', 'chat_video', 'chat_audio'])
+                ->whereNull('hidden_at')
                 ->first();
             if (!$media) {
                 throw new HttpException(422, 'Chat media not found.');
@@ -162,6 +170,13 @@ class ChatService
         }
     }
 
+    private function authorizeNotBlocked(ChatThread $thread): void
+    {
+        if ($this->blockService->hasBlockBetween((int) $thread->owner_id, (int) $thread->winner_user_id)) {
+            throw new HttpException(403, 'This chat is unavailable because one of you blocked the other user.');
+        }
+    }
+
     private function threadPayload(ChatThread $thread, User $user): array
     {
         $owner = $thread->owner;
@@ -181,7 +196,7 @@ class ChatService
                 'username' => $other->username,
                 'avatar' => $otherAvatar,
             ] : null,
-            'last_message' => $thread->lastMessage ? [
+            'last_message' => ($thread->lastMessage && !$thread->lastMessage->hidden_at) ? [
                 'id' => $thread->lastMessage->id,
                 'body' => $thread->lastMessage->body,
                 'sender_id' => $thread->lastMessage->sender_id,
@@ -203,7 +218,7 @@ class ChatService
             'chat_thread_id' => $message->chat_thread_id,
             'sender_id' => $message->sender_id,
             'body' => $message->body,
-            'media' => $message->media,
+            'media' => $message->media && !$message->media->hidden_at ? $message->media : null,
             'read_at' => $message->read_at,
             'created_at' => $message->created_at,
             'sender' => $sender ? [

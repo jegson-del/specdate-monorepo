@@ -14,6 +14,12 @@ class Media extends Model
         'type',
         'mime_type',
         'size',
+        'hidden_at',
+        'hidden_reason',
+    ];
+
+    protected $casts = [
+        'hidden_at' => 'datetime',
     ];
 
     /**

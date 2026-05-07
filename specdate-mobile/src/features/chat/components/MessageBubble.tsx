@@ -1,6 +1,6 @@
 import React from 'react';
-import { Image, StyleSheet, View } from 'react-native';
-import { Text } from 'react-native-paper';
+import { Image, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { IconButton, Text } from 'react-native-paper';
 import { ChatMessage } from '../../../services/chat';
 import { AudioMessagePlayer, VideoThumbnailPlayer } from '../../specs/components';
 
@@ -9,6 +9,8 @@ type Props = {
   isMine: boolean;
   theme: any;
   onOpenVideo?: (uri: string) => void;
+  onReport?: (message: ChatMessage) => void;
+  onOpenMenu?: (message: ChatMessage) => void;
 };
 
 function formatTime(value: string) {
@@ -17,7 +19,7 @@ function formatTime(value: string) {
   return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 }
 
-export default function MessageBubble({ message, isMine, theme, onOpenVideo }: Props) {
+export default function MessageBubble({ message, isMine, theme, onOpenVideo, onReport, onOpenMenu }: Props) {
   const mediaUrl = message.media?.url;
   const mediaKind = String(message.media?.type ?? '');
   const mimeType = String(message.media?.mime_type ?? '');
@@ -31,7 +33,21 @@ export default function MessageBubble({ message, isMine, theme, onOpenVideo }: P
 
   return (
     <View style={[styles.row, isMine ? styles.mineRow : styles.theirRow]}>
-      <View
+      {!isMine ? (
+        <IconButton
+          icon="dots-horizontal"
+          size={18}
+          iconColor={theme.colors.onSurfaceVariant}
+          onPress={() => onOpenMenu?.(message)}
+          style={[styles.menuButton, { backgroundColor: theme.colors.surfaceVariant }]}
+          accessibilityLabel="Message options"
+        />
+      ) : null}
+      <TouchableOpacity
+        activeOpacity={0.9}
+        onLongPress={() => {
+          if (!isMine) onReport?.(message);
+        }}
         style={[
           styles.bubble,
           {
@@ -55,7 +71,7 @@ export default function MessageBubble({ message, isMine, theme, onOpenVideo }: P
         <Text style={[styles.time, { color: isMine ? 'rgba(255,255,255,0.75)' : theme.colors.onSurfaceVariant }]}>
           {formatTime(message.created_at)}
         </Text>
-      </View>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -64,12 +80,19 @@ const styles = StyleSheet.create({
   row: {
     marginBottom: 8,
     flexDirection: 'row',
+    alignItems: 'flex-end',
   },
   mineRow: {
     justifyContent: 'flex-end',
   },
   theirRow: {
     justifyContent: 'flex-start',
+  },
+  menuButton: {
+    width: 30,
+    height: 30,
+    margin: 0,
+    marginRight: 6,
   },
   bubble: {
     maxWidth: '78%',

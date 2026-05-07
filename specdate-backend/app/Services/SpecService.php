@@ -150,7 +150,10 @@ class SpecService
              // If User is Participant -> See ONLY OWN answer; if ELIMINATED, only show rounds up to the round they were eliminated in
              if ((int) $spec->user_id === (int) $user->id) {
                  // Owner: Load all answers for active rounds
-                 $spec->load(['rounds.answers.user.profile', 'rounds.answers.user.media', 'rounds.answers.media']);
+                 $spec->rounds->load(['answers' => function ($q) {
+                     $q->whereNull('hidden_at');
+                 }]);
+                 $spec->rounds->load(['answers.user.profile', 'answers.user.media', 'answers.media']);
              } else {
                  // Participant: maybe restrict rounds to "up until eliminated"
                  $application = $spec->applications->firstWhere('user_id', $user->id);
@@ -169,7 +172,7 @@ class SpecService
                  }
                  // Load only their answers on the rounds collection
                  $spec->rounds->load(['answers' => function ($q) use ($user) {
-                     $q->where('user_id', $user->id);
+                     $q->where('user_id', $user->id)->whereNull('hidden_at');
                  }]);
                  $spec->rounds->load(['answers.media']);
              }

@@ -12,6 +12,13 @@ import { AudioMessagePlayer, CloseRoundModal, LastManStandingModal, PrivateRound
 import type { RoundMediaAsset } from './components';
 import * as ImagePicker from 'expo-image-picker';
 import { MediaService } from '../../services/media';
+import { ModerationService, type ReportTargetType } from '../../services/moderation';
+import ChatSafetySheet from '../chat/components/ChatSafetySheet';
+
+type ReportSheetState =
+    | null
+    | { mode: 'report'; targetType: ReportTargetType; targetId: number; label: string }
+    | { mode: 'success'; title: string; subtitle: string };
 
 function isAudioMedia(media?: any) {
     return String(media?.type ?? '').includes('_audio') || String(media?.mime_type ?? '').startsWith('audio/');
@@ -210,6 +217,9 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
     const [lastManStandingVisible, setLastManStandingVisible] = useState(false);
     const [lastManStandingWinnerName, setLastManStandingWinnerName] = useState('');
     const [lastManStandingSpecId, setLastManStandingSpecId] = useState<string | null>(null);
+    const [reportSheet, setReportSheet] = useState<ReportSheetState>(null);
+    const [reportLoading, setReportLoading] = useState(false);
+    const [reportError, setReportError] = useState<string | null>(null);
 
     // Edit Question State
     const [isEditing, setIsEditing] = useState(false);
@@ -499,6 +509,38 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
         const ids = unresponsiveParticipants.map((p: any) => p.user_id);
         nudgeUsersMutation.mutate({ rId: roundToShow.id, userIds: ids });
     };
+
+    const closeReportSheet = useCallback(() => {
+        setReportSheet(null);
+        setReportError(null);
+    }, []);
+
+    const openReportSheet = useCallback((targetType: ReportTargetType, targetId: number, label: string) => {
+        setReportError(null);
+        setReportSheet({ mode: 'report', targetType, targetId, label });
+    }, []);
+
+    const submitReport = useCallback(async (reason: string) => {
+        if (reportSheet?.mode !== 'report') return;
+        setReportLoading(true);
+        setReportError(null);
+        try {
+            await ModerationService.reportContent({
+                target_type: reportSheet.targetType,
+                target_id: reportSheet.targetId,
+                reason,
+            });
+            setReportSheet({
+                mode: 'success',
+                title: 'Report submitted',
+                subtitle: 'Thanks. Our moderation team will review this and take action where needed.',
+            });
+        } catch (e: any) {
+            setReportError(e?.response?.data?.message || e?.message || 'Could not submit report.');
+        } finally {
+            setReportLoading(false);
+        }
+    }, [reportSheet]);
 
     // --- Render Helpers ---
 
@@ -836,6 +878,11 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                             setVideoViewerUri(uri);
                             setVideoViewerVisible(true);
                         }}
+                        onReportAnswer={(answer) => openReportSheet('round_answer', Number(answer.id), 'answer')}
+                        onReportMedia={(answer) => {
+                            const mediaId = answer.media?.id;
+                            openReportSheet(mediaId ? 'media' : 'round_answer', mediaId ? Number(mediaId) : Number(answer.id), mediaId ? 'answer media' : 'answer');
+                        }}
                     />
                 )}
 
@@ -860,6 +907,21 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                 visible={videoViewerVisible}
                 uri={videoViewerUri}
                 onClose={() => { setVideoViewerVisible(false); setVideoViewerUri(null); }}
+            />
+
+            <ChatSafetySheet
+                visible={!!reportSheet}
+                mode={reportSheet?.mode ?? 'report'}
+                title={reportSheet?.mode === 'report' ? `Report ${reportSheet.label}?` : reportSheet?.title ?? ''}
+                subtitle={
+                    reportSheet?.mode === 'report'
+                        ? 'Choose the reason. Our moderation team will review it.'
+                        : reportSheet?.subtitle
+                }
+                loading={reportLoading}
+                error={reportError}
+                onDismiss={closeReportSheet}
+                onSubmitReport={submitReport}
             />
 
             <LastManStandingModal
