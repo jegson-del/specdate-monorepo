@@ -9,5 +9,6 @@ export { RecordingMediaButton } from './RecordingMediaButton';
 export { PrivateRoundState } from './PrivateRoundState';
 export { RoundQuestionCard } from './RoundQuestionCard';
 export { RoundResponsesList } from './RoundResponsesList';
+export { RoundMediaActions } from './RoundMediaActions';
 export { useRoundAudioRecorder } from './useRoundAudioRecorder';
 export type { RoundMediaAsset } from './useRoundAudioRecorder';

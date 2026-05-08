@@ -12,8 +12,7 @@ type Props = {
   theme: any;
   onEliminate: (userId: number) => void;
   onOpenVideo: (uri: string) => void;
-  onReportAnswer?: (answer: any) => void;
-  onReportMedia?: (answer: any) => void;
+  onOpenReportMenu?: (answer: any) => void;
 };
 
 function isAudioMedia(media?: any) {
@@ -24,7 +23,7 @@ function isVideoMedia(media?: any) {
   return String(media?.type ?? '').includes('_video') || String(media?.mime_type ?? '').startsWith('video/');
 }
 
-export function RoundResponsesList({ answers, roundStatus, theme, onEliminate, onOpenVideo, onReportAnswer, onReportMedia }: Props) {
+export function RoundResponsesList({ answers, roundStatus, theme, onEliminate, onOpenVideo, onOpenReportMenu }: Props) {
   const canEliminate = String(roundStatus).toUpperCase() === 'REVIEWING' || String(roundStatus).toUpperCase() === 'ACTIVE';
 
   return (
@@ -49,13 +48,22 @@ export function RoundResponsesList({ answers, roundStatus, theme, onEliminate, o
               key={answer.id}
               style={[
                 styles.answerRow,
-                { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant || theme.colors.outline + '30' },
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.outlineVariant || theme.colors.outline + '30',
+                  borderLeftColor: theme.colors.primary,
+                },
                 isEliminated && styles.answerRowEliminated,
               ]}
             >
               <Avatar.Image size={44} source={{ uri: avatarUri }} style={styles.answerAvatar} />
               <View style={styles.answerBody}>
-                <Text style={[styles.answerName, { color: theme.colors.onSurface }]} numberOfLines={1}>{displayName}</Text>
+                <View style={styles.answerHeader}>
+                  <View style={styles.answerNameWrap}>
+                    <Text style={[styles.answerName, { color: theme.colors.onSurface }]} numberOfLines={1}>{displayName}</Text>
+                    <View style={[styles.answerStatusDot, { backgroundColor: isEliminated ? theme.colors.outline : theme.colors.primary }]} />
+                  </View>
+                </View>
                 <Text style={[styles.answerText, { color: theme.colors.onSurfaceVariant }]} numberOfLines={3}>
                   {answer.answer_text?.trim() || 'Voice answer'}
                 </Text>
@@ -77,50 +85,40 @@ export function RoundResponsesList({ answers, roundStatus, theme, onEliminate, o
                     </TouchableOpacity>
                   )
                 )}
-                <View style={styles.reportActions}>
-                  {onReportAnswer ? (
-                    <TouchableOpacity
-                      onPress={() => onReportAnswer(answer)}
-                      style={[styles.reportButton, { borderColor: theme.colors.outlineVariant }]}
-                      accessibilityLabel="Report answer"
-                    >
-                      <MaterialCommunityIcons name="flag-outline" size={16} color={theme.colors.error} />
-                      <Text style={[styles.reportButtonLabel, { color: theme.colors.error }]}>Report answer</Text>
-                    </TouchableOpacity>
-                  ) : null}
-                  {answer.media && onReportMedia ? (
-                    <TouchableOpacity
-                      onPress={() => onReportMedia(answer)}
-                      style={[styles.reportButton, { borderColor: theme.colors.outlineVariant }]}
-                      accessibilityLabel="Report answer media"
-                    >
-                      <MaterialCommunityIcons name="file-image-outline" size={16} color={theme.colors.error} />
-                      <Text style={[styles.reportButtonLabel, { color: theme.colors.error }]}>Report media</Text>
-                    </TouchableOpacity>
-                  ) : null}
-                </View>
               </View>
-              {(canEliminate && !isEliminated) ? (
-                <TouchableOpacity
-                  onPress={() => {
-                    Alert.alert('Eliminate?', `Eliminate ${displayName}?`, [
-                      { text: 'Cancel' },
-                      { text: 'Eliminate', style: 'destructive', onPress: () => onEliminate(answer.user_id) },
-                    ]);
-                  }}
-                  style={styles.eliminateButton}
-                  accessibilityLabel="Eliminate participant"
-                >
-                  <MaterialCommunityIcons name="account-remove" size={22} color={theme.colors.error} />
-                  <Text style={[styles.eliminateButtonLabel, { color: theme.colors.error }]}>Eliminate</Text>
-                </TouchableOpacity>
-              ) : null}
-              {isEliminated && (
-                <View style={styles.eliminatedChip}>
-                  <MaterialCommunityIcons name="account-off" size={20} color={theme.colors.onSurfaceVariant} />
-                  <Text style={[styles.eliminatedLabel, { color: theme.colors.onSurfaceVariant }]}>Eliminated</Text>
-                </View>
-              )}
+              <View style={styles.actionColumn}>
+                {onOpenReportMenu ? (
+                  <TouchableOpacity
+                    onPress={() => onOpenReportMenu(answer)}
+                    style={[styles.actionButton, styles.reportMenuButton]}
+                    accessibilityLabel="Report response"
+                  >
+                    <MaterialCommunityIcons name="flag-outline" size={16} color="#FFFFFF" />
+                    <Text style={styles.reportMenuLabel}>Report</Text>
+                  </TouchableOpacity>
+                ) : null}
+                {(canEliminate && !isEliminated) ? (
+                  <TouchableOpacity
+                    onPress={() => {
+                      Alert.alert('Eliminate?', `Eliminate ${displayName}?`, [
+                        { text: 'Cancel' },
+                        { text: 'Eliminate', style: 'destructive', onPress: () => onEliminate(answer.user_id) },
+                      ]);
+                    }}
+                    style={[styles.actionButton, styles.eliminateButton]}
+                    accessibilityLabel="Eliminate participant"
+                  >
+                    <MaterialCommunityIcons name="account-remove" size={20} color="#FFFFFF" />
+                    <Text style={styles.eliminateButtonLabel}>Eliminate</Text>
+                  </TouchableOpacity>
+                ) : null}
+                {isEliminated && (
+                  <View style={styles.eliminatedChip}>
+                    <MaterialCommunityIcons name="account-off" size={18} color={theme.colors.onSurfaceVariant} />
+                    <Text style={[styles.eliminatedLabel, { color: theme.colors.onSurfaceVariant }]}>Eliminated</Text>
+                  </View>
+                )}
+              </View>
             </View>
           );
         })}
@@ -141,12 +139,33 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 12,
     borderWidth: 1,
+    borderLeftWidth: 3,
     gap: 14,
   },
   answerRowEliminated: { opacity: 0.55 },
   answerAvatar: {},
   answerBody: { flex: 1, minWidth: 0 },
-  answerName: { fontSize: 15, fontWeight: '700', marginBottom: 4 },
+  answerHeader: {
+    minHeight: 30,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+    gap: 8,
+  },
+  answerNameWrap: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  answerName: { fontSize: 15, fontWeight: '800' },
+  answerStatusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
   answerText: { fontSize: 14, lineHeight: 20 },
   answerMedia: { marginTop: 8 },
   answerImage: {
@@ -155,45 +174,39 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginTop: 8,
   },
-  reportActions: {
-    flexDirection: 'row',
-    flexWrap: 'nowrap',
-    gap: 8,
-    marginTop: 10,
+  actionColumn: {
+    alignSelf: 'stretch',
+    alignItems: 'flex-end',
+    justifyContent: 'flex-start',
+    gap: 12,
   },
-  reportButton: {
-    height: 30,
+  reportMenuButton: {
+    backgroundColor: '#F97316',
+  },
+  actionButton: {
+    width: 96,
+    height: 32,
     borderRadius: 8,
-    borderWidth: 1,
-    paddingHorizontal: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
-    flexShrink: 1,
-    minWidth: 0,
   },
-  reportButtonLabel: {
+  reportMenuLabel: {
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '800',
-    flexShrink: 1,
   },
   eliminateButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    backgroundColor: 'transparent',
+    backgroundColor: '#7C3AED',
   },
-  eliminateButtonLabel: { fontSize: 13, fontWeight: '700' },
+  eliminateButtonLabel: { color: '#FFFFFF', fontSize: 12, fontWeight: '800' },
   eliminatedChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
+    minHeight: 30,
+    paddingHorizontal: 9,
   },
-  eliminatedLabel: { fontSize: 13, fontWeight: '600' },
+  eliminatedLabel: { fontSize: 12, fontWeight: '700' },
 });

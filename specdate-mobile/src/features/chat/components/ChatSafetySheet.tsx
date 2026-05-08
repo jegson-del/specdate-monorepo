@@ -26,6 +26,10 @@ type Props = {
   onReportMessage?: () => void;
   onReportMedia?: () => void;
   hasMedia?: boolean;
+  primaryReportLabel?: string;
+  primaryReportHelper?: string;
+  mediaReportLabel?: string;
+  mediaReportHelper?: string;
   onSubmitReport?: (reason: string) => void;
   onConfirmBlock?: () => void;
 };
@@ -43,6 +47,10 @@ export default function ChatSafetySheet({
   onReportMessage,
   onReportMedia,
   hasMedia,
+  primaryReportLabel,
+  primaryReportHelper,
+  mediaReportLabel,
+  mediaReportHelper,
   onSubmitReport,
   onConfirmBlock,
 }: Props) {
@@ -139,8 +147,18 @@ export default function ChatSafetySheet({
                 </View>
               ) : mode === 'message_actions' ? (
                 <View style={styles.options}>
-                  {option('message-alert-outline', 'Report message', 'Send the message text and context for review', onReportMessage)}
-                  {hasMedia ? option('file-image-outline', 'Report media', 'Send the shared image, video, or voice note for review', onReportMedia) : null}
+                  {option(
+                    'message-alert-outline',
+                    primaryReportLabel ?? 'Report message',
+                    primaryReportHelper ?? 'Send the message text and context for review',
+                    onReportMessage
+                  )}
+                  {hasMedia ? option(
+                    'file-image-outline',
+                    mediaReportLabel ?? 'Report media',
+                    mediaReportHelper ?? 'Send the shared image, video, or voice note for review',
+                    onReportMedia
+                  ) : null}
                 </View>
               ) : mode === 'report' ? (
                 <View style={styles.options}>

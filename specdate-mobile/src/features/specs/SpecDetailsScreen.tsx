@@ -13,9 +13,9 @@ import { MediaService } from '../../services/media';
 import { ModerationService, type ReportTargetType } from '../../services/moderation';
 import { useUser } from '../../hooks/useUser';
 import { toImageUri } from '../../utils/imageUrl';
-import { VideoViewerModal } from '../../components';
+import { MediaPickerSheet, VideoViewerModal } from '../../components';
 import { EditSpecModal } from './components/EditSpecModal';
-import { AudioMessagePlayer, LastManStandingModal, RecordingMediaButton, useRoundAudioRecorder, VideoThumbnailPlayer } from './components';
+import { AudioMessagePlayer, LastManStandingModal, RoundMediaActions, useRoundAudioRecorder, VideoThumbnailPlayer } from './components';
 import type { RoundMediaAsset } from './components';
 import ChatSafetySheet from '../chat/components/ChatSafetySheet';
 
@@ -335,6 +335,7 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
     // --- OWNER ACTIONS ---
     const [newRoundQuestion, setNewRoundQuestion] = React.useState('');
     const [roundQuestionMedia, setRoundQuestionMedia] = React.useState<RoundMediaAsset | null>(null);
+    const [roundQuestionMediaSheet, setRoundQuestionMediaSheet] = React.useState<'file' | 'camera' | null>(null);
     const [questionVideoViewerVisible, setQuestionVideoViewerVisible] = React.useState(false);
     const [questionVideoViewerUri, setQuestionVideoViewerUri] = React.useState<string | null>(null);
     const questionAudioRecorder = useRoundAudioRecorder(setRoundQuestionMedia);
@@ -391,22 +392,22 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
         startRoundMutation.mutate(newRoundQuestion);
     };
 
-    const pickRoundQuestionMedia = async () => {
+    const pickRoundQuestionMedia = async (assetType: 'image' | 'video') => {
         try {
             const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
             if (status !== 'granted') {
-                Alert.alert('Permission Required', 'Allow access to your photos and videos.');
+                Alert.alert('Permission Required', 'Allow photo library access to share media.');
                 return;
             }
             const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ['images', 'videos'],
+                mediaTypes: assetType === 'image' ? ['images'] : ['videos'],
                 allowsEditing: true,
                 aspect: [4, 3],
                 quality: 0.8,
+                videoMaxDuration: 60,
             });
             if (!result.canceled) {
                 const asset = result.assets[0];
-                const assetType = (asset.type === 'video' ? 'video' : 'image') as 'image' | 'video';
                 setRoundQuestionMedia({
                     uri: asset.uri,
                     mimeType: asset.mimeType ?? (assetType === 'video' ? 'video/mp4' : 'image/jpeg'),
@@ -868,35 +869,14 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                                     </Button>
                                 </View>
                             )}
-                            <View style={styles.questionMediaActions}>
-                                <TouchableOpacity
-                                    onPress={pickRoundQuestionMedia}
-                                    style={[styles.mediaBtn, { borderColor: theme.colors.outlineVariant || theme.colors.outline + '50' }]}
-                                >
-                                    <MaterialCommunityIcons name="image-multiple" size={22} color={theme.colors.primary} />
-                                    <Text style={[styles.mediaBtnLabel, { color: theme.colors.onSurface }]}>Library</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    onPress={takeRoundQuestionPhoto}
-                                    style={[styles.mediaBtn, { borderColor: theme.colors.outlineVariant || theme.colors.outline + '50' }]}
-                                >
-                                    <MaterialCommunityIcons name="camera" size={22} color={theme.colors.primary} />
-                                    <Text style={[styles.mediaBtnLabel, { color: theme.colors.onSurface }]}>Photo</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    onPress={recordRoundQuestionVideo}
-                                    style={[styles.mediaBtn, { borderColor: theme.colors.outlineVariant || theme.colors.outline + '50' }]}
-                                >
-                                    <MaterialCommunityIcons name="video" size={22} color={theme.colors.primary} />
-                                    <Text style={[styles.mediaBtnLabel, { color: theme.colors.onSurface }]}>Video</Text>
-                                </TouchableOpacity>
-                                <RecordingMediaButton
-                                    isRecording={questionAudioRecorder.isRecording}
-                                    durationMillis={questionAudioRecorder.durationMillis}
-                                    onPress={questionAudioRecorder.isRecording ? questionAudioRecorder.stopRecording : questionAudioRecorder.startRecording}
-                                    style={{ borderColor: theme.colors.outlineVariant || theme.colors.outline + '50' }}
-                                />
-                            </View>
+                            <RoundMediaActions
+                                onOpenFile={() => setRoundQuestionMediaSheet('file')}
+                                onOpenCamera={() => setRoundQuestionMediaSheet('camera')}
+                                onToggleVoice={questionAudioRecorder.isRecording ? questionAudioRecorder.stopRecording : questionAudioRecorder.startRecording}
+                                isRecording={questionAudioRecorder.isRecording}
+                                durationMillis={questionAudioRecorder.durationMillis}
+                                disabled={startRoundMutation.isPending}
+                            />
                             <Button
                                 mode="contained"
                                 onPress={handleStartRoundPress}
@@ -1290,6 +1270,23 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                 onClose={() => { setQuestionVideoViewerVisible(false); setQuestionVideoViewerUri(null); }}
             />
 
+            <MediaPickerSheet
+                visible={roundQuestionMediaSheet !== null}
+                title={roundQuestionMediaSheet === 'camera' ? 'Use camera' : 'Share media'}
+                onDismiss={() => setRoundQuestionMediaSheet(null)}
+                options={
+                    roundQuestionMediaSheet === 'camera'
+                        ? [
+                            { icon: 'camera-outline', label: 'Take photo', helper: 'Capture a new picture now', onPress: takeRoundQuestionPhoto },
+                            { icon: 'video-plus-outline', label: 'Record video', helper: 'Record a short live clip', onPress: recordRoundQuestionVideo },
+                        ]
+                        : [
+                            { icon: 'image-outline', label: 'Choose image', helper: 'Share a photo from your files', onPress: () => pickRoundQuestionMedia('image') },
+                            { icon: 'file-video-outline', label: 'Choose video', helper: 'Share a saved video clip', onPress: () => pickRoundQuestionMedia('video') },
+                        ]
+                }
+            />
+
             <ChatSafetySheet
                 visible={!!reportSheet}
                 mode={reportSheet?.mode ?? 'report'}
@@ -1542,22 +1539,6 @@ const styles = StyleSheet.create({
         gap: 12,
         marginTop: 4,
     },
-    questionMediaActions: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 8,
-        marginBottom: 12,
-    },
-    mediaBtn: {
-        borderWidth: 1,
-        borderRadius: 10,
-        paddingVertical: 10,
-        paddingHorizontal: 12,
-        alignItems: 'center',
-        justifyContent: 'center',
-        minWidth: 72,
-    },
-    mediaBtnLabel: { fontSize: 12, fontWeight: '600' },
     questionMediaPreview: {
         alignSelf: 'flex-start',
         borderWidth: 1,
