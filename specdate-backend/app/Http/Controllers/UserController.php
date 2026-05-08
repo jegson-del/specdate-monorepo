@@ -130,6 +130,7 @@ class UserController extends Controller
                 'occupation' => $profile->occupation,
                 'qualification' => $profile->qualification,
                 'hobbies' => $profile->hobbies,
+                'ideal_dates' => $profile->ideal_dates ?? [],
                 'height' => $profile->height,
                 'ethnicity' => $profile->ethnicity,
                 'religion' => $profile->religion,

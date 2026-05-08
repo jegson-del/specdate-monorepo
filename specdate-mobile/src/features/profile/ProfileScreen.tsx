@@ -11,12 +11,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import { Dropdown } from 'react-native-paper-dropdown';
-import { OCCUPATION_OPTIONS, QUALIFICATION_OPTIONS, RELIGION_OPTIONS } from '../../constants/profileOptions';
+import { IDEAL_DATE_OPTIONS, OCCUPATION_OPTIONS, QUALIFICATION_OPTIONS, RELIGION_OPTIONS } from '../../constants/profileOptions';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ProfileImageGrid, ImageViewerModal } from './components';
 import { MediaService } from '../../services/media';
 import { toImageUri, imageUriWithCacheBust } from '../../utils/imageUrl';
+import { MultiSelectModal } from '../specs/components/MultiSelectModal';
 
 // --- OPTIONS & CONSTANTS ---
 const OTHER_VALUE = '__other__';
@@ -27,6 +28,13 @@ const HEIGHT_OPTIONS = Array.from({ length: 121 }, (_, i) => {
     const inches = Math.round((realFeet - feet) * 12);
     return { label: `${cm} cm (${feet}'${inches}")`, value: String(cm) };
 });
+
+function normalizeStringArray(value: unknown): string[] {
+    if (Array.isArray(value)) {
+        return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+    }
+    return [];
+}
 const ETHNICITY_OPTIONS = [
     'Asian', 'Black / African Descent', 'Hispanic / Latino', 'Middle Eastern',
     'Native American / Indigenous', 'Pacific Islander', 'South Asian', 'White / Caucasian',
@@ -104,6 +112,7 @@ export default function ProfileScreen({ navigation }: any) {
         occupation: '',
         qualification: '',
         hobbies: '',
+        ideal_dates: [],
         is_smoker: false,
         is_drug_user: false,
         drinking: 'no',
@@ -173,6 +182,7 @@ export default function ProfileScreen({ navigation }: any) {
             occupation: profile?.occupation || '',
             qualification: profile?.qualification || '',
             hobbies: profile?.hobbies || '',
+            ideal_dates: normalizeStringArray(profile?.ideal_dates),
             is_smoker: profile?.is_smoker ?? false,
             is_drug_user: profile?.is_drug_user ?? false,
             drinking: profile?.drinking || 'no',
@@ -774,6 +784,21 @@ export default function ProfileScreen({ navigation }: any) {
                         error={!!errors.hobbies}
                     />
                     {!!errors.hobbies && <HelperText type="error" visible>{errors.hobbies}</HelperText>}
+
+                    <Divider style={{ marginVertical: 14 }} />
+                    <Text variant="titleSmall" style={{ color: theme.colors.onSurface, fontWeight: '900', marginBottom: 8 }}>
+                        Ideal date ideas
+                    </Text>
+                    <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 10 }}>
+                        Pick examples of where you enjoy dating so people get a feel for your vibe.
+                    </Text>
+                    <MultiSelectModal
+                        title="Select ideal dates"
+                        options={IDEAL_DATE_OPTIONS}
+                        value={normalizeStringArray(form?.ideal_dates)}
+                        onChange={(next) => updateForm({ ideal_dates: next })}
+                        placeholder="Add date ideas"
+                    />
                 </Surface>
 
                 <Surface style={[styles.section, { backgroundColor: theme.colors.elevation.level1 }]} elevation={0}>

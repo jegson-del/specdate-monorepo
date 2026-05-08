@@ -14,6 +14,7 @@ export type PublicProfile = {
         occupation?: string;
         qualification?: string;
         hobbies?: string;
+        ideal_dates?: string[];
         height?: number;
         ethnicity?: string;
         is_smoker?: boolean;

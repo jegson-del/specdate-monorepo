@@ -19,7 +19,7 @@ class SpecLastManStandingTest extends TestCase
 
     public function test_owner_can_create_date_for_last_man_standing_and_chat_thread_is_created(): void
     {
-        [$owner, $winner, $spec] = $this->createLastManStandingSpec();
+        [$owner, $winner, $spec, $round] = $this->createLastManStandingSpec();
 
         $result = app(SpecService::class)->createDate($owner, $spec->id);
 
@@ -42,6 +42,7 @@ class SpecLastManStandingTest extends TestCase
             'status' => 'WINNER',
         ]);
         $this->assertSame('COMPLETED', $spec->fresh()->status);
+        $this->assertSame('COMPLETED', $round->fresh()->status);
     }
 
     public function test_extend_search_charges_one_credit_and_reopens_spec(): void

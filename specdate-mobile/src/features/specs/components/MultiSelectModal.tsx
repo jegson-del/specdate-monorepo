@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Chip, Divider, Modal, Portal, Searchbar, Text, useTheme } from 'react-native-paper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Props = {
   title: string;
@@ -19,50 +20,70 @@ export function MultiSelectModal({
   options,
   value,
   onChange,
-  placeholder = 'Select…',
+  placeholder = 'Select...',
 }: Props) {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
+  const [draft, setDraft] = useState<string[]>(value);
 
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
     const list = Array.from(options);
     if (!query) return list;
-    return list.filter((o) => o.toLowerCase().includes(query));
+    return list.filter((option) => option.toLowerCase().includes(query));
   }, [options, q]);
 
-  const toggle = (opt: string) => {
-    if (value.includes(opt)) {
-      onChange(value.filter((v) => v !== opt));
+  const openPicker = () => {
+    setDraft(value);
+    setQ('');
+    setOpen(true);
+  };
+
+  const closePicker = () => {
+    setDraft(value);
+    setQ('');
+    setOpen(false);
+  };
+
+  const savePicker = () => {
+    onChange(draft);
+    setQ('');
+    setOpen(false);
+  };
+
+  const toggleDraft = (option: string) => {
+    if (draft.includes(option)) {
+      setDraft(draft.filter((item) => item !== option));
     } else {
-      onChange(uniq([...value, opt]));
+      setDraft(uniq([...draft, option]));
     }
   };
 
   return (
-    <View style={{ gap: 10 }}>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+    <View style={styles.wrap}>
+      <View style={styles.previewRow}>
         {value.length === 0 ? (
-          <Chip onPress={() => setOpen(true)} textStyle={{ fontSize: 11 }}>
+          <Chip onPress={openPicker} textStyle={styles.placeholderChipText}>
             {placeholder}
           </Chip>
         ) : (
           <>
-            {value.map((v) => (
+            {value.map((item) => (
               <Chip
-                key={v}
-                onClose={() => toggle(v)}
-                textStyle={{ fontSize: 10, fontWeight: '800' }}
-                style={{ height: 28 }}
+                key={item}
+                onClose={() => onChange(value.filter((current) => current !== item))}
+                textStyle={styles.selectedPreviewText}
+                style={styles.selectedPreviewChip}
               >
-                {v}
+                {item}
               </Chip>
             ))}
-            <Chip onPress={() => setOpen(true)} textStyle={{ fontSize: 10, fontWeight: '900' }}>
+            <Chip icon="pencil-outline" onPress={openPicker} textStyle={styles.editChipText} style={styles.editChip}>
               Edit
             </Chip>
-            <Chip onPress={() => onChange([])} textStyle={{ fontSize: 10, fontWeight: '900' }}>
+            <Chip icon="trash-can-outline" onPress={() => onChange([])} textStyle={styles.clearChipText} style={styles.clearChip}>
               Clear
             </Chip>
           </>
@@ -72,39 +93,75 @@ export function MultiSelectModal({
       <Portal>
         <Modal
           visible={open}
-          onDismiss={() => setOpen(false)}
-          contentContainerStyle={{
-            margin: 16,
-            padding: 14,
-            borderRadius: 16,
-            backgroundColor: theme.colors.surface,
-          }}
+          onDismiss={closePicker}
+          contentContainerStyle={[
+            styles.modal,
+            {
+              paddingTop: insets.top + 8,
+              paddingBottom: Math.max(insets.bottom, 12),
+              backgroundColor: theme.colors.surface,
+            },
+          ]}
         >
-          <Text variant="titleMedium" style={{ fontWeight: '900', marginBottom: 8 }}>
-            {title}
-          </Text>
-
-          <Searchbar placeholder="Search…" value={q} onChangeText={setQ} autoCapitalize="none" />
-          <Divider style={{ marginVertical: 10 }} />
-
-          <View style={{ maxHeight: 360, gap: 6 }}>
-            {filtered.map((opt) => {
-              const selected = value.includes(opt);
-              return (
-                <Chip
-                  key={opt}
-                  mode={selected ? 'flat' : 'outlined'}
-                  onPress={() => toggle(opt)}
-                  style={{ alignSelf: 'flex-start' }}
-                >
-                  {selected ? `✓ ${opt}` : opt}
-                </Chip>
-              );
-            })}
+          <View style={styles.header}>
+            <View style={styles.headerTitleWrap}>
+              <Text variant="titleMedium" style={[styles.title, { color: theme.colors.onSurface }]} numberOfLines={1}>
+                {title}
+              </Text>
+              <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                {draft.length} selected
+              </Text>
+            </View>
           </View>
 
-          <View style={{ flexDirection: 'row', gap: 10, marginTop: 14, justifyContent: 'flex-end' }}>
-            <Button mode="text" onPress={() => setOpen(false)}>
+          <Searchbar placeholder="Search..." value={q} onChangeText={setQ} autoCapitalize="none" style={styles.search} />
+
+          {draft.length > 0 ? (
+            <View style={styles.selectedBlock}>
+              <Text variant="labelLarge" style={[styles.blockLabel, { color: theme.colors.onSurfaceVariant }]}>
+                Selected
+              </Text>
+              <View style={styles.optionsWrap}>
+                {draft.map((item) => (
+                  <Chip key={item} onClose={() => toggleDraft(item)} mode="flat" textStyle={styles.selectedPreviewText}>
+                    {item}
+                  </Chip>
+                ))}
+              </View>
+            </View>
+          ) : null}
+
+          <Divider style={styles.divider} />
+
+          <Text variant="labelLarge" style={[styles.blockLabel, { color: theme.colors.onSurfaceVariant }]}>
+            Options
+          </Text>
+          <ScrollView style={styles.optionsScroll} contentContainerStyle={styles.optionsWrap} showsVerticalScrollIndicator={false}>
+            {filtered.length === 0 ? (
+              <Text style={{ color: theme.colors.onSurfaceVariant }}>No options found.</Text>
+            ) : (
+              filtered.map((option) => {
+                const selected = draft.includes(option);
+                return (
+                  <Chip
+                    key={option}
+                    mode={selected ? 'flat' : 'outlined'}
+                    selected={selected}
+                    onPress={() => toggleDraft(option)}
+                    style={styles.optionChip}
+                  >
+                    {option}
+                  </Chip>
+                );
+              })
+            )}
+          </ScrollView>
+
+          <View style={styles.footer}>
+            <Button mode="outlined" onPress={closePicker} style={styles.footerButton}>
+              Cancel
+            </Button>
+            <Button mode="contained" onPress={savePicker} style={styles.footerButton}>
               Done
             </Button>
           </View>
@@ -114,3 +171,95 @@ export function MultiSelectModal({
   );
 }
 
+const styles = StyleSheet.create({
+  wrap: {
+    gap: 10,
+  },
+  previewRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    alignItems: 'center',
+  },
+  placeholderChipText: {
+    fontSize: 11,
+  },
+  selectedPreviewChip: {
+    height: 28,
+  },
+  selectedPreviewText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  editChip: {
+    height: 28,
+    backgroundColor: 'rgba(124,58,237,0.12)',
+  },
+  clearChip: {
+    height: 28,
+    backgroundColor: 'rgba(239,68,68,0.1)',
+  },
+  editChipText: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#7C3AED',
+  },
+  clearChipText: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#DC2626',
+  },
+  modal: {
+    flex: 1,
+    margin: 0,
+    paddingHorizontal: 16,
+  },
+  header: {
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitleWrap: {
+    flex: 1,
+    alignItems: 'center',
+    minWidth: 0,
+  },
+  title: {
+    fontWeight: '900',
+  },
+  search: {
+    marginTop: 10,
+    marginBottom: 12,
+  },
+  selectedBlock: {
+    gap: 8,
+  },
+  blockLabel: {
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  divider: {
+    marginVertical: 12,
+  },
+  optionsScroll: {
+    flex: 1,
+  },
+  optionsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingBottom: 12,
+  },
+  optionChip: {
+    alignSelf: 'flex-start',
+  },
+  footer: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingTop: 10,
+  },
+  footerButton: {
+    flex: 1,
+  },
+});

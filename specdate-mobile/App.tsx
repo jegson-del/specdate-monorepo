@@ -34,6 +34,7 @@ import SupportTicketsScreen from './src/features/support/SupportTicketsScreen';
 import SupportThreadScreen from './src/features/support/SupportThreadScreen';
 import CreateSupportTicketScreen from './src/features/support/CreateSupportTicketScreen';
 import CreditsTransactionScreen from './src/features/profile/CreditsTransactionScreen';
+import { AppDialogProvider } from './src/components';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const queryClient = new QueryClient();
@@ -107,9 +108,10 @@ export default function App() {
     <SafeAreaProvider>
       <PaperProvider theme={theme}>
         <QueryClientProvider client={queryClient}>
-          <NavigationContainer>
-            <StatusBar style="dark" />
-            <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={initialRoute}>
+          <AppDialogProvider>
+            <NavigationContainer>
+              <StatusBar style="dark" />
+              <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={initialRoute}>
               <Stack.Screen name="Landing" component={LandingScreen} />
               <Stack.Screen name="Register" component={RegisterScreen} />
               <Stack.Screen name="OtpVerification" component={OtpVerificationScreen} />
@@ -141,8 +143,9 @@ export default function App() {
                 component={CreateSpecScreen}
                 options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
               />
-            </Stack.Navigator>
-          </NavigationContainer>
+              </Stack.Navigator>
+            </NavigationContainer>
+          </AppDialogProvider>
         </QueryClientProvider>
       </PaperProvider>
     </SafeAreaProvider>

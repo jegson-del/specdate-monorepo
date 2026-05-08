@@ -700,6 +700,9 @@ class SpecService
             ]);
             $this->chatService->ensureThreadForDate($date);
             $winnerApp->update(['status' => 'WINNER']);
+            $spec->rounds()
+                ->whereIn('status', ['ACTIVE', 'REVIEWING'])
+                ->update(['status' => 'COMPLETED']);
             $spec->update(['status' => 'COMPLETED']);
         });
 
@@ -707,6 +710,7 @@ class SpecService
             'message' => 'Date created successfully.',
             'date_code' => $dateCode,
             'winner_user_id' => $winnerApp->user_id,
+            'spec_status' => 'COMPLETED',
         ];
     }
 

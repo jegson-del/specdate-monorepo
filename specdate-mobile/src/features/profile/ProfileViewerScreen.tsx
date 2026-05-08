@@ -32,6 +32,30 @@ function cmToFeetInches(cm: number) {
     return `${feet}'${inches === 12 ? 0 : inches}"`;
 }
 
+function normalizeStringArray(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+    return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+}
+
+function getIdealDateIcon(label: string) {
+    const key = label.toLowerCase();
+    if (key.includes('dinner') || key.includes('brunch') || key.includes('dessert') || key.includes('cooking')) return 'silverware-fork-knife';
+    if (key.includes('coffee')) return 'coffee-outline';
+    if (key.includes('swimming') || key.includes('beach')) return 'swim';
+    if (key.includes('cinema')) return 'movie-open-outline';
+    if (key.includes('music') || key.includes('dancing') || key.includes('karaoke')) return 'music-note-outline';
+    if (key.includes('hiking')) return 'hiking';
+    if (key.includes('gallery') || key.includes('museum')) return 'palette-outline';
+    if (key.includes('arcade') || key.includes('bowling')) return 'gamepad-variant-outline';
+    if (key.includes('wine')) return 'glass-wine';
+    if (key.includes('trip')) return 'car-outline';
+    if (key.includes('book')) return 'book-open-page-variant-outline';
+    if (key.includes('comedy')) return 'microphone-variant';
+    if (key.includes('fitness') || key.includes('gym')) return 'dumbbell';
+    if (key.includes('picnic')) return 'basket-outline';
+    return 'heart-outline';
+}
+
 const DUMMY_IMAGES = [
     'https://picsum.photos/seed/profile-a/600/800',
     'https://picsum.photos/seed/profile-b/600/800',
@@ -58,6 +82,7 @@ export default function ProfileViewerScreen({ route, navigation }: any) {
         `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&size=512&background=7C3AED&color=ffffff`;
     const location = [profile?.city, profile?.state, profile?.country].filter(Boolean).join(', ') || '—';
     const age = formatAge(profile?.dob);
+    const idealDates = useMemo(() => normalizeStringArray(profile?.ideal_dates), [profile?.ideal_dates]);
 
     const [viewerVisible, setViewerVisible] = useState(false);
     const [viewerInitialIndex, setViewerInitialIndex] = useState(0);
@@ -346,6 +371,33 @@ export default function ProfileViewerScreen({ route, navigation }: any) {
                     </Surface>
                 )}
 
+                {idealDates.length > 0 && (
+                    <Surface style={[styles.section, { backgroundColor: theme.colors.elevation.level1 }]} elevation={0}>
+                        <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
+                            Ideal Dates
+                        </Text>
+                        <View style={styles.idealDateGrid}>
+                            {idealDates.map((date) => (
+                                <View
+                                    key={date}
+                                    style={[
+                                        styles.idealDateChip,
+                                        {
+                                            backgroundColor: theme.colors.primaryContainer,
+                                            borderColor: theme.colors.primary + '33',
+                                        },
+                                    ]}
+                                >
+                                    <MaterialCommunityIcons name={getIdealDateIcon(date) as any} size={17} color={theme.colors.primary} />
+                                    <Text style={[styles.idealDateText, { color: theme.colors.onSurface }]} numberOfLines={1}>
+                                        {date}
+                                    </Text>
+                                </View>
+                            ))}
+                        </View>
+                    </Surface>
+                )}
+
                 <Surface style={[styles.section, { backgroundColor: theme.colors.elevation.level1 }]} elevation={0}>
                     <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
                         Lifestyle
@@ -503,6 +555,26 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         marginBottom: 12,
+    },
+    idealDateGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+    },
+    idealDateChip: {
+        maxWidth: '48%',
+        minHeight: 34,
+        borderRadius: 999,
+        borderWidth: 1,
+        paddingHorizontal: 10,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    idealDateText: {
+        flexShrink: 1,
+        fontSize: 12,
+        fontWeight: '800',
     },
     lifestyleRow: {
         flexDirection: 'row',

@@ -17,6 +17,8 @@ class UpdateProfileRequest extends ApiFormRequest
             'occupation' => 'nullable|string|max:255',
             'qualification' => 'nullable|string|max:255',
             'hobbies' => 'nullable|string',
+            'ideal_dates' => 'nullable|array|max:12',
+            'ideal_dates.*' => 'string|max:80',
             'is_smoker' => 'nullable|boolean',
             'is_drug_user' => 'nullable|boolean',
             'drinking' => 'nullable|string|max:100',

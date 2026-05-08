@@ -41,6 +41,7 @@ export const profileSchema = z.object({
     qualification: z.string().min(1, "Qualification is required"),
     sexual_orientation: z.string().min(1, "Sexual orientation is required"),
     hobbies: z.string().min(1, "Hobbies is required"),
+    ideal_dates: z.array(z.string().min(1).max(80)).max(12).optional(),
     is_smoker: z.boolean(),
     is_drug_user: z.boolean(),
     drinking: z.string().optional(),

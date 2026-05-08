@@ -177,7 +177,23 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
         mutationFn: (specIdToUse: string) => SpecService.createDate(specIdToUse),
         onSuccess: async (res: any) => {
             const data = res?.data ?? res;
+            const completeSpec = (current: any) => current ? ({
+                ...current,
+                status: 'COMPLETED',
+                rounds: Array.isArray(current.rounds)
+                    ? current.rounds.map((round: any) => (
+                        round.status === 'ACTIVE' || round.status === 'REVIEWING'
+                            ? { ...round, status: 'COMPLETED' }
+                            : round
+                    ))
+                    : current.rounds,
+            }) : current;
+            queryClient.setQueryData(['spec', String(specId)], completeSpec);
+            queryClient.setQueryData(['spec', String(specId), 'round_details'], completeSpec);
             queryClient.invalidateQueries({ queryKey: ['spec', String(specId)] });
+            queryClient.invalidateQueries({ queryKey: ['specs'] });
+            queryClient.invalidateQueries({ queryKey: ['my-specs'] });
+            queryClient.invalidateQueries({ queryKey: ['dates'] });
             await refetchSpec();
             setLastManStandingVisible(false);
             setLastManStandingSpecId(null);
