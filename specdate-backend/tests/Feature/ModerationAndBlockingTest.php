@@ -1,0 +1,159 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\BlockedUser;
+use App\Models\ChatMessage;
+use App\Models\ChatThread;
+use App\Models\Media;
+use App\Models\Report;
+use App\Models\Spec;
+use App\Models\SpecDate;
+use App\Models\User;
+use App\Services\BlockService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
+use Symfony\Component\HttpKernel\Exception\HttpException;
+use Tests\TestCase;
+
+class ModerationAndBlockingTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_user_can_block_and_unblock_another_user(): void
+    {
+        $blocker = User::factory()->create();
+        $blocked = User::factory()->create();
+
+        $service = app(BlockService::class);
+
+        $service->block($blocker, $blocked->id, 'Harassment');
+
+        $this->assertDatabaseHas('blocked_users', [
+            'blocker_id' => $blocker->id,
+            'blocked_id' => $blocked->id,
+            'reason' => 'Harassment',
+        ]);
+        $this->assertTrue($service->hasBlockBetween($blocker->id, $blocked->id));
+
+        $service->unblock($blocker, $blocked->id);
+
+        $this->assertDatabaseMissing('blocked_users', [
+            'blocker_id' => $blocker->id,
+            'blocked_id' => $blocked->id,
+        ]);
+    }
+
+    public function test_user_cannot_block_self(): void
+    {
+        $user = User::factory()->create();
+
+        $this->expectException(HttpException::class);
+        $this->expectExceptionMessage('You cannot block yourself.');
+
+        app(BlockService::class)->block($user, $user->id);
+    }
+
+    public function test_blocked_users_cannot_send_chat_messages(): void
+    {
+        [$owner, $winner, $thread] = $this->createChatThread();
+        BlockedUser::create(['blocker_id' => $owner->id, 'blocked_id' => $winner->id]);
+
+        Sanctum::actingAs($winner);
+
+        $this->postJson("/api/chats/{$thread->id}/messages", [
+            'body' => 'Hello?',
+        ])->assertStatus(403)
+            ->assertJsonPath('message', 'This chat is unavailable because one of you blocked the other user.');
+
+        $this->assertDatabaseMissing('chat_messages', [
+            'chat_thread_id' => $thread->id,
+            'sender_id' => $winner->id,
+            'body' => 'Hello?',
+        ]);
+    }
+
+    public function test_report_can_be_created_and_admin_can_hide_message(): void
+    {
+        [$owner, $winner, $thread] = $this->createChatThread();
+        $message = ChatMessage::create([
+            'chat_thread_id' => $thread->id,
+            'sender_id' => $owner->id,
+            'body' => 'Abusive message',
+        ]);
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        Sanctum::actingAs($winner);
+        $reportId = $this->postJson('/api/reports', [
+            'target_type' => 'message',
+            'target_id' => $message->id,
+            'reason' => 'Harassment or abuse',
+        ])->assertCreated()
+            ->assertJsonPath('data.reported_user_id', $owner->id)
+            ->json('data.id');
+
+        Sanctum::actingAs($admin);
+        $this->patchJson("/api/admin/reports/{$reportId}", [
+            'status' => 'resolved',
+            'action' => 'hide_content',
+            'action_note' => 'Confirmed abuse',
+        ])->assertOk()
+            ->assertJsonPath('data.status', 'resolved')
+            ->assertJsonPath('data.action', 'hide_content');
+
+        $this->assertNotNull($message->fresh()->hidden_at);
+        $this->assertSame('Confirmed abuse', $message->fresh()->hidden_reason);
+    }
+
+    public function test_user_cannot_report_own_media(): void
+    {
+        $user = User::factory()->create();
+        $media = Media::create([
+            'user_id' => $user->id,
+            'file_path' => 'uploads/test.jpg',
+            'url' => 'https://example.com/test.jpg',
+            'type' => 'profile_gallery',
+            'mime_type' => 'image/jpeg',
+            'size' => 123,
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/reports', [
+            'target_type' => 'media',
+            'target_id' => $media->id,
+            'reason' => 'Other',
+        ])->assertStatus(422)
+            ->assertJsonPath('message', 'You cannot report your own content.');
+
+        $this->assertSame(0, Report::count());
+    }
+
+    private function createChatThread(): array
+    {
+        $owner = User::factory()->create();
+        $winner = User::factory()->create();
+        $spec = Spec::create([
+            'user_id' => $owner->id,
+            'title' => 'Dinner quest',
+            'description' => 'Find a date',
+            'expires_at' => now()->addDays(3),
+            'max_participants' => 2,
+            'status' => 'COMPLETED',
+        ]);
+        $date = SpecDate::create([
+            'spec_id' => $spec->id,
+            'owner_id' => $owner->id,
+            'winner_user_id' => $winner->id,
+            'date_code' => 'ABC123',
+        ]);
+        $thread = ChatThread::create([
+            'spec_date_id' => $date->id,
+            'spec_id' => $spec->id,
+            'owner_id' => $owner->id,
+            'winner_user_id' => $winner->id,
+        ]);
+
+        return [$owner, $winner, $thread];
+    }
+}

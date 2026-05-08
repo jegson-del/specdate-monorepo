@@ -12,6 +12,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (DB::connection()->getDriverName() === 'sqlite') {
+            return;
+        }
+
         // Add 'REVIEWING' to the enum
         DB::statement("ALTER TABLE spec_rounds MODIFY COLUMN status ENUM('PENDING', 'ACTIVE', 'REVIEWING', 'COMPLETED') NOT NULL DEFAULT 'PENDING'");
     }
@@ -21,6 +25,10 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (DB::connection()->getDriverName() === 'sqlite') {
+            return;
+        }
+
         // Revert to original enum
         DB::statement("ALTER TABLE spec_rounds MODIFY COLUMN status ENUM('PENDING', 'ACTIVE', 'COMPLETED') NOT NULL DEFAULT 'PENDING'");
     }
