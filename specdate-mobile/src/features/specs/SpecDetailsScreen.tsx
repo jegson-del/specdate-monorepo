@@ -13,6 +13,7 @@ import { MediaService } from '../../services/media';
 import { ModerationService, type ReportTargetType } from '../../services/moderation';
 import { useUser } from '../../hooks/useUser';
 import { toImageUri } from '../../utils/imageUrl';
+import { insertEmojiAtSelection, type TextSelection } from '../../utils/emojiText';
 import { MediaPickerSheet, VideoViewerModal } from '../../components';
 import { EditSpecModal } from './components/EditSpecModal';
 import { AudioMessagePlayer, LastManStandingModal, RoundMediaActions, useRoundAudioRecorder, VideoThumbnailPlayer } from './components';
@@ -334,11 +335,17 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
 
     // --- OWNER ACTIONS ---
     const [newRoundQuestion, setNewRoundQuestion] = React.useState('');
+    const [newRoundQuestionSelection, setNewRoundQuestionSelection] = React.useState<TextSelection>({ start: 0, end: 0 });
     const [roundQuestionMedia, setRoundQuestionMedia] = React.useState<RoundMediaAsset | null>(null);
     const [roundQuestionMediaSheet, setRoundQuestionMediaSheet] = React.useState<'file' | 'camera' | null>(null);
     const [questionVideoViewerVisible, setQuestionVideoViewerVisible] = React.useState(false);
     const [questionVideoViewerUri, setQuestionVideoViewerUri] = React.useState<string | null>(null);
     const questionAudioRecorder = useRoundAudioRecorder(setRoundQuestionMedia);
+    const handleNewRoundQuestionEmoji = React.useCallback((emoji: string) => {
+        const next = insertEmojiAtSelection(newRoundQuestion, emoji, newRoundQuestionSelection);
+        setNewRoundQuestion(next.value);
+        setNewRoundQuestionSelection(next.selection);
+    }, [newRoundQuestion, newRoundQuestionSelection]);
     const startRoundMutation = useMutation({
         mutationFn: async (question: string) => {
             let mediaId: number | undefined;
@@ -838,6 +845,8 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                                 placeholder="e.g. What's your hidden talent?"
                                 value={newRoundQuestion}
                                 onChangeText={setNewRoundQuestion}
+                                selection={newRoundQuestionSelection}
+                                onSelectionChange={(event) => setNewRoundQuestionSelection(event.nativeEvent.selection)}
                                 multiline
                                 numberOfLines={4}
                                 style={{
@@ -872,6 +881,7 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                             <RoundMediaActions
                                 onOpenFile={() => setRoundQuestionMediaSheet('file')}
                                 onOpenCamera={() => setRoundQuestionMediaSheet('camera')}
+                                onEmojiSelected={handleNewRoundQuestionEmoji}
                                 onToggleVoice={questionAudioRecorder.isRecording ? questionAudioRecorder.stopRecording : questionAudioRecorder.startRecording}
                                 isRecording={questionAudioRecorder.isRecording}
                                 durationMillis={questionAudioRecorder.durationMillis}

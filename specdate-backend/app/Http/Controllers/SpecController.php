@@ -250,7 +250,7 @@ class SpecController extends Controller
             $round = $this->specService->startRound(
                 $request->user(),
                 $id,
-                $request->input('question', ''),
+                (string) ($request->input('question') ?? ''),
                 $request->input('media_id')
             );
             return $this->sendResponse($round, 'Round started.');
@@ -269,7 +269,7 @@ class SpecController extends Controller
             $answer = $this->specService->submitAnswer(
                 $request->user(),
                 $roundId,
-                $request->input('answer', ''),
+                (string) ($request->input('answer') ?? ''),
                 $request->input('media_id')
             );
             return $this->sendResponse($answer, 'Answer submitted.');

@@ -4,6 +4,8 @@ import { Button, Text } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AudioMessagePlayer } from './AudioMessagePlayer';
 import { VideoThumbnailPlayer } from './VideoThumbnailPlayer';
+import { EmojiPickerButton } from '../../../components';
+import { insertEmojiAtSelection, type TextSelection } from '../../../utils/emojiText';
 
 type Props = {
   round: any;
@@ -42,6 +44,20 @@ export function RoundQuestionCard({
   onSaveEdit,
   onOpenVideo,
 }: Props) {
+  const [selection, setSelection] = React.useState<TextSelection>({ start: editQuestionText.length, end: editQuestionText.length });
+
+  React.useEffect(() => {
+    if (!isEditing) return;
+    const end = editQuestionText.length;
+    setSelection({ start: end, end });
+  }, [isEditing]);
+
+  const handleEmojiSelected = (emoji: string) => {
+    const next = insertEmojiAtSelection(editQuestionText, emoji, selection);
+    onChangeEditQuestionText(next.value);
+    setSelection(next.selection);
+  };
+
   return (
     <View style={[styles.questionCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant || theme.colors.outline + '40' }]}>
       <View style={styles.questionHeader}>
@@ -58,10 +74,15 @@ export function RoundQuestionCard({
           <TextInput
             value={editQuestionText}
             onChangeText={onChangeEditQuestionText}
+            selection={selection}
+            onSelectionChange={(event) => setSelection(event.nativeEvent.selection)}
             style={[styles.flatInput, { color: theme.colors.onSurface, borderColor: theme.colors.primary, borderWidth: 2 }]}
             autoFocus
             multiline
           />
+          <View style={styles.editToolbar}>
+            <EmojiPickerButton onEmojiSelected={handleEmojiSelected} disabled={updatePending} />
+          </View>
           <View style={styles.editActions}>
             <Button mode="text" onPress={onCancelEditing} compact>Cancel</Button>
             <Button
@@ -130,6 +151,7 @@ const styles = StyleSheet.create({
   questionMeta: { marginTop: 14, paddingTop: 14, borderTopWidth: 1 },
   questionMetaText: { fontSize: 13 },
   editBlock: { gap: 10, marginBottom: 10 },
+  editToolbar: { flexDirection: 'row' },
   editActions: { flexDirection: 'row', gap: 10, justifyContent: 'flex-end' },
   flatInput: {
     borderWidth: 1,

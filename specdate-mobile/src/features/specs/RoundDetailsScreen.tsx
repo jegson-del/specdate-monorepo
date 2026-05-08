@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect } from '@react-navigation/native';
 import { SpecService } from '../../services/specs';
 import { useUser } from '../../hooks/useUser';
+import { insertEmojiAtSelection, type TextSelection } from '../../utils/emojiText';
 import { MediaPickerSheet, VideoViewerModal } from '../../components';
 import { AudioMessagePlayer, CloseRoundModal, LastManStandingModal, PrivateRoundState, RoundMediaActions, RoundQuestionCard, RoundResponsesList, useRoundAudioRecorder, VideoThumbnailPlayer } from './components';
 import type { RoundMediaAsset } from './components';
@@ -132,6 +133,7 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
             queryClient.invalidateQueries({ queryKey: ['spec', String(specId)] });
             await refetchSpec();
             setAnswerText('');
+            setAnswerSelection({ start: 0, end: 0 });
             setAnswerMedia(null);
             Alert.alert('Success', 'Answer submitted!');
         },
@@ -214,8 +216,10 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
 
     // --- State ---
     const [answerText, setAnswerText] = useState('');
+    const [answerSelection, setAnswerSelection] = useState<TextSelection>({ start: 0, end: 0 });
     const [answerMedia, setAnswerMedia] = useState<RoundMediaAsset | null>(null);
     const [nextRoundQuestion, setNextRoundQuestion] = useState('');
+    const [nextRoundQuestionSelection, setNextRoundQuestionSelection] = useState<TextSelection>({ start: 0, end: 0 });
     const [nextRoundQuestionMedia, setNextRoundQuestionMedia] = useState<RoundMediaAsset | null>(null);
     const [roundMediaSheet, setRoundMediaSheet] = useState<RoundMediaSheetState>(null);
     const [closeModalVisible, setCloseRoundModalVisible] = useState(false);
@@ -235,7 +239,17 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
     const answerAudioRecorder = useRoundAudioRecorder(setAnswerMedia);
     const nextRoundAudioRecorder = useRoundAudioRecorder(setNextRoundQuestionMedia);
 
+    const handleAnswerEmoji = useCallback((emoji: string) => {
+        const next = insertEmojiAtSelection(answerText, emoji, answerSelection);
+        setAnswerText(next.value);
+        setAnswerSelection(next.selection);
+    }, [answerText, answerSelection]);
 
+    const handleNextRoundQuestionEmoji = useCallback((emoji: string) => {
+        const next = insertEmojiAtSelection(nextRoundQuestion, emoji, nextRoundQuestionSelection);
+        setNextRoundQuestion(next.value);
+        setNextRoundQuestionSelection(next.selection);
+    }, [nextRoundQuestion, nextRoundQuestionSelection]);
 
     const setSelectedRoundMedia = useCallback((target: 'answer' | 'next_question', asset: RoundMediaAsset) => {
         if (target === 'answer') {
@@ -343,6 +357,7 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
             queryClient.invalidateQueries({ queryKey: ['spec', String(specId)] });
             Alert.alert('Success', 'Next round started!');
             setNextRoundQuestion('');
+            setNextRoundQuestionSelection({ start: 0, end: 0 });
             setNextRoundQuestionMedia(null);
             navigation.goBack(); // Go back to list? Or stay?
         },
@@ -625,6 +640,8 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                                     placeholderTextColor={theme.colors.outline}
                                     value={nextRoundQuestion}
                                     onChangeText={setNextRoundQuestion}
+                                    selection={nextRoundQuestionSelection}
+                                    onSelectionChange={(event) => setNextRoundQuestionSelection(event.nativeEvent.selection)}
                                     multiline
                                     numberOfLines={4}
                                     style={[styles.flatTextArea, { color: theme.colors.onSurface, borderColor: theme.colors.outlineVariant || theme.colors.outline + '50' }]}
@@ -651,6 +668,7 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                                 <RoundMediaActions
                                     onOpenFile={() => setRoundMediaSheet({ target: 'next_question', source: 'file' })}
                                     onOpenCamera={() => setRoundMediaSheet({ target: 'next_question', source: 'camera' })}
+                                    onEmojiSelected={handleNextRoundQuestionEmoji}
                                     onToggleVoice={nextRoundAudioRecorder.isRecording ? nextRoundAudioRecorder.stopRecording : nextRoundAudioRecorder.startRecording}
                                     isRecording={nextRoundAudioRecorder.isRecording}
                                     durationMillis={nextRoundAudioRecorder.durationMillis}
@@ -723,6 +741,8 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                                     numberOfLines={4}
                                     value={answerText}
                                     onChangeText={setAnswerText}
+                                    selection={answerSelection}
+                                    onSelectionChange={(event) => setAnswerSelection(event.nativeEvent.selection)}
                                     style={[styles.flatTextArea, { color: theme.colors.onSurface, borderColor: theme.colors.outlineVariant || theme.colors.outline + '50' }]}
                                 />
                                 {answerMedia && (
@@ -745,6 +765,7 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                                 <RoundMediaActions
                                     onOpenFile={() => setRoundMediaSheet({ target: 'answer', source: 'file' })}
                                     onOpenCamera={() => setRoundMediaSheet({ target: 'answer', source: 'camera' })}
+                                    onEmojiSelected={handleAnswerEmoji}
                                     onToggleVoice={answerAudioRecorder.isRecording ? answerAudioRecorder.stopRecording : answerAudioRecorder.startRecording}
                                     isRecording={answerAudioRecorder.isRecording}
                                     durationMillis={answerAudioRecorder.durationMillis}

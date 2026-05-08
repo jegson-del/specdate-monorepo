@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput, useTheme } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { EmojiPickerButton } from '../../../components';
+import { insertEmojiAtSelection, type TextSelection } from '../../../utils/emojiText';
 
 type Props = {
   onSend: (body: string) => void;
@@ -24,13 +26,21 @@ export default function MessageComposer({
 }: Props) {
   const theme = useTheme();
   const [body, setBody] = useState('');
+  const [selection, setSelection] = useState<TextSelection>({ start: 0, end: 0 });
   const canSend = body.trim().length > 0 && !disabled;
   const recordingSeconds = Math.floor(durationMillis / 1000);
+
+  const handleEmojiSelected = (emoji: string) => {
+    const next = insertEmojiAtSelection(body, emoji, selection);
+    setBody(next.value);
+    setSelection(next.selection);
+  };
 
   const handleSend = () => {
     if (!canSend) return;
     onSend(body);
     setBody('');
+    setSelection({ start: 0, end: 0 });
   };
 
   return (
@@ -44,6 +54,7 @@ export default function MessageComposer({
           <MaterialCommunityIcons name="camera-outline" size={21} color={theme.colors.primary} />
           <Text style={[styles.mediaLabel, { color: theme.colors.onSurfaceVariant }]}>Camera</Text>
         </TouchableOpacity>
+        <EmojiPickerButton onEmojiSelected={handleEmojiSelected} disabled={disabled} />
         <TouchableOpacity
           style={[styles.mediaAction, isRecording && { backgroundColor: 'rgba(239,68,68,0.1)' }]}
           onPress={onToggleVoice}
@@ -61,6 +72,8 @@ export default function MessageComposer({
         <TextInput
           value={body}
           onChangeText={setBody}
+          selection={selection}
+          onSelectionChange={(event) => setSelection(event.nativeEvent.selection)}
           mode="outlined"
           placeholder="Message your date"
           multiline

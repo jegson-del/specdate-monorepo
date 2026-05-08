@@ -2,11 +2,13 @@ import React from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { EmojiPickerButton } from '../../../components';
 
 type Props = {
   onOpenFile: () => void;
   onOpenCamera: () => void;
   onToggleVoice: () => void;
+  onEmojiSelected?: (emoji: string) => void;
   isRecording?: boolean;
   durationMillis?: number;
   disabled?: boolean;
@@ -16,6 +18,7 @@ export function RoundMediaActions({
   onOpenFile,
   onOpenCamera,
   onToggleVoice,
+  onEmojiSelected,
   isRecording = false,
   durationMillis = 0,
   disabled = false,
@@ -33,6 +36,9 @@ export function RoundMediaActions({
         <MaterialCommunityIcons name="camera-outline" size={21} color={theme.colors.primary} />
         <Text style={[styles.mediaLabel, { color: theme.colors.onSurfaceVariant }]}>Camera</Text>
       </TouchableOpacity>
+      {onEmojiSelected ? (
+        <EmojiPickerButton onEmojiSelected={onEmojiSelected} disabled={disabled} />
+      ) : null}
       <TouchableOpacity
         style={[styles.mediaAction, isRecording && { backgroundColor: 'rgba(239,68,68,0.1)' }]}
         onPress={onToggleVoice}

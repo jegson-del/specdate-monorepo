@@ -5,6 +5,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SUPPORT_CATEGORIES, SupportService, type SupportCategory } from '../../services/support';
+import { EmojiPickerButton } from '../../components';
+import { insertEmojiAtSelection, type TextSelection } from '../../utils/emojiText';
 
 export default function CreateSupportTicketScreen({ navigation }: any) {
   const theme = useTheme();
@@ -13,6 +15,7 @@ export default function CreateSupportTicketScreen({ navigation }: any) {
   const [category, setCategory] = React.useState<SupportCategory>('safety');
   const [subject, setSubject] = React.useState('');
   const [message, setMessage] = React.useState('');
+  const [messageSelection, setMessageSelection] = React.useState<TextSelection>({ start: 0, end: 0 });
 
   const createMutation = useMutation({
     mutationFn: () => SupportService.createTicket({ category, subject, message }),
@@ -26,6 +29,11 @@ export default function CreateSupportTicketScreen({ navigation }: any) {
   });
 
   const canSubmit = subject.trim().length >= 3 && message.trim().length >= 10 && !createMutation.isPending;
+  const handleMessageEmoji = (emoji: string) => {
+    const next = insertEmojiAtSelection(message, emoji, messageSelection);
+    setMessage(next.value);
+    setMessageSelection(next.selection);
+  };
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.background, paddingTop: insets.top + 8 }]}>
@@ -76,11 +84,16 @@ export default function CreateSupportTicketScreen({ navigation }: any) {
           label="How can we help?"
           value={message}
           onChangeText={setMessage}
+          selection={messageSelection}
+          onSelectionChange={(event) => setMessageSelection(event.nativeEvent.selection)}
           multiline
           numberOfLines={7}
           maxLength={4000}
           style={styles.messageInput}
         />
+        <View style={styles.inlineActions}>
+          <EmojiPickerButton onEmojiSelected={handleMessageEmoji} disabled={createMutation.isPending} />
+        </View>
         <Button
           mode="contained"
           onPress={() => createMutation.mutate()}
@@ -152,6 +165,9 @@ const styles = StyleSheet.create({
   messageInput: {
     minHeight: 150,
     backgroundColor: 'transparent',
+  },
+  inlineActions: {
+    flexDirection: 'row',
   },
   submitButton: {
     borderRadius: 12,

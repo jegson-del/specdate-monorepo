@@ -516,6 +516,11 @@ class SpecService
     public function submitAnswer($user, $roundId, string $answer = '', $mediaId = null): SpecRoundAnswer
     {
         $round = SpecRound::findOrFail($roundId);
+        $answer = trim($answer);
+
+        if ($answer === '' && !$mediaId) {
+            throw new HttpException(400, 'Please add an answer or attach a file.');
+        }
         
         if ($round->status !== 'ACTIVE') {
             throw new HttpException(400, 'Round is not active.');
@@ -569,7 +574,7 @@ class SpecService
         $answerCount = $round->answers()->count();
 
         if ($answerCount >= $participantCount) {
-             $this->closeRound($round->spec->user, $roundId); // Simulate owner closing it
+             $this->closeRound($round->spec->owner, $roundId);
         }
 
         return $answerModel;

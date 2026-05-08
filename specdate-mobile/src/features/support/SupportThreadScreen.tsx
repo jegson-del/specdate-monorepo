@@ -4,6 +4,8 @@ import { Button, IconButton, Text, TextInput, useTheme } from 'react-native-pape
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { SupportMessage, SupportService } from '../../services/support';
+import { EmojiPickerButton } from '../../components';
+import { insertEmojiAtSelection, type TextSelection } from '../../utils/emojiText';
 
 function formatTime(value: string) {
   const date = new Date(value);
@@ -47,6 +49,7 @@ export default function SupportThreadScreen({ route, navigation }: any) {
   const queryClient = useQueryClient();
   const listRef = React.useRef<FlatList<SupportMessage>>(null);
   const [body, setBody] = React.useState('');
+  const [selection, setSelection] = React.useState<TextSelection>({ start: 0, end: 0 });
 
   const { data, isLoading } = useQuery({
     queryKey: ['support-ticket', String(ticketId)],
@@ -58,6 +61,7 @@ export default function SupportThreadScreen({ route, navigation }: any) {
     mutationFn: () => SupportService.sendMessage(ticketId, body),
     onSuccess: (res) => {
       setBody('');
+      setSelection({ start: 0, end: 0 });
       queryClient.setQueryData(['support-ticket', String(ticketId)], (current: any) => {
         if (!current?.data) return current;
         return {
@@ -87,6 +91,11 @@ export default function SupportThreadScreen({ route, navigation }: any) {
   const ticket = data?.data?.ticket;
   const messages = data?.data?.messages || [];
   const canSend = body.trim().length > 0 && !sendMutation.isPending;
+  const handleEmojiSelected = (emoji: string) => {
+    const next = insertEmojiAtSelection(body, emoji, selection);
+    setBody(next.value);
+    setSelection(next.selection);
+  };
 
   return (
     <KeyboardAvoidingView
@@ -122,12 +131,15 @@ export default function SupportThreadScreen({ route, navigation }: any) {
           mode="outlined"
           value={body}
           onChangeText={setBody}
+          selection={selection}
+          onSelectionChange={(event) => setSelection(event.nativeEvent.selection)}
           placeholder="Message support..."
           multiline
           maxLength={4000}
           style={styles.input}
           outlineStyle={styles.inputOutline}
         />
+        <EmojiPickerButton onEmojiSelected={handleEmojiSelected} disabled={sendMutation.isPending} style={styles.emojiButton} />
         <Button
           mode="contained"
           onPress={() => sendMutation.mutate()}
@@ -224,5 +236,8 @@ const styles = StyleSheet.create({
   sendButton: {
     borderRadius: 12,
     marginBottom: 2,
+  },
+  emojiButton: {
+    marginBottom: 7,
   },
 });

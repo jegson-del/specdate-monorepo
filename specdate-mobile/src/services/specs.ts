@@ -87,7 +87,8 @@ export const SpecService = {
     },
 
     async startRound(specId: string, question: string, mediaId?: number) {
-        const payload: any = { question };
+        const payload: any = {};
+        if (question.trim()) payload.question = question.trim();
         if (mediaId) payload.media_id = mediaId;
         const response = await api.post(`/specs/${specId}/rounds`, payload);
         return response.data;
@@ -101,7 +102,8 @@ export const SpecService = {
 
 
     async submitAnswer(roundId: number, answer: string, mediaId?: number) {
-        const payload: any = { answer };
+        const payload: any = {};
+        if (answer.trim()) payload.answer = answer.trim();
         if (mediaId) payload.media_id = mediaId;
         const response = await api.post(`/rounds/${roundId}/answer`, payload);
         return response.data;
