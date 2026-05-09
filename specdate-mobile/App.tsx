@@ -19,6 +19,8 @@ import SettingsScreen from './src/features/profile/SettingsScreen';
 import HomeScreen from './src/features/home/HomeScreen';
 import ProvidersScreen from './src/features/providers/ProvidersScreen';
 import ProviderDetailScreen from './src/features/providers/ProviderDetailScreen';
+import CreateDateVoucherScreen from './src/features/providers/CreateDateVoucherScreen';
+import DateVoucherDetailScreen from './src/features/providers/DateVoucherDetailScreen';
 import ProviderDashboardScreen from './src/features/provider/ProviderDashboardScreen';
 import ProviderBookingsScreen from './src/features/provider/ProviderBookingsScreen';
 import ProviderReviewsScreen from './src/features/provider/ProviderReviewsScreen';
@@ -124,6 +126,8 @@ export default function App() {
               <Stack.Screen name="Home" component={HomeScreen} />
               <Stack.Screen name="Providers" component={ProvidersScreen} />
               <Stack.Screen name="ProviderDetail" component={ProviderDetailScreen} />
+              <Stack.Screen name="CreateDateVoucher" component={CreateDateVoucherScreen} />
+              <Stack.Screen name="DateVoucherDetail" component={DateVoucherDetailScreen} />
 
               <Stack.Screen name="ProviderDashboard" component={ProviderDashboardScreen} />
               <Stack.Screen name="ProviderBookings" component={ProviderBookingsScreen} />

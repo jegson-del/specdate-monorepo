@@ -66,7 +66,6 @@ class ProviderDashboardTest extends TestCase
         Sanctum::actingAs($provider);
 
         $this->postJson('/api/provider/scan-qr', ['code' => 'ANY-CODE'])
-            ->assertStatus(501)
-            ->assertJsonPath('message', 'Voucher scanning will be available after date vouchers are enabled.');
+            ->assertNotFound();
     }
 }

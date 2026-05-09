@@ -29,7 +29,7 @@ export default function DatesTab({ theme, homeColors, insets, bottomNavHeight, n
       <View style={styles.header}>
         <View>
           <Text style={[styles.eyebrow, { color: theme.colors.primary }]}>Final matches</Text>
-          <Text style={[styles.title, { color: theme.colors.onSurface }]}>Your dates</Text>
+          <Text style={[styles.title, { color: theme.colors.onSurface }]}>Your matches</Text>
         </View>
         <View style={[styles.countPill, { backgroundColor: withAlpha(theme.colors.primary, 0.1) }]}>
           <MaterialCommunityIcons name="calendar-heart" size={16} color={theme.colors.primary} />

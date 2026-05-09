@@ -16,7 +16,7 @@ export type FeedKey = SpecCardItem['tag'];
 
 export type HomeTopTab = 'Specs' | 'People';
 
-export type BottomTabKey = 'Home' | 'Dates' | 'Specs' | 'Requests';
+export type BottomTabKey = 'Home' | 'Matches' | 'Dates' | 'Specs' | 'Requests';
 
 export type HomeColors = {
   bg: string;

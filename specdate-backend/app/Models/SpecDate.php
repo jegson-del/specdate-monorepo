@@ -32,4 +32,9 @@ class SpecDate extends Model
     {
         return $this->hasOne(ChatThread::class);
     }
+
+    public function vouchers()
+    {
+        return $this->hasMany(DateVoucher::class);
+    }
 }

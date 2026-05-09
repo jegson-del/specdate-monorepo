@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Alert, Dimensions } from 'react-native';
-import { Text, Button, IconButton, useTheme, ActivityIndicator } from 'react-native-paper';
+import { Text, Button, IconButton, useTheme, ActivityIndicator, TextInput } from 'react-native-paper';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '../../services/api';
@@ -12,6 +12,7 @@ export default function QRScannerScreen({ navigation }: any) {
     const [permission, requestPermission] = useCameraPermissions();
     const [scanned, setScanned] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [manualCode, setManualCode] = useState('');
 
     if (!permission) {
         // Camera permissions are still loading
@@ -27,14 +28,14 @@ export default function QRScannerScreen({ navigation }: any) {
         );
     }
 
-    const handleBarCodeScanned = async ({ type, data }: any) => {
+    const redeemCode = async (code: string) => {
         if (scanned || loading) return;
 
         setScanned(true);
         setLoading(true);
 
         try {
-            await api.post('/provider/scan-qr', { code: data });
+            await api.post('/provider/scan-qr', { code });
 
             Alert.alert(
                 'Success!',
@@ -53,6 +54,10 @@ export default function QRScannerScreen({ navigation }: any) {
                 [{ text: 'Try Again', onPress: () => { setScanned(false); setLoading(false); } }]
             );
         }
+    };
+
+    const handleBarCodeScanned = async ({ data }: any) => {
+        redeemCode(data);
     };
 
     return (
@@ -85,6 +90,25 @@ export default function QRScannerScreen({ navigation }: any) {
                     <Text style={{ color: '#fff', marginTop: 20, textAlign: 'center', opacity: 0.8 }}>
                         Align the QR code within the frame
                     </Text>
+                    <View style={styles.manualCard}>
+                        <TextInput
+                            mode="outlined"
+                            label="Voucher code"
+                            value={manualCode}
+                            onChangeText={(value) => setManualCode(value.toUpperCase())}
+                            autoCapitalize="characters"
+                            style={styles.manualInput}
+                            dense
+                        />
+                        <Button
+                            mode="contained"
+                            disabled={!manualCode.trim() || loading}
+                            loading={loading}
+                            onPress={() => redeemCode(manualCode.trim())}
+                        >
+                            Confirm code
+                        </Button>
+                    </View>
                 </View>
             </View>
         </View>
@@ -107,6 +131,7 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
+        paddingHorizontal: 20,
     },
     scanFrame: {
         width: 260,
@@ -124,4 +149,15 @@ const styles = StyleSheet.create({
     tr: { top: 0, right: 0, borderLeftWidth: 0, borderBottomWidth: 0 },
     bl: { bottom: 0, left: 0, borderRightWidth: 0, borderTopWidth: 0 },
     br: { bottom: 0, right: 0, borderLeftWidth: 0, borderTopWidth: 0 },
+    manualCard: {
+        width: '100%',
+        marginTop: 24,
+        padding: 14,
+        borderRadius: 16,
+        backgroundColor: 'rgba(255,255,255,0.94)',
+        gap: 10,
+    },
+    manualInput: {
+        backgroundColor: '#fff',
+    },
 });

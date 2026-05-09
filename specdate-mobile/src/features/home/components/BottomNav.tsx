@@ -22,6 +22,7 @@ const items: Array<{
   color: string;
 }> = [
   { key: 'Home', label: 'Home', activeIcon: 'home', inactiveIcon: 'home-outline', color: '' },
+  { key: 'Matches', label: 'Matches', activeIcon: 'account-group', inactiveIcon: 'account-group-outline', color: '#ef5a46' },
   { key: 'Dates', label: 'Dates', activeIcon: 'heart', inactiveIcon: 'heart-outline', color: '#D946EF' },
   { key: 'Specs', label: 'Specs', activeIcon: 'clipboard-list', inactiveIcon: 'clipboard-list-outline', color: '#8B5CF6' },
   { key: 'Requests', label: 'Requests', activeIcon: 'account-plus', inactiveIcon: 'account-plus-outline', color: '#06B6D4' },
@@ -51,7 +52,7 @@ export default function BottomNav({ activeTab, onTabChange, onCreate, user, them
       elevation={2}
     >
       <View style={styles.bottomNavRow}>
-        {items.slice(0, 2).map((item) => (
+        {items.slice(0, 3).map((item) => (
           <NavItem
             key={item.key}
             item={item}
@@ -70,7 +71,7 @@ export default function BottomNav({ activeTab, onTabChange, onCreate, user, them
           <Text style={[styles.bottomNavLabel, { color: homeColors.subtext, marginTop: 6 }]}>Create</Text>
         </TouchableOpacity>
 
-        {items.slice(2).map((item) => (
+        {items.slice(3).map((item) => (
           <NavItem
             key={item.key}
             item={item}

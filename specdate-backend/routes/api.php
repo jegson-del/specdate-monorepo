@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BlockController;
 use App\Http\Controllers\ChatController;
+use App\Http\Controllers\DateVoucherController;
 use App\Http\Controllers\MeController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\ProfileController;
@@ -31,8 +32,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/users', [UserController::class, 'index']);
     Route::get('/users/{id}', [UserController::class, 'show']);
 
+    Route::get('/providers', [ProviderController::class, 'index']);
+    Route::get('/providers/{provider}', [ProviderController::class, 'show']);
     Route::get('/my-specs', [SpecController::class, 'mySpecs']);
     Route::get('/dates', [SpecController::class, 'myDates']);
+    Route::get('/date-vouchers', [DateVoucherController::class, 'index']);
+    Route::post('/date-vouchers/preview', [DateVoucherController::class, 'preview']);
+    Route::post('/date-vouchers', [DateVoucherController::class, 'store']);
+    Route::get('/date-vouchers/{voucher}', [DateVoucherController::class, 'show']);
     Route::get('/chats', [ChatController::class, 'index']);
     Route::post('/providers/{provider}/chat', [ChatController::class, 'openProviderThread']);
     Route::get('/chats/{thread}', [ChatController::class, 'show']);
@@ -79,6 +86,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     Route::prefix('provider')->group(function () {
         Route::get('/dashboard', [ProviderController::class, 'getDashboard']);
+        Route::get('/bookings', [DateVoucherController::class, 'providerBookings']);
+        Route::post('/bookings/{voucher}/approve', [DateVoucherController::class, 'approve']);
+        Route::post('/bookings/{voucher}/reject', [DateVoucherController::class, 'reject']);
         Route::post('/settings', [ProviderController::class, 'updateSettings']);
         Route::post('/scan-qr', [ProviderController::class, 'scanQRCode']);
         Route::get('/categories', [ProviderController::class, 'getCategories']);

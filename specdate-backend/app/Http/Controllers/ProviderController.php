@@ -3,14 +3,76 @@
 namespace App\Http\Controllers;
 
 use App\Models\ChatMessage;
+use App\Models\DateVoucher;
 use App\Models\ProviderCategory;
 use App\Models\ProviderProfile;
 use App\Models\User;
+use App\Services\DateVoucherService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class ProviderController extends Controller
 {
+    public function __construct(private DateVoucherService $dateVoucherService)
+    {
+    }
+
+    /**
+     * List public provider profiles for daters.
+     */
+    public function index(Request $request)
+    {
+        $query = ProviderProfile::query()
+            ->with(['categories', 'user.media'])
+            ->whereHas('user', fn ($q) => $q->where('role', 'provider'));
+
+        if ($request->filled('q')) {
+            $search = trim((string) $request->query('q'));
+            $query->where(function ($q) use ($search) {
+                $q->where('company_name', 'like', "%{$search}%")
+                    ->orWhere('city', 'like', "%{$search}%")
+                    ->orWhere('country', 'like', "%{$search}%")
+                    ->orWhereHas('categories', fn ($cat) => $cat->where('name', 'like', "%{$search}%"));
+            });
+        }
+
+        if ($request->filled('category')) {
+            $category = trim((string) $request->query('category'));
+            $query->whereHas('categories', function ($q) use ($category) {
+                $q->where('name', $category)->orWhere('slug', $category);
+            });
+        }
+
+        $providers = $query
+            ->orderByDesc('is_verified')
+            ->orderBy('company_name')
+            ->paginate((int) $request->integer('per_page', 50));
+
+        $providers->getCollection()->transform(fn (ProviderProfile $profile) => $this->providerPayload($profile, false));
+
+        return response()->json([
+            'message' => 'Providers retrieved successfully.',
+            'data' => $providers,
+        ]);
+    }
+
+    /**
+     * Show one public provider profile for daters.
+     */
+    public function show(int $provider)
+    {
+        $profile = ProviderProfile::query()
+            ->with(['categories', 'user.media'])
+            ->whereHas('user', fn ($q) => $q->where('role', 'provider'))
+            ->findOrFail($provider);
+
+        return response()->json([
+            'message' => 'Provider retrieved successfully.',
+            'data' => $this->providerPayload($profile, true),
+        ]);
+    }
+
     /**
      * Get provider dashboard data.
      */
@@ -43,6 +105,18 @@ class ProviderController extends Controller
             $profile->image = $avatar->url;
         }
 
+        $pendingBookings = $profile ? DateVoucher::where('provider_profile_id', $profile->id)
+            ->where('status', DateVoucher::STATUS_PENDING_PROVIDER)
+            ->count() : 0;
+        $upcomingBookings = $profile ? DateVoucher::where('provider_profile_id', $profile->id)
+            ->whereIn('status', [DateVoucher::STATUS_PENDING_PROVIDER, DateVoucher::STATUS_ACTIVE])
+            ->with($this->dateVoucherService->voucherRelations())
+            ->latest()
+            ->limit(5)
+            ->get()
+            ->map(fn (DateVoucher $voucher) => $this->dateVoucherService->voucherPayload($voucher, $user))
+            ->values() : [];
+
         return response()->json([
             'profile' => $profile,
             'gallery' => $gallery,
@@ -58,9 +132,9 @@ class ProviderController extends Controller
                             ->orWhere('provider_id', $user->id);
                     })
                     ->count(),
-                'pending_bookings' => 0,
+                'pending_bookings' => $pendingBookings,
             ],
-            'upcoming_bookings' => [],
+            'upcoming_bookings' => $upcomingBookings,
         ]);
     }
 
@@ -135,9 +209,20 @@ class ProviderController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        return response()->json([
-            'message' => 'Voucher scanning will be available after date vouchers are enabled.',
-        ], 501);
+        $request->validate([
+            'code' => 'required|string',
+        ]);
+
+        try {
+            $voucher = $this->dateVoucherService->redeem($user, trim((string) $request->input('code')));
+
+            return response()->json([
+                'message' => 'Voucher redeemed successfully.',
+                'data' => $this->dateVoucherService->voucherPayload($voucher, $user),
+            ]);
+        } catch (HttpException $e) {
+            return response()->json(['message' => $e->getMessage()], $e->getStatusCode());
+        }
     }
     
     /**
@@ -146,5 +231,46 @@ class ProviderController extends Controller
     public function getCategories()
     {
         return response()->json(ProviderCategory::all());
+    }
+
+    private function providerPayload(ProviderProfile $profile, bool $includeGallery): array
+    {
+        $user = $profile->user;
+        $media = $user?->media ?? collect();
+        $avatar = $media->where('type', 'avatar')->whereNull('hidden_at')->sortByDesc('id')->first();
+        $gallery = $media->where('type', 'provider_gallery')->whereNull('hidden_at')->sortByDesc('id')->values();
+        $image = $profile->image ?: $avatar?->url ?: $gallery->first()?->url;
+        $categories = $profile->categories->map(fn (ProviderCategory $category) => [
+            'id' => $category->id,
+            'name' => $category->name,
+            'slug' => $category->slug,
+        ])->values();
+        $primaryCategory = $categories->first()['name'] ?? 'Venue';
+
+        return [
+            'id' => $profile->id,
+            'user_id' => $profile->user_id,
+            'name' => $profile->company_name ?: $user?->name ?: 'Provider',
+            'category' => $primaryCategory,
+            'categories' => $categories,
+            'city' => $profile->city,
+            'country' => $profile->country,
+            'address' => $profile->address,
+            'description' => $profile->description,
+            'website' => $profile->website,
+            'phone' => $profile->phone,
+            'imageUrl' => $image,
+            'gallery' => $includeGallery ? $gallery->map(fn ($item) => [
+                'id' => $item->id,
+                'url' => $item->url,
+            ])->all() : [],
+            'discountPercentage' => (int) ($profile->discount_percentage ?? 10),
+            'minimumSpend' => $profile->minimum_spend !== null ? (float) $profile->minimum_spend : null,
+            'bookingRequired' => (bool) $profile->booking_required,
+            'isVerified' => (bool) $profile->is_verified,
+            'rating' => null,
+            'reviewsCount' => 0,
+            'created_at' => $profile->created_at,
+        ];
     }
 }

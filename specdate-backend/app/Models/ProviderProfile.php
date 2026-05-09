@@ -39,4 +39,9 @@ class ProviderProfile extends Model
     {
         return $this->belongsToMany(ProviderCategory::class, 'provider_category');
     }
+
+    public function dateVouchers()
+    {
+        return $this->hasMany(DateVoucher::class);
+    }
 }

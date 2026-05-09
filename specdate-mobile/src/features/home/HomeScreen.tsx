@@ -12,6 +12,7 @@ import HomeFeedTab from './components/HomeFeedTab';
 import HomeHeader from './components/HomeHeader';
 import MySpecsTab from './components/MySpecsTab';
 import RequestsTab from './components/RequestsTab';
+import VouchersTab from './components/VouchersTab';
 import { BottomTabKey, HomeColors } from './types';
 
 export default function HomeScreen({ navigation, route }: any) {
@@ -22,7 +23,9 @@ export default function HomeScreen({ navigation, route }: any) {
   const player = useAudioPlayer(require('../../../assets/sounds/notification.wav'));
   const bottomNavHeight = 64;
   const [bottomTab, setBottomTab] = useState<BottomTabKey>(
-    route?.params?.initialTab === 'Requests' ? 'Requests' : 'Home'
+    ['Requests', 'Matches', 'Dates', 'Specs'].includes(route?.params?.initialTab)
+      ? route.params.initialTab
+      : 'Home'
   );
 
   const homeColors = useMemo<HomeColors>(
@@ -44,8 +47,11 @@ export default function HomeScreen({ navigation, route }: any) {
       if (bottomTab === 'Requests') {
         queryClient.invalidateQueries({ queryKey: ['pending-requests'] });
       }
-      if (bottomTab === 'Dates') {
+      if (bottomTab === 'Matches') {
         queryClient.invalidateQueries({ queryKey: ['dates'] });
+      }
+      if (bottomTab === 'Dates') {
+        queryClient.invalidateQueries({ queryKey: ['date-vouchers'] });
       }
     }, [bottomTab, queryClient])
   );
@@ -67,9 +73,9 @@ export default function HomeScreen({ navigation, route }: any) {
   }, [user?.id, queryClient, player]);
 
   React.useEffect(() => {
-    if (route?.params?.initialTab === 'Requests') {
-      setBottomTab('Requests');
-      queryClient.invalidateQueries({ queryKey: ['pending-requests'] });
+    if (route?.params?.initialTab) {
+      setBottomTab(route.params.initialTab);
+      queryClient.invalidateQueries({ queryKey: route.params.initialTab === 'Requests' ? ['pending-requests'] : route.params.initialTab === 'Matches' ? ['dates'] : ['date-vouchers'] });
     }
   }, [queryClient, route?.params?.initialTab]);
 
@@ -86,8 +92,16 @@ export default function HomeScreen({ navigation, route }: any) {
             bottomNavHeight={bottomNavHeight}
             navigation={navigation}
           />
-        ) : bottomTab === 'Dates' ? (
+        ) : bottomTab === 'Matches' ? (
           <DatesTab
+            theme={theme}
+            homeColors={homeColors}
+            insets={insets}
+            bottomNavHeight={bottomNavHeight}
+            navigation={navigation}
+          />
+        ) : bottomTab === 'Dates' ? (
+          <VouchersTab
             theme={theme}
             homeColors={homeColors}
             insets={insets}
