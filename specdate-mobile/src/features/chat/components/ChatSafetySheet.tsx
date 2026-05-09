@@ -23,6 +23,11 @@ type Props = {
   onDismiss: () => void;
   onOpenReport?: () => void;
   onOpenBlock?: () => void;
+  userReportLabel?: string;
+  userReportHelper?: string;
+  userBlockLabel?: string;
+  userBlockHelper?: string;
+  blockConfirmLabel?: string;
   onReportMessage?: () => void;
   onReportMedia?: () => void;
   hasMedia?: boolean;
@@ -44,6 +49,11 @@ export default function ChatSafetySheet({
   onDismiss,
   onOpenReport,
   onOpenBlock,
+  userReportLabel,
+  userReportHelper,
+  userBlockLabel,
+  userBlockHelper,
+  blockConfirmLabel,
   onReportMessage,
   onReportMedia,
   hasMedia,
@@ -142,8 +152,19 @@ export default function ChatSafetySheet({
 
               {mode === 'actions' ? (
                 <View style={styles.options}>
-                  {option('flag-outline', 'Report user', 'Send this profile to moderation for review', onOpenReport)}
-                  {option('block-helper', 'Block user', 'Stop messages and hide each other from discovery', onOpenBlock, true)}
+                  {option(
+                    'flag-outline',
+                    userReportLabel ?? 'Report user',
+                    userReportHelper ?? 'Send this profile to moderation for review',
+                    onOpenReport
+                  )}
+                  {option(
+                    'block-helper',
+                    userBlockLabel ?? 'Block user',
+                    userBlockHelper ?? 'Stop messages and hide each other from discovery',
+                    onOpenBlock,
+                    true
+                  )}
                 </View>
               ) : mode === 'message_actions' ? (
                 <View style={styles.options}>
@@ -181,7 +202,7 @@ export default function ChatSafetySheet({
                     Cancel
                   </Button>
                   <Button mode="contained" onPress={onConfirmBlock} loading={loading} disabled={loading} style={styles.actionButton} buttonColor={theme.colors.error}>
-                    Block
+                    {blockConfirmLabel ?? 'Block'}
                   </Button>
                 </View>
               )}

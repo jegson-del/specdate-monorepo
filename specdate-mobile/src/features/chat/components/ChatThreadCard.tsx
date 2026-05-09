@@ -20,7 +20,8 @@ function formatTime(value?: string | null) {
 export default function ChatThreadCard({ thread, onPress }: Props) {
   const theme = useTheme();
   const avatar = toImageUri(thread.other_user?.avatar);
-  const name = thread.other_user?.name || 'Your match';
+  const isProviderChat = thread.type === 'provider';
+  const name = thread.other_user?.name || (isProviderChat ? 'Provider' : 'Your match');
   const last = thread.last_message?.body || 'Start the conversation';
   const unread = Number(thread.unread_count || 0);
 
@@ -47,9 +48,9 @@ export default function ChatThreadCard({ thread, onPress }: Props) {
         </View>
 
         <View style={styles.specRow}>
-          <MaterialCommunityIcons name="target" size={14} color={theme.colors.primary} />
+          <MaterialCommunityIcons name={isProviderChat ? 'store-outline' : 'target'} size={14} color={theme.colors.primary} />
           <Text style={[styles.spec, { color: theme.colors.onSurfaceVariant }]} numberOfLines={1}>
-            {thread.spec?.title || 'Spec date'}{thread.date_code ? ` • ${thread.date_code}` : ''}
+            {isProviderChat ? 'Provider chat' : (thread.spec?.title || 'Spec date')}{thread.date_code ? ` • ${thread.date_code}` : ''}
           </Text>
         </View>
 

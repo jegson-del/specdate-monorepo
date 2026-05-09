@@ -10,16 +10,20 @@ return new class extends Migration
     {
         Schema::create('chat_threads', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('spec_date_id')->constrained('spec_dates')->cascadeOnDelete();
-            $table->foreignId('spec_id')->constrained('specs')->cascadeOnDelete();
+            $table->string('type')->default('match');
+            $table->foreignId('spec_date_id')->nullable()->constrained('spec_dates')->cascadeOnDelete();
+            $table->foreignId('spec_id')->nullable()->constrained('specs')->cascadeOnDelete();
             $table->foreignId('owner_id')->constrained('users')->cascadeOnDelete();
             $table->foreignId('winner_user_id')->constrained('users')->cascadeOnDelete();
+            $table->foreignId('customer_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('provider_id')->nullable()->constrained('users')->nullOnDelete();
             $table->unsignedBigInteger('last_message_id')->nullable();
             $table->timestamp('last_message_at')->nullable();
             $table->timestamps();
 
             $table->unique('spec_date_id');
             $table->index(['owner_id', 'winner_user_id']);
+            $table->unique(['type', 'customer_id', 'provider_id']);
         });
 
         Schema::create('chat_messages', function (Blueprint $table) {

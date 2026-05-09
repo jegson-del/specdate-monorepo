@@ -7,10 +7,13 @@ use Illuminate\Database\Eloquent\Model;
 class ChatThread extends Model
 {
     protected $fillable = [
+        'type',
         'spec_date_id',
         'spec_id',
         'owner_id',
         'winner_user_id',
+        'customer_id',
+        'provider_id',
         'last_message_id',
         'last_message_at',
     ];
@@ -37,6 +40,16 @@ class ChatThread extends Model
     public function winner()
     {
         return $this->belongsTo(User::class, 'winner_user_id');
+    }
+
+    public function customer()
+    {
+        return $this->belongsTo(User::class, 'customer_id');
+    }
+
+    public function provider()
+    {
+        return $this->belongsTo(User::class, 'provider_id');
     }
 
     public function messages()

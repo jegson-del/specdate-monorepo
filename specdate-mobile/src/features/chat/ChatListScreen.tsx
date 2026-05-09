@@ -30,7 +30,7 @@ export default function ChatListScreen({ navigation }: any) {
         <IconButton icon="arrow-left" size={24} onPress={() => navigation.goBack()} />
         <View style={styles.headerText}>
           <Text style={[styles.title, { color: theme.colors.onSurface }]}>Messages</Text>
-          <Text style={[styles.subtitle, { color: theme.colors.onSurfaceVariant }]}>Chats from confirmed dates</Text>
+          <Text style={[styles.subtitle, { color: theme.colors.onSurfaceVariant }]}>Chats from dates and providers</Text>
         </View>
       </View>
 
@@ -52,7 +52,7 @@ export default function ChatListScreen({ navigation }: any) {
               </View>
               <Text style={[styles.emptyTitle, { color: theme.colors.onSurface }]}>No chats yet</Text>
               <Text style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
-                When a spec quest becomes a date, your private chat will appear here.
+                When a spec quest becomes a date or you message a provider, your chat will appear here.
               </Text>
             </View>
           )

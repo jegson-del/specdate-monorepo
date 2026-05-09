@@ -21,8 +21,11 @@ export type ChatMedia = {
 
 export type ChatThread = {
   id: number;
-  spec_date_id: number;
-  spec_id: number;
+  type?: 'match' | 'provider' | string;
+  spec_date_id?: number | null;
+  spec_id?: number | null;
+  customer_id?: number | null;
+  provider_id?: number | null;
   date_code?: string | null;
   spec?: {
     id: number;
@@ -65,6 +68,11 @@ export const ChatService = {
       data: { thread: ChatThread; messages: ChatMessage[] };
       message: string;
     };
+  },
+
+  async openProviderThread(providerId: number | string) {
+    const response = await api.post(`/providers/${providerId}/chat`);
+    return response.data as { success: boolean; data: ChatThread; message: string };
   },
 
   async sendMessage(threadId: number | string, body: string, mediaId?: number) {

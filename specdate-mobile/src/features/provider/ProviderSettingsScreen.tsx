@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Button, IconButton, Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -86,7 +86,7 @@ export default function ProviderSettingsScreen({ navigation }: any) {
 
         <TouchableOpacity
           activeOpacity={0.86}
-          onPress={() => Alert.alert('Contact support', 'Provider support messaging will be connected to admin replies.')}
+          onPress={() => navigation.navigate('SupportTickets')}
           style={[styles.supportCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.primary + '40' }]}
         >
           <MaterialCommunityIcons name="headset" size={22} color={theme.colors.primary} />

@@ -71,4 +71,20 @@ describe('ChatSafetySheet', () => {
     expect(screen.getByText('Report answer')).toBeTruthy();
     expect(screen.getByText('Report media')).toBeTruthy();
   });
+
+  it('uses custom labels for provider chat safety actions', () => {
+    const screen = render(
+      <ChatSafetySheet
+        visible
+        mode="actions"
+        title="Nile Bites"
+        onDismiss={jest.fn()}
+        userReportLabel="Report provider"
+        userBlockLabel="Block provider"
+      />
+    );
+
+    expect(screen.getByText('Report provider')).toBeTruthy();
+    expect(screen.getByText('Block provider')).toBeTruthy();
+  });
 });

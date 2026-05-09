@@ -144,7 +144,7 @@ export default function ChatThreadScreen({ route, navigation }: any) {
       queryClient.invalidateQueries({ queryKey: ['user'] });
       setSafetySheet({
         mode: 'success',
-        title: 'User blocked',
+        title: 'Blocked',
         subtitle: `${safetySheet.name} cannot message you or view your profile now.`,
         afterDismiss: () => navigation.goBack(),
       });
@@ -281,7 +281,11 @@ export default function ChatThreadScreen({ route, navigation }: any) {
   const thread = payload?.thread;
   const messages = payload?.messages || [];
   const avatar = toImageUri(thread?.other_user?.avatar);
-  const name = thread?.other_user?.name || 'Your match';
+  const isProviderChat = thread?.type === 'provider';
+  const currentUserIsProvider = isProviderChat && Number(thread?.provider_id) === Number(user?.id);
+  const otherPartyLabel = isProviderChat ? (currentUserIsProvider ? 'customer' : 'provider') : 'user';
+  const otherPartyTitle = otherPartyLabel.charAt(0).toUpperCase() + otherPartyLabel.slice(1);
+  const name = thread?.other_user?.name || (isProviderChat ? otherPartyTitle : 'Your match');
 
   return (
     <KeyboardAvoidingView
@@ -299,7 +303,7 @@ export default function ChatThreadScreen({ route, navigation }: any) {
         <View style={styles.headerText}>
           <Text style={[styles.name, { color: theme.colors.onSurface }]} numberOfLines={1}>{name}</Text>
           <Text style={[styles.spec, { color: theme.colors.onSurfaceVariant }]} numberOfLines={1}>
-            {thread?.spec?.title || 'Spec date'}{thread?.date_code ? ` • ${thread.date_code}` : ''}
+            {isProviderChat ? 'Provider chat' : (thread?.spec?.title || 'Spec date')}{thread?.date_code ? ` • ${thread.date_code}` : ''}
           </Text>
         </View>
         <IconButton
@@ -336,7 +340,7 @@ export default function ChatThreadScreen({ route, navigation }: any) {
             <View style={styles.empty}>
               <Text style={[styles.emptyTitle, { color: theme.colors.onSurface }]}>Say hello</Text>
               <Text style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
-                This chat opens after a confirmed spec date.
+                {isProviderChat ? 'Start the conversation about your venue or booking.' : 'This chat opens after a confirmed spec date.'}
               </Text>
             </View>
           ) : null
@@ -383,7 +387,7 @@ export default function ChatThreadScreen({ route, navigation }: any) {
             : safetySheet?.mode === 'report'
               ? `Report ${safetySheet.label}?`
               : safetySheet?.mode === 'block'
-                ? `Block ${safetySheet.name}?`
+                ? `Block ${otherPartyLabel}?`
                 : safetySheet?.title ?? ''
         }
         subtitle={
@@ -394,7 +398,7 @@ export default function ChatThreadScreen({ route, navigation }: any) {
             : safetySheet?.mode === 'report'
               ? 'Choose the reason. Our moderation team will review it.'
               : safetySheet?.mode === 'block'
-                ? 'They will not be able to message you or view your profile. You will not see their profile either.'
+                ? `This ${otherPartyLabel} will not be able to message you or view your profile. You will not see their profile either.`
                 : safetySheet?.subtitle
         }
         loading={safetyLoading}
@@ -405,7 +409,7 @@ export default function ChatThreadScreen({ route, navigation }: any) {
           openReportSheet({
             targetType: 'user',
             targetId: safetySheet.userId,
-            label: 'user',
+            label: otherPartyLabel,
             userId: safetySheet.userId,
             name: safetySheet.name,
           });
@@ -415,6 +419,11 @@ export default function ChatThreadScreen({ route, navigation }: any) {
           openBlockSheet(safetySheet.userId, safetySheet.name);
         }}
         hasMedia={safetySheet?.mode === 'message_actions' ? Boolean(safetySheet.mediaId) : false}
+        userReportLabel={`Report ${otherPartyLabel}`}
+        userReportHelper={`Send this ${otherPartyLabel} profile to moderation for review`}
+        userBlockLabel={`Block ${otherPartyLabel}`}
+        userBlockHelper="Stop messages and hide each other from discovery"
+        blockConfirmLabel={`Block ${otherPartyLabel}`}
         onReportMessage={() => {
           if (safetySheet?.mode !== 'message_actions') return;
           openReportSheet({

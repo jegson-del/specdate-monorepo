@@ -21,6 +21,18 @@ class ChatController extends Controller
         return $this->sendResponse($threads, 'Chats retrieved successfully.');
     }
 
+    public function openProviderThread(Request $request, int $provider)
+    {
+        try {
+            $thread = $this->chatService->ensureThreadForProvider($request->user(), $provider);
+            $payload = $this->chatService->getThread($request->user(), $thread->id);
+
+            return $this->sendResponse($payload['thread'], 'Provider chat opened successfully.', 201);
+        } catch (HttpException $e) {
+            return $this->sendError($e->getMessage(), [], $e->getStatusCode());
+        }
+    }
+
     public function show(Request $request, int $thread)
     {
         try {

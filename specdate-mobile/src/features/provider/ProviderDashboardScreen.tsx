@@ -302,7 +302,7 @@ export default function ProviderDashboardScreen({ navigation }: any) {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={[styles.topBar, { paddingTop: insets.top + 12, backgroundColor: theme.colors.primary }]}>
         <View style={styles.topBarTitleWrap}>
-          <Text style={styles.topBarEyebrow}>Provider</Text>
+      
           <Text style={styles.topBarTitle} numberOfLines={1}>
             {companyName || 'Dashboard'}
           </Text>
@@ -318,7 +318,7 @@ export default function ProviderDashboardScreen({ navigation }: any) {
         <TouchableOpacity
           activeOpacity={0.8}
           style={styles.headerIconButton}
-          onPress={() => Alert.alert('Provider messages', 'Provider message threads will appear here when provider chat is enabled.')}
+          onPress={() => navigation.navigate('Messages')}
         >
           <MaterialCommunityIcons name="message-text-outline" size={22} color="#fff" />
           {counts.unread_messages > 0 ? <Text style={styles.headerBadge}>{counts.unread_messages}</Text> : null}
@@ -883,7 +883,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     marginTop: 12,
   },
-  inlineEditText: { color: '#FFFFFF', fontSize: 12, fontWeight: '800' },
+  inlineEditText: { fontSize: 12, fontWeight: '800', color:"#FFFFFF" },
   addressRow: {
     flexDirection: 'row',
     alignItems: 'center',

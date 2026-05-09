@@ -15,6 +15,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ImageViewerModal } from '../profile/components';
 import { AddReviewModal, SeeAllReviewsModal } from './components';
 import { getMockReviewsForProvider } from './mockReviews';
+import { ChatService } from '../../services/chat';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const GALLERY_ITEM_SIZE = 72;
@@ -23,7 +24,8 @@ const GALLERY_GAP = 8;
 type ProviderCategory = 'Restaurant' | 'Cafe' | 'Cinema' | 'Activity' | 'Lounge';
 
 export type ProviderItem = {
-  id: string;
+  id: string | number;
+  user_id?: number | string | null;
   name: string;
   category: ProviderCategory;
   city: string;
@@ -111,13 +113,14 @@ export default function ProviderDetailScreen({ route, navigation }: any) {
   const detail = useMemo(() => (provider ? getDetail(provider) : null), [provider]);
 
   const baseReviews = useMemo(
-    () => getMockReviewsForProvider(provider?.id),
+    () => getMockReviewsForProvider(provider?.id != null ? String(provider.id) : undefined),
     [provider?.id]
   );
   const [userReviews, setUserReviews] = useState<ProviderReview[]>([]);
   const reviews = useMemo(() => [...userReviews, ...baseReviews], [userReviews, baseReviews]);
 
   const [submitting, setSubmitting] = useState(false);
+  const [openingChat, setOpeningChat] = useState(false);
 
   const [galleryViewerVisible, setGalleryViewerVisible] = useState(false);
   const [galleryInitialIndex, setGalleryInitialIndex] = useState(0);
@@ -156,11 +159,22 @@ export default function ProviderDetailScreen({ route, navigation }: any) {
     );
   };
 
-  const handleMessageProvider = () => {
-    Alert.alert(
-      'Message provider',
-      'Provider messaging will open here when provider chat threads are enabled.'
-    );
+  const handleMessageProvider = async () => {
+    const providerUserId = provider?.user_id ?? (/^\d+$/.test(String(provider?.id)) ? provider?.id : null);
+    if (!providerUserId) {
+      Alert.alert('Provider chat unavailable', 'This provider needs a live provider account before chat can open.');
+      return;
+    }
+
+    try {
+      setOpeningChat(true);
+      const response = await ChatService.openProviderThread(providerUserId);
+      navigation.navigate('ChatThread', { threadId: response.data.id });
+    } catch (error: any) {
+      Alert.alert('Could not open chat', error?.response?.data?.message || 'Please try again.');
+    } finally {
+      setOpeningChat(false);
+    }
   };
 
   const handleSubmitReview = (rating: number, text: string) => {
@@ -362,10 +376,13 @@ export default function ProviderDetailScreen({ route, navigation }: any) {
             <TouchableOpacity
               activeOpacity={0.8}
               onPress={handleMessageProvider}
+              disabled={openingChat}
               style={[styles.secondaryButton, { borderColor: theme.colors.primary }]}
             >
               <MaterialCommunityIcons name="message-text-outline" size={18} color={theme.colors.primary} />
-              <Text style={[styles.secondaryButtonText, { color: theme.colors.primary }]}>Message provider</Text>
+              <Text style={[styles.secondaryButtonText, { color: theme.colors.primary }]}>
+                {openingChat ? 'Opening...' : 'Message provider'}
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               activeOpacity={0.8}

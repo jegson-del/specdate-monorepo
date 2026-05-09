@@ -41,7 +41,9 @@ class MeController extends Controller
             ->where('sender_id', '!=', $user->id)
             ->whereHas('thread', function ($q) use ($user) {
                 $q->where('owner_id', $user->id)
-                    ->orWhere('winner_user_id', $user->id);
+                    ->orWhere('winner_user_id', $user->id)
+                    ->orWhere('customer_id', $user->id)
+                    ->orWhere('provider_id', $user->id);
             })
             ->count();
 

@@ -22,9 +22,35 @@ class ChatService
         return ChatThread::firstOrCreate(
             ['spec_date_id' => $date->id],
             [
+                'type' => 'match',
                 'spec_id' => $date->spec_id,
                 'owner_id' => $date->owner_id,
                 'winner_user_id' => $date->winner_user_id,
+            ]
+        );
+    }
+
+    public function ensureThreadForProvider(User $customer, int $providerId): ChatThread
+    {
+        $provider = User::where('role', 'provider')->findOrFail($providerId);
+
+        if ((int) $customer->id === (int) $provider->id) {
+            throw new HttpException(422, 'You cannot message yourself as a provider.');
+        }
+
+        if ($this->blockService->hasBlockBetween((int) $customer->id, (int) $provider->id)) {
+            throw new HttpException(403, 'This chat is unavailable because one of you blocked the other user.');
+        }
+
+        return ChatThread::firstOrCreate(
+            [
+                'type' => 'provider',
+                'customer_id' => $customer->id,
+                'provider_id' => $provider->id,
+            ],
+            [
+                'owner_id' => $customer->id,
+                'winner_user_id' => $provider->id,
             ]
         );
     }
@@ -46,6 +72,8 @@ class ChatService
                 'winner:id,name,username',
                 'winner.profile',
                 'winner.media',
+                'customer:id,name,username',
+                'provider:id,name,username',
                 'lastMessage.sender:id,name,username',
             ])
             ->withCount(['messages as unread_count' => function ($q) use ($user) {
@@ -68,6 +96,8 @@ class ChatService
             'winner:id,name,username',
             'winner.profile',
             'winner.media',
+            'customer:id,name,username',
+            'provider:id,name,username',
         ])->findOrFail($threadId);
 
         $this->authorizeThread($thread, $user);
@@ -135,6 +165,7 @@ class ChatService
                 'chat_message',
                 [
                     'thread_id' => $thread->id,
+                    'thread_type' => $thread->type ?? 'match',
                     'spec_date_id' => $thread->spec_date_id,
                     'sender_id' => $user->id,
                 ],
@@ -186,8 +217,11 @@ class ChatService
 
         return [
             'id' => $thread->id,
+            'type' => $thread->type ?? 'match',
             'spec_date_id' => $thread->spec_date_id,
             'spec_id' => $thread->spec_id,
+            'customer_id' => $thread->customer_id,
+            'provider_id' => $thread->provider_id,
             'date_code' => $thread->specDate?->date_code,
             'spec' => $thread->spec,
             'other_user' => $other ? [

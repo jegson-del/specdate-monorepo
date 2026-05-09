@@ -34,6 +34,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/my-specs', [SpecController::class, 'mySpecs']);
     Route::get('/dates', [SpecController::class, 'myDates']);
     Route::get('/chats', [ChatController::class, 'index']);
+    Route::post('/providers/{provider}/chat', [ChatController::class, 'openProviderThread']);
     Route::get('/chats/{thread}', [ChatController::class, 'show']);
     Route::post('/chats/{thread}/messages', [ChatController::class, 'sendMessage']);
     Route::post('/chats/{thread}/read', [ChatController::class, 'markRead']);

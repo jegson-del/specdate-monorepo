@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ChatMessage;
 use App\Models\ProviderCategory;
 use App\Models\ProviderProfile;
 use App\Models\User;
@@ -47,7 +48,16 @@ class ProviderController extends Controller
             'gallery' => $gallery,
             'counts' => [
                 'unread_notifications' => $user->notifications()->whereNull('read_at')->count(),
-                'unread_messages' => 0,
+                'unread_messages' => ChatMessage::query()
+                    ->whereNull('read_at')
+                    ->where('sender_id', '!=', $user->id)
+                    ->whereHas('thread', function ($q) use ($user) {
+                        $q->where('owner_id', $user->id)
+                            ->orWhere('winner_user_id', $user->id)
+                            ->orWhere('customer_id', $user->id)
+                            ->orWhere('provider_id', $user->id);
+                    })
+                    ->count(),
                 'pending_bookings' => 0,
             ],
             'upcoming_bookings' => [],
