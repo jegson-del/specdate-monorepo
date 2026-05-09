@@ -34,12 +34,11 @@ export default function QRScannerScreen({ navigation }: any) {
         setLoading(true);
 
         try {
-            // Assuming QR code contains just the code string
-            const response = await api.post('/provider/scan-qr', { code: data });
+            await api.post('/provider/scan-qr', { code: data });
 
             Alert.alert(
                 'Success!',
-                `Discount Code: ${data}\nRedeemed successfully!`,
+                'Voucher redeemed successfully.',
                 [
                     { text: 'Scan Another', onPress: () => { setScanned(false); setLoading(false); } },
                     { text: 'Done', onPress: () => navigation.goBack() }
@@ -47,7 +46,7 @@ export default function QRScannerScreen({ navigation }: any) {
             );
         } catch (error: any) {
             console.error('Scan error:', error);
-            const message = error.response?.data?.message || 'Invalid or already used code.';
+            const message = error.response?.data?.message || 'Invalid voucher code.';
             Alert.alert(
                 'Error',
                 message,
@@ -71,7 +70,7 @@ export default function QRScannerScreen({ navigation }: any) {
             <View style={StyleSheet.absoluteFillObject}>
                 <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
                     <IconButton icon="arrow-left" iconColor="#fff" size={30} onPress={() => navigation.goBack()} />
-                    <Text variant="titleLarge" style={{ color: '#fff', fontWeight: 'bold' }}>Scan Discount QR</Text>
+                    <Text variant="titleLarge" style={{ color: '#fff', fontWeight: 'bold' }}>Scan Voucher QR</Text>
                     <View style={{ width: 48 }} />
                 </View>
 

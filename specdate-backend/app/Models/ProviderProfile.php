@@ -20,7 +20,14 @@ class ProviderProfile extends Model
         'city',
         'country',
         'discount_percentage',
+        'minimum_spend',
+        'booking_required',
         'is_verified',
+    ];
+
+    protected $casts = [
+        'booking_required' => 'boolean',
+        'minimum_spend' => 'decimal:2',
     ];
 
     public function user()

@@ -30,6 +30,9 @@ export type ProviderItem = {
   price: '₦' | '₦₦' | '₦₦₦';
   rating: number;
   imageUrl: string;
+  minimumSpend?: number | null;
+  bookingRequired?: boolean;
+  discountPercentage?: number;
 };
 
 type ProviderDetail = {
@@ -41,6 +44,8 @@ type ProviderDetail = {
   menu?: { title: string; items: string[] };
   voucherTitle: string;
   voucherDescription: string;
+  minimumSpend?: number | null;
+  bookingRequired?: boolean;
 };
 
 export type ProviderReview = import('./components/SeeAllReviewsModal').ReviewItem;
@@ -63,6 +68,8 @@ const MOCK_DETAILS: Record<string, ProviderDetail> = {
     },
     voucherTitle: '15% off your first date',
     voucherDescription: 'DateUsher users get 15% off the total bill when you book through the app. Valid for two people, any day.',
+    minimumSpend: 15000,
+    bookingRequired: true,
   },
   p2: {
     mainImage: 'https://picsum.photos/seed/dateusher-provider-6/800/500',
@@ -75,6 +82,8 @@ const MOCK_DETAILS: Record<string, ProviderDetail> = {
     address: 'Plot 45, Maitama, Abuja',
     voucherTitle: 'Free dessert for two',
     voucherDescription: 'Book your date through DateUsher and enjoy a complimentary dessert platter with two drinks.',
+    minimumSpend: 25000,
+    bookingRequired: true,
   },
 };
 
@@ -88,7 +97,9 @@ function getDetail(provider: ProviderItem): ProviderDetail {
     description: `${provider.name} is a great choice for your date. Enjoy a relaxed atmosphere and quality service in ${provider.city}.`,
     address: `${provider.city}, Nigeria`,
     voucherTitle: 'DateUsher partner offer',
-    voucherDescription: 'Select this venue for your date and unlock an exclusive discount when you book through the app.',
+    voucherDescription: `Select this venue for your date and unlock ${provider.discountPercentage ?? 10}% off when you book through the app.`,
+    minimumSpend: provider.minimumSpend ?? null,
+    bookingRequired: provider.bookingRequired ?? false,
   };
 }
 
@@ -142,6 +153,13 @@ export default function ProviderDetailScreen({ route, navigation }: any) {
         { text: 'Cancel' },
         { text: 'Continue', onPress: () => navigation.goBack() },
       ]
+    );
+  };
+
+  const handleMessageProvider = () => {
+    Alert.alert(
+      'Message provider',
+      'Provider messaging will open here when provider chat threads are enabled.'
     );
   };
 
@@ -253,6 +271,26 @@ export default function ProviderDetailScreen({ route, navigation }: any) {
             <Text style={[styles.addressText, { color: theme.colors.onSurface }]}>{detail.address}</Text>
           </View>
 
+          <SectionTitle theme={theme}>Booking terms</SectionTitle>
+          <View style={[styles.bookingTermsCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outline }]}>
+            <View style={styles.termsRow}>
+              <MaterialCommunityIcons name="cash-multiple" size={22} color={theme.colors.primary} />
+              <Text style={[styles.termsText, { color: theme.colors.onSurface }]}>
+                {detail.minimumSpend ? `Minimum spend ₦${detail.minimumSpend.toLocaleString()}` : 'No minimum spend'}
+              </Text>
+            </View>
+            <View style={styles.termsRow}>
+              <MaterialCommunityIcons
+                name={detail.bookingRequired ? 'calendar-check-outline' : 'calendar-remove-outline'}
+                size={22}
+                color={detail.bookingRequired ? '#16A34A' : theme.colors.onSurfaceVariant}
+              />
+              <Text style={[styles.termsText, { color: theme.colors.onSurface }]}>
+                {detail.bookingRequired ? 'Booking required before arrival' : 'Walk-ins allowed'}
+              </Text>
+            </View>
+          </View>
+
           {/* Menu (if available) */}
           {detail.menu && (
             <>
@@ -321,6 +359,14 @@ export default function ProviderDetailScreen({ route, navigation }: any) {
 
           {/* CTA: Select this venue for your date – custom primary button */}
           <View style={styles.ctaWrap}>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={handleMessageProvider}
+              style={[styles.secondaryButton, { borderColor: theme.colors.primary }]}
+            >
+              <MaterialCommunityIcons name="message-text-outline" size={18} color={theme.colors.primary} />
+              <Text style={[styles.secondaryButtonText, { color: theme.colors.primary }]}>Message provider</Text>
+            </TouchableOpacity>
             <TouchableOpacity
               activeOpacity={0.8}
               onPress={handleSelectProvider}
@@ -439,6 +485,17 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   primaryButtonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  secondaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 13,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  secondaryButtonText: { fontSize: 16, fontWeight: '700' },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '800',
@@ -454,6 +511,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   addressText: { fontSize: 15, flex: 1 },
+  bookingTermsCard: {
+    gap: 12,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  termsRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  termsText: { fontSize: 15, fontWeight: '700', flex: 1 },
   menuCard: {
     padding: 14,
     borderRadius: 12,
@@ -506,5 +571,5 @@ const styles = StyleSheet.create({
   reviewText: { fontSize: 14, lineHeight: 20, marginBottom: 6 },
   reviewDate: { fontSize: 12 },
   noReviews: { fontSize: 14, fontStyle: 'italic', marginBottom: 8 },
-  ctaWrap: { marginTop: 28, marginBottom: 16 },
+  ctaWrap: { gap: 10, marginTop: 28, marginBottom: 16 },
 });

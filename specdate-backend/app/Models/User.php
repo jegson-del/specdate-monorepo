@@ -90,11 +90,6 @@ class User extends Authenticatable
         return $this->hasOne(SparkSkin::class);
     }
 
-    public function discounts()
-    {
-        return $this->hasMany(Discount::class, 'provider_id');
-    }
-
     public function blockedUsers()
     {
         return $this->hasMany(BlockedUser::class, 'blocker_id');

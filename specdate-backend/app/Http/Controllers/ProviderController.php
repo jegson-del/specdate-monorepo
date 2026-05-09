@@ -2,13 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Discount;
 use App\Models\ProviderCategory;
 use App\Models\ProviderProfile;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Str;
 
 class ProviderController extends Controller
 {
@@ -31,17 +29,9 @@ class ProviderController extends Controller
             $profile = ProviderProfile::create([
                 'user_id' => $user->id,
                 'discount_percentage' => 10,
+                'booking_required' => false,
             ]);
         }
-
-        $discounts = Discount::where('provider_id', $user->id)
-            ->orderBy('created_at', 'desc')
-            ->get();
-
-        $stats = [
-            'total_discounts' => $discounts->count(),
-            'used_discounts' => $discounts->where('status', 'used')->count(),
-        ];
 
         $media = $user->media()->whereIn('type', ['avatar', 'provider_gallery'])->get();
         $avatar = $media->where('type', 'avatar')->last(); // Get latest avatar
@@ -55,8 +45,12 @@ class ProviderController extends Controller
         return response()->json([
             'profile' => $profile,
             'gallery' => $gallery,
-            'discounts' => $discounts,
-            'stats' => $stats,
+            'counts' => [
+                'unread_notifications' => $user->notifications()->whereNull('read_at')->count(),
+                'unread_messages' => 0,
+                'pending_bookings' => 0,
+            ],
+            'upcoming_bookings' => [],
         ]);
     }
 
@@ -82,6 +76,8 @@ class ProviderController extends Controller
             'city' => 'nullable|string',
             'country' => 'nullable|string',
             'discount_percentage' => 'required|integer|min:10|max:50',
+            'minimum_spend' => 'nullable|numeric|min:0|max:99999999.99',
+            'booking_required' => 'nullable|boolean',
             'categories' => 'nullable|array',
             'categories.*' => 'exists:provider_categories,id',
         ]);
@@ -102,6 +98,8 @@ class ProviderController extends Controller
             'city',
             'country',
             'discount_percentage',
+            'minimum_spend',
+            'booking_required',
         ]));
         $profile->save();
 
@@ -127,32 +125,9 @@ class ProviderController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        $request->validate([
-            'code' => 'required|string|exists:discounts,code',
-        ]);
-
-        $discount = Discount::where('code', $request->code)->first();
-
-        if ($discount->provider_id !== $user->id) {
-            return response()->json(['message' => 'This discount belongs to another provider'], 403);
-        }
-
-        if ($discount->status === 'used') {
-            return response()->json([
-                'message' => 'This discount has already been used',
-                'discount' => $discount
-            ], 409);
-        }
-
-        $discount->update([
-            'status' => 'used',
-            'used_at' => now(),
-        ]);
-
         return response()->json([
-            'message' => 'Discount redeemed successfully',
-            'discount' => $discount,
-        ]);
+            'message' => 'Voucher scanning will be available after date vouchers are enabled.',
+        ], 501);
     }
     
     /**

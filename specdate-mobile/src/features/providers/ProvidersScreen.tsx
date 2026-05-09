@@ -31,6 +31,9 @@ type ProviderItem = {
   price: '₦' | '₦₦' | '₦₦₦';
   rating: number;
   imageUrl: string;
+  minimumSpend?: number | null;
+  bookingRequired?: boolean;
+  discountPercentage?: number;
 };
 
 const MOCK_PROVIDERS: ProviderItem[] = [
@@ -203,7 +206,7 @@ export default function ProvidersScreen({ route, navigation }: any) {
                   item={item}
                   variant="grid"
                   theme={theme}
-                  onSelect={() => navigation.push('ProviderDetail', { provider: { id: item.id, name: item.name, category: item.category, city: item.city, price: item.price, rating: item.rating, imageUrl: item.imageUrl } })}
+                  onSelect={() => navigation.push('ProviderDetail', { provider: item })}
                 />
               ))}
               {row.length === 1 && <View style={{ width: GRID_CARD_WIDTH }} />}
@@ -266,7 +269,7 @@ export default function ProvidersScreen({ route, navigation }: any) {
                     item={item}
                     variant="strip"
                     theme={theme}
-                    onSelect={() => navigation.push('ProviderDetail', { provider: { id: item.id, name: item.name, category: item.category, city: item.city, price: item.price, rating: item.rating, imageUrl: item.imageUrl } })}
+                    onSelect={() => navigation.push('ProviderDetail', { provider: item })}
                   />
                 )}
               />

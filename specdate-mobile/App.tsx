@@ -20,7 +20,9 @@ import HomeScreen from './src/features/home/HomeScreen';
 import ProvidersScreen from './src/features/providers/ProvidersScreen';
 import ProviderDetailScreen from './src/features/providers/ProviderDetailScreen';
 import ProviderDashboardScreen from './src/features/provider/ProviderDashboardScreen';
-import ProviderDiscountListScreen from './src/features/provider/ProviderDiscountListScreen';
+import ProviderBookingsScreen from './src/features/provider/ProviderBookingsScreen';
+import ProviderReviewsScreen from './src/features/provider/ProviderReviewsScreen';
+import ProviderSettingsScreen from './src/features/provider/ProviderSettingsScreen';
 import QRScannerScreen from './src/features/provider/QRScannerScreen';
 import CreateSpecScreen from './src/features/specs/CreateSpecScreen';
 import SpecDetailsScreen from './src/features/specs/SpecDetailsScreen';
@@ -124,7 +126,9 @@ export default function App() {
               <Stack.Screen name="ProviderDetail" component={ProviderDetailScreen} />
 
               <Stack.Screen name="ProviderDashboard" component={ProviderDashboardScreen} />
-              <Stack.Screen name="ProviderDiscountList" component={ProviderDiscountListScreen} />
+              <Stack.Screen name="ProviderBookings" component={ProviderBookingsScreen} />
+              <Stack.Screen name="ProviderReviews" component={ProviderReviewsScreen} />
+              <Stack.Screen name="ProviderSettings" component={ProviderSettingsScreen} />
               <Stack.Screen name="QRScanner" component={QRScannerScreen} />
 
               <Stack.Screen name="Notifications" component={NotificationsScreen} />
