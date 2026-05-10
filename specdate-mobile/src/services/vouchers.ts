@@ -1,7 +1,7 @@
 import { api } from './api';
 import type { ProviderMarketplaceItem } from './providers';
 
-export type DateVoucherStatus = 'pending_provider' | 'active' | 'rejected' | 'redeemed' | 'cancelled' | 'expired';
+export type DateVoucherStatus = 'pending_provider' | 'active' | 'rejected' | 'redeemed' | 'cancelled' | 'completed' | 'expired';
 
 export type DateVoucherUser = {
   id: number;
@@ -32,6 +32,9 @@ export type DateVoucherItem = {
   date?: {
     id: number;
     date_code: string;
+    date_number?: number;
+    date_label?: string;
+    status?: string;
     is_owner: boolean;
     spec?: {
       id: number;
@@ -93,6 +96,11 @@ export const VoucherService = {
   async getProviderBookings(params?: { page?: number; per_page?: number }) {
     const response = await api.get('/provider/bookings', { params });
     return response.data as { success: boolean; data: PaginatedDateVouchers; message: string };
+  },
+
+  async previewProviderScan(code: string) {
+    const response = await api.post('/provider/scan-qr/preview', { code: code.trim() });
+    return response.data as { success: boolean; data: DateVoucherItem; message: string };
   },
 
   async approve(voucherId: number | string) {

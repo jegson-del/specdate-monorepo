@@ -13,8 +13,11 @@ const statusLabels: Record<string, string> = {
   rejected: 'Rejected',
   redeemed: 'Redeemed',
   cancelled: 'Cancelled',
+  completed: 'Completed',
   expired: 'Expired',
 };
+
+const terminalStatuses = ['redeemed', 'cancelled', 'completed', 'expired', 'rejected'];
 
 export default function DateVoucherDetailScreen({ route, navigation }: any) {
   const theme = useTheme();
@@ -36,6 +39,8 @@ export default function DateVoucherDetailScreen({ route, navigation }: any) {
       </View>
     );
   }
+  const isRedeemed = voucher.status === 'redeemed';
+  const isTerminal = terminalStatuses.includes(voucher.status);
 
   const copyCode = async () => {
     try {
@@ -87,8 +92,8 @@ export default function DateVoucherDetailScreen({ route, navigation }: any) {
         showsVerticalScrollIndicator={false}
       >
         <View style={[styles.hero, { backgroundColor: theme.colors.primary }]}>
-          <MaterialCommunityIcons name="ticket-percent-outline" size={34} color="#fff" />
-          <Text style={styles.heroTitle}>{voucher.discount_percentage}% off</Text>
+          <MaterialCommunityIcons name={isRedeemed ? 'check-decagram' : 'ticket-percent-outline'} size={34} color="#fff" />
+          <Text style={styles.heroTitle}>{isRedeemed ? 'Redeemed' : `${voucher.discount_percentage}% off`}</Text>
           <Text style={styles.heroText}>{voucher.provider?.name || 'Date provider'}</Text>
         </View>
 
@@ -116,25 +121,53 @@ export default function DateVoucherDetailScreen({ route, navigation }: any) {
           />
         </View>
 
-        <View style={[styles.codeCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outline }]}>
-          <View style={styles.qrWrap}>
-            <QRCode value={voucher.qr_token || voucher.voucher_code} size={220} quietZone={12} />
-          </View>
-          <View style={styles.codeCopy}>
-            <Text style={[styles.codeTitle, { color: theme.colors.onSurface }]}>Provider scan code</Text>
-            <Text style={[styles.codeText, { color: theme.colors.onSurfaceVariant }]}>
-              Ask the provider to scan this voucher or confirm the code before applying your discount.
+        {isTerminal ? (
+          <View style={[styles.closedCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outline }]}>
+            <View style={[styles.closedIcon, { backgroundColor: isRedeemed ? '#16A34A' : '#64748B' }]}>
+              <MaterialCommunityIcons name={isRedeemed ? 'check' : 'lock-outline'} size={32} color="#fff" />
+            </View>
+            <Text style={[styles.codeTitle, { color: theme.colors.onSurface }]}>
+              {isRedeemed ? 'Voucher redeemed' : statusLabels[voucher.status] ?? 'Voucher closed'}
             </Text>
+            <Text style={[styles.codeText, { color: theme.colors.onSurfaceVariant }]}>
+              {isRedeemed
+                ? 'This voucher has already been used for this date. It cannot be scanned or booked again.'
+                : 'This voucher is closed and cannot be used for a provider booking.'}
+            </Text>
+            {voucher.redeemed_at ? (
+              <Text style={[styles.closedMeta, { color: theme.colors.onSurface }]}>
+                Redeemed {new Date(voucher.redeemed_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+              </Text>
+            ) : null}
+            {voucher.total_spent != null ? (
+              <Text style={[styles.closedMeta, { color: theme.colors.onSurface }]}>
+                Visit spend: NGN {Number(voucher.total_spent).toLocaleString()}
+              </Text>
+            ) : null}
           </View>
-          <Text style={[styles.bigCode, { color: theme.colors.primary }]}>{voucher.voucher_code}</Text>
-        </View>
+        ) : (
+          <View style={[styles.codeCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outline }]}>
+            <View style={styles.qrWrap}>
+              <QRCode value={voucher.qr_token || voucher.voucher_code} size={220} quietZone={12} />
+            </View>
+            <View style={styles.codeCopy}>
+              <Text style={[styles.codeTitle, { color: theme.colors.onSurface }]}>Provider scan code</Text>
+              <Text style={[styles.codeText, { color: theme.colors.onSurfaceVariant }]}>
+                Ask the provider to scan this voucher or confirm the code before applying your discount.
+              </Text>
+            </View>
+            <Text style={[styles.bigCode, { color: theme.colors.primary }]}>{voucher.voucher_code}</Text>
+          </View>
+        )}
 
         <Button mode="outlined" icon="content-copy" onPress={copyCode} style={styles.button}>
           Copy voucher code
         </Button>
-        <Button mode="contained" icon="phone" onPress={callProvider} style={styles.button}>
-          Book with provider
-        </Button>
+        {!isTerminal ? (
+          <Button mode="contained" icon="phone" onPress={callProvider} style={styles.button}>
+            Book with provider
+          </Button>
+        ) : null}
       </ScrollView>
     </View>
   );
@@ -168,6 +201,9 @@ const styles = StyleSheet.create({
   infoLabel: { fontSize: 11, fontWeight: '900', textTransform: 'uppercase' },
   infoValue: { fontSize: 15, fontWeight: '800', marginTop: 2 },
   codeCard: { alignItems: 'center', padding: 16, borderRadius: 14, borderWidth: 1 },
+  closedCard: { alignItems: 'center', padding: 20, borderRadius: 14, borderWidth: 1, gap: 8 },
+  closedIcon: { width: 64, height: 64, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  closedMeta: { fontSize: 13, fontWeight: '900', marginTop: 2 },
   qrWrap: { padding: 8, borderRadius: 10, backgroundColor: '#FFFFFF' },
   codeCopy: { alignItems: 'center', marginTop: 8 },
   codeTitle: { fontSize: 16, fontWeight: '900' },

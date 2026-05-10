@@ -173,13 +173,17 @@ class DateVoucherService
             throw new HttpException(422, 'This voucher has expired.');
         }
 
-        $voucher->update([
-            'status' => DateVoucher::STATUS_REDEEMED,
-            'redeemed_at' => now(),
-            'redeemed_by_provider_user_id' => $providerUser->id,
-            'total_spent' => $totalSpent,
-            'spend_recorded_at' => $totalSpent !== null ? now() : null,
-        ]);
+        DB::transaction(function () use ($voucher, $providerUser, $totalSpent) {
+            $voucher->update([
+                'status' => DateVoucher::STATUS_REDEEMED,
+                'redeemed_at' => now(),
+                'redeemed_by_provider_user_id' => $providerUser->id,
+                'total_spent' => $totalSpent,
+                'spend_recorded_at' => $totalSpent !== null ? now() : null,
+            ]);
+
+            $voucher->specDate?->update(['status' => SpecDate::STATUS_COMPLETED]);
+        });
 
         $this->notifyMatchedUsers(
             $voucher->fresh($this->voucherRelations()),
@@ -187,6 +191,28 @@ class DateVoucherService
             'Date voucher redeemed',
             'Your provider confirmed that you attended this date. Share a quick review when you can.'
         );
+
+        return $voucher->fresh($this->voucherRelations());
+    }
+
+    public function previewScan(User $providerUser, string $code): DateVoucher
+    {
+        if ($providerUser->role !== 'provider') {
+            throw new HttpException(403, 'Provider access required.');
+        }
+
+        $voucher = DateVoucher::with($this->voucherRelations())
+            ->where('voucher_code', $code)
+            ->orWhere('qr_token', $code)
+            ->firstOrFail();
+
+        if ((int) $voucher->providerProfile?->user_id !== (int) $providerUser->id) {
+            throw new HttpException(403, 'This voucher belongs to another provider.');
+        }
+
+        if ($voucher->status === DateVoucher::STATUS_ACTIVE && $voucher->expires_at && $voucher->expires_at->isPast()) {
+            $voucher->update(['status' => DateVoucher::STATUS_EXPIRED]);
+        }
 
         return $voucher->fresh($this->voucherRelations());
     }
@@ -310,6 +336,9 @@ class DateVoucherService
         return [
             'id' => $date->id,
             'date_code' => $date->date_code,
+            'date_number' => (int) ($date->date_number ?: 1),
+            'date_label' => $this->dateOrdinal((int) ($date->date_number ?: 1)) . ' date',
+            'status' => $date->status ?: SpecDate::STATUS_ACTIVE,
             'is_owner' => (int) $date->owner_id === (int) $viewer->id,
             'spec' => $date->spec,
         ];
@@ -377,5 +406,13 @@ class DateVoucherService
         } while (DateVoucher::where('qr_token', $token)->exists());
 
         return $token;
+    }
+
+    private function dateOrdinal(int $number): string
+    {
+        if ($number === 1) return 'First';
+        if ($number === 2) return 'Second';
+        if ($number === 3) return 'Third';
+        return "{$number}th";
     }
 }

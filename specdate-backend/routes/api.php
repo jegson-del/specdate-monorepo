@@ -38,6 +38,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/providers/{provider}', [ProviderController::class, 'show']);
     Route::get('/my-specs', [SpecController::class, 'mySpecs']);
     Route::get('/dates', [SpecController::class, 'myDates']);
+    Route::post('/dates/{date}/follow-up', [SpecController::class, 'scheduleFollowUpDate']);
     Route::get('/date-vouchers', [DateVoucherController::class, 'index']);
     Route::post('/date-vouchers/preview', [DateVoucherController::class, 'preview']);
     Route::post('/date-vouchers', [DateVoucherController::class, 'store']);
@@ -97,6 +98,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/bookings/{voucher}/approve', [DateVoucherController::class, 'approve']);
         Route::post('/bookings/{voucher}/reject', [DateVoucherController::class, 'reject']);
         Route::post('/settings', [ProviderController::class, 'updateSettings']);
+        Route::post('/scan-qr/preview', [DateVoucherController::class, 'scanPreview']);
         Route::post('/scan-qr', [ProviderController::class, 'scanQRCode']);
         Route::get('/categories', [ProviderController::class, 'getCategories']);
     });

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Spec;
 use App\Models\SpecApplication;
+use App\Models\SpecDate;
 use App\Models\SpecRound;
 use App\Models\SpecRoundAnswer;
 use App\Models\User;
@@ -79,6 +80,42 @@ class SpecLastManStandingTest extends TestCase
         $this->expectExceptionMessage('Insufficient credits. Please purchase more.');
 
         app(SpecService::class)->extendSearch($owner, $spec->id);
+    }
+
+    public function test_user_can_schedule_follow_up_after_completed_date(): void
+    {
+        [$owner, $winner, $spec] = $this->createLastManStandingSpec();
+        UserBalance::create(['user_id' => $winner->id, 'credits' => 2]);
+        app(SpecService::class)->createDate($owner, $spec->id);
+        $firstDate = SpecDate::where('spec_id', $spec->id)->firstOrFail();
+        $firstDate->update(['status' => SpecDate::STATUS_COMPLETED]);
+
+        $result = app(SpecService::class)->scheduleFollowUpDate($winner, $firstDate->id);
+
+        $this->assertSame(1, $result['balance']['credits']);
+        $this->assertSame(2, $result['date']['date_number']);
+        $this->assertSame('Second date', $result['date']['date_label']);
+        $this->assertNotSame($firstDate->date_code, $result['date']['date_code']);
+        $this->assertDatabaseHas('spec_dates', [
+            'root_spec_date_id' => $firstDate->id,
+            'parent_spec_date_id' => $firstDate->id,
+            'date_number' => 2,
+            'scheduled_by_user_id' => $winner->id,
+            'status' => SpecDate::STATUS_ACTIVE,
+        ]);
+    }
+
+    public function test_follow_up_is_blocked_while_latest_date_is_active(): void
+    {
+        [$owner, , $spec] = $this->createLastManStandingSpec();
+        UserBalance::create(['user_id' => $owner->id, 'credits' => 2]);
+        app(SpecService::class)->createDate($owner, $spec->id);
+        $firstDate = SpecDate::where('spec_id', $spec->id)->firstOrFail();
+
+        $this->expectException(HttpException::class);
+        $this->expectExceptionMessage('You can schedule another date after the current date is completed or cancelled.');
+
+        app(SpecService::class)->scheduleFollowUpDate($owner, $firstDate->id);
     }
 
     private function createLastManStandingSpec(): array

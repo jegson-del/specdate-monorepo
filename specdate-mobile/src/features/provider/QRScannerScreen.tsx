@@ -5,6 +5,45 @@ import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '../../services/api';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { DateVoucherItem, VoucherService } from '../../services/vouchers';
+const statusCopy: Record<string, { title: string; icon: keyof typeof MaterialCommunityIcons.glyphMap; color: string; body: string }> = {
+    redeemed: {
+        title: 'Voucher already redeemed',
+        icon: 'check-decagram',
+        color: '#16A34A',
+        body: 'This voucher has already been used. There is no further action needed.',
+    },
+    cancelled: {
+        title: 'Voucher cancelled',
+        icon: 'calendar-remove-outline',
+        color: '#64748B',
+        body: 'This voucher is cancelled and cannot be redeemed.',
+    },
+    completed: {
+        title: 'Date completed',
+        icon: 'check-circle-outline',
+        color: '#16A34A',
+        body: 'This date has already been completed.',
+    },
+    expired: {
+        title: 'Voucher expired',
+        icon: 'timer-off-outline',
+        color: '#7C3AED',
+        body: 'This voucher has expired and cannot be redeemed.',
+    },
+    rejected: {
+        title: 'Voucher rejected',
+        icon: 'close-circle-outline',
+        color: '#EF4444',
+        body: 'This voucher request was rejected and cannot be redeemed.',
+    },
+    pending_provider: {
+        title: 'Booking pending',
+        icon: 'calendar-clock',
+        color: '#F59E0B',
+        body: 'This booking still needs provider approval before redemption.',
+    },
+};
 
 export default function QRScannerScreen({ navigation }: any) {
     const theme = useTheme();
@@ -15,6 +54,8 @@ export default function QRScannerScreen({ navigation }: any) {
     const [manualCode, setManualCode] = useState('');
     const [pendingCode, setPendingCode] = useState('');
     const [spendModalVisible, setSpendModalVisible] = useState(false);
+    const [statusModalVisible, setStatusModalVisible] = useState(false);
+    const [scanResult, setScanResult] = useState<DateVoucherItem | null>(null);
     const [totalSpent, setTotalSpent] = useState('');
 
     if (!permission) {
@@ -31,18 +72,36 @@ export default function QRScannerScreen({ navigation }: any) {
         );
     }
 
-    const redeemCode = (code: string) => {
+    const redeemCode = async (code: string) => {
         if (scanned || loading) return;
 
         const trimmed = code.trim();
         if (!trimmed) return;
         setScanned(true);
-        setPendingCode(trimmed);
-        setSpendModalVisible(true);
+        setLoading(true);
+        try {
+            const preview = await VoucherService.previewProviderScan(trimmed);
+            const voucher = preview.data;
+            setScanResult(voucher);
+            if (voucher.status === 'active') {
+                setPendingCode(trimmed);
+                setSpendModalVisible(true);
+            } else {
+                setStatusModalVisible(true);
+            }
+        } catch (error: any) {
+            Alert.alert('Voucher not found', error?.response?.data?.message || 'Invalid voucher code.', [
+                { text: 'Try Again', onPress: resetPendingRedemption },
+            ]);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const resetPendingRedemption = () => {
         setSpendModalVisible(false);
+        setStatusModalVisible(false);
+        setScanResult(null);
         setPendingCode('');
         setTotalSpent('');
         setScanned(false);
@@ -55,9 +114,10 @@ export default function QRScannerScreen({ navigation }: any) {
         setLoading(true);
 
         try {
-            await api.post('/provider/scan-qr', { code: pendingCode, total_spent: amount ?? null });
+            const response = await api.post('/provider/scan-qr', { code: pendingCode, total_spent: amount ?? null });
             setSpendModalVisible(false);
             setTotalSpent('');
+            setScanResult(response.data?.data ?? null);
 
             Alert.alert(
                 'Success!',
@@ -139,6 +199,53 @@ export default function QRScannerScreen({ navigation }: any) {
                 </View>
             </View>
             <Portal>
+                <Modal
+                    visible={statusModalVisible}
+                    onDismiss={resetPendingRedemption}
+                    contentContainerStyle={[styles.spendModal, { backgroundColor: theme.colors.surface }]}
+                >
+                    {(() => {
+                        const status = scanResult?.status || 'unknown';
+                        const copy = statusCopy[status] ?? {
+                            title: 'Voucher unavailable',
+                            icon: 'information-outline' as keyof typeof MaterialCommunityIcons.glyphMap,
+                            color: theme.colors.primary,
+                            body: 'This voucher cannot be redeemed right now.',
+                        };
+                        return (
+                            <>
+                                <View style={[styles.spendIcon, { backgroundColor: `${copy.color}18` }]}>
+                                    <MaterialCommunityIcons name={copy.icon} size={28} color={copy.color} />
+                                </View>
+                                <Text style={[styles.spendTitle, { color: theme.colors.onSurface }]}>{copy.title}</Text>
+                                <Text style={[styles.spendText, { color: theme.colors.onSurfaceVariant }]}>{copy.body}</Text>
+                                {scanResult ? (
+                                    <View style={[styles.statusDetails, { borderColor: theme.colors.outlineVariant || theme.colors.outline }]}>
+                                        <Text style={[styles.statusLine, { color: theme.colors.onSurface }]}>
+                                            {scanResult.provider?.name || 'Provider'} - {scanResult.discount_percentage}% off
+                                        </Text>
+                                        <Text style={[styles.statusSubLine, { color: theme.colors.onSurfaceVariant }]}>
+                                            Voucher {scanResult.voucher_code}
+                                        </Text>
+                                        {scanResult.redeemed_at ? (
+                                            <Text style={[styles.statusSubLine, { color: theme.colors.onSurfaceVariant }]}>
+                                                Redeemed {new Date(scanResult.redeemed_at).toLocaleString()}
+                                            </Text>
+                                        ) : null}
+                                        {scanResult.total_spent != null ? (
+                                            <Text style={[styles.statusSubLine, { color: theme.colors.onSurfaceVariant }]}>
+                                                Spend recorded: NGN {Number(scanResult.total_spent).toLocaleString()}
+                                            </Text>
+                                        ) : null}
+                                    </View>
+                                ) : null}
+                                <Button mode="contained" onPress={() => navigation.goBack()} style={styles.fullButton}>
+                                    Close
+                                </Button>
+                            </>
+                        );
+                    })()}
+                </Modal>
                 <Modal
                     visible={spendModalVisible}
                     onDismiss={loading ? undefined : resetPendingRedemption}
@@ -237,4 +344,13 @@ const styles = StyleSheet.create({
     spendText: { fontSize: 14, lineHeight: 20 },
     spendActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
     spendButton: { flex: 1, borderRadius: 12 },
+    fullButton: { borderRadius: 12 },
+    statusDetails: {
+        borderWidth: 1,
+        borderRadius: 14,
+        padding: 12,
+        gap: 4,
+    },
+    statusLine: { fontSize: 14, fontWeight: '900' },
+    statusSubLine: { fontSize: 12, fontWeight: '700' },
 });

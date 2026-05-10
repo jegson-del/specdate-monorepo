@@ -40,8 +40,13 @@ export const SpecService = {
         return response.data;
     },
 
-    async getDates() {
-        const response = await api.get('/dates');
+    async getDates(params?: { page?: number; per_page?: number }) {
+        const response = await api.get('/dates', { params });
+        return response.data;
+    },
+
+    async scheduleFollowUpDate(dateId: number | string) {
+        const response = await api.post(`/dates/${dateId}/follow-up`);
         return response.data;
     },
 

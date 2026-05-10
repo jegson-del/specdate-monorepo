@@ -11,6 +11,7 @@ class DateVoucher extends Model
     public const STATUS_REJECTED = 'rejected';
     public const STATUS_REDEEMED = 'redeemed';
     public const STATUS_CANCELLED = 'cancelled';
+    public const STATUS_COMPLETED = 'completed';
     public const STATUS_EXPIRED = 'expired';
 
     protected $fillable = [

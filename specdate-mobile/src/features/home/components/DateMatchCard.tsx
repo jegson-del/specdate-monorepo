@@ -1,7 +1,9 @@
 import React from 'react';
 import { Alert, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Avatar, Surface, Text } from 'react-native-paper';
+import { Avatar, Button, Modal, Portal, Surface, Text } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { SpecService } from '../../../services/specs';
 import { toImageUri } from '../../../utils/imageUrl';
 import { formatMatchedDate, withAlpha } from '../homeUtils';
 import { HomeColors, SpecDateItem } from '../types';
@@ -12,13 +14,40 @@ type Props = {
   homeColors: HomeColors;
   onOpenQuest: (specId: number) => void;
   onOpenChat: (threadId: number) => void;
+  onScheduled?: () => void;
 };
 
-export default function DateMatchCard({ item, theme, homeColors, onOpenQuest, onOpenChat }: Props) {
+function ordinalLabel(value: number) {
+  if (value === 1) return 'first';
+  if (value === 2) return 'second';
+  if (value === 3) return 'third';
+  return `${value}th`;
+}
+
+export default function DateMatchCard({ item, theme, homeColors, onOpenQuest, onOpenChat, onScheduled }: Props) {
+  const queryClient = useQueryClient();
+  const [confirmVisible, setConfirmVisible] = React.useState(false);
   const winnerAvatar = toImageUri(item.winner?.avatar);
   const otherName = item.other_user?.name || 'Your match';
   const winnerName = item.winner?.name || 'Winner';
-  const specMeta = [item.spec?.title || 'Spec quest', item.spec?.location_city].filter(Boolean).join(' • ');
+  const specMeta = [item.spec?.title || 'Spec quest', item.spec?.location_city].filter(Boolean).join(' - ');
+  const dateNumber = item.date_number || 1;
+  const nextDateLabel = ordinalLabel(dateNumber + 1);
+  const dateLabel = item.date_label || `${ordinalLabel(dateNumber)} date`;
+
+  const scheduleMutation = useMutation({
+    mutationFn: () => SpecService.scheduleFollowUpDate(item.id),
+    onSuccess: () => {
+      setConfirmVisible(false);
+      queryClient.invalidateQueries({ queryKey: ['dates'] });
+      queryClient.invalidateQueries({ queryKey: ['user'] });
+      onScheduled?.();
+      Alert.alert('Date scheduled', `Your ${nextDateLabel} date has been created with a fresh date code.`);
+    },
+    onError: (error: any) => {
+      Alert.alert('Could not schedule date', error?.response?.data?.message || 'Please try again.');
+    },
+  });
 
   const handleCopyCode = async () => {
     try {
@@ -46,7 +75,7 @@ export default function DateMatchCard({ item, theme, homeColors, onOpenQuest, on
 
         <View style={styles.main}>
           <Text style={[styles.matchedText, { color: theme.colors.primary }]}>
-            {formatMatchedDate(item.matched_at)}
+            {dateLabel} - {formatMatchedDate(item.matched_at)}
           </Text>
           <Text style={[styles.winnerName, { color: theme.colors.onSurface }]} numberOfLines={1}>
             {winnerName}
@@ -99,6 +128,47 @@ export default function DateMatchCard({ item, theme, homeColors, onOpenQuest, on
           Copy this code to book your date with a provider.
         </Text>
       </View>
+
+      {item.can_schedule_another ? (
+        <TouchableOpacity
+          activeOpacity={0.86}
+          onPress={() => setConfirmVisible(true)}
+          style={[styles.scheduleButton, { backgroundColor: theme.colors.primary }]}
+        >
+          <View style={styles.scheduleIcon}>
+            <MaterialCommunityIcons name="calendar-plus" size={18} color={theme.colors.primary} />
+          </View>
+          <View style={styles.scheduleCopy}>
+            <Text style={styles.scheduleTitle}>Schedule {nextDateLabel} date</Text>
+            <Text style={styles.scheduleText}>Uses 1 credit and creates a fresh date code.</Text>
+          </View>
+          <MaterialCommunityIcons name="chevron-right" size={22} color="#fff" />
+        </TouchableOpacity>
+      ) : null}
+
+      <Portal>
+        <Modal
+          visible={confirmVisible}
+          onDismiss={() => !scheduleMutation.isPending && setConfirmVisible(false)}
+          contentContainerStyle={[styles.modal, { backgroundColor: theme.colors.surface }]}
+        >
+          <View style={[styles.modalIcon, { backgroundColor: withAlpha(theme.colors.primary, 0.12) }]}>
+            <MaterialCommunityIcons name="calendar-heart" size={28} color={theme.colors.primary} />
+          </View>
+          <Text style={[styles.modalTitle, { color: theme.colors.onSurface }]}>Schedule {nextDateLabel} date?</Text>
+          <Text style={[styles.modalText, { color: theme.colors.onSurfaceVariant }]}>
+            This uses 1 credit from your balance and creates a new date with {otherName}. You will receive a new date code and can choose a provider again. The previous date and voucher history stays closed.
+          </Text>
+          <View style={styles.modalActions}>
+            <Button mode="outlined" onPress={() => setConfirmVisible(false)} disabled={scheduleMutation.isPending} style={styles.modalButton}>
+              Cancel
+            </Button>
+            <Button mode="contained" onPress={() => scheduleMutation.mutate()} loading={scheduleMutation.isPending} disabled={scheduleMutation.isPending} style={styles.modalButton}>
+              Use 1 credit
+            </Button>
+          </View>
+        </Modal>
+      </Portal>
     </Surface>
   );
 }
@@ -114,14 +184,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     elevation: 2,
   },
-  cardTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  avatarWrap: {
-    position: 'relative',
-  },
+  cardTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  avatarWrap: { position: 'relative' },
   avatarBadge: {
     position: 'absolute',
     right: -2,
@@ -134,77 +198,19 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#FFFFFF',
   },
-  main: {
-    flex: 1,
-    minWidth: 0,
-  },
-  matchedText: {
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 0.3,
-    textTransform: 'uppercase',
-  },
-  winnerName: {
-    fontSize: 16,
-    fontWeight: '900',
-    letterSpacing: 0,
-    marginTop: 3,
-  },
-  subText: {
-    fontSize: 12,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  questInline: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 4,
-  },
-  questInlineText: {
-    flex: 1,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  sideActions: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  iconButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  codePanel: {
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    marginTop: 10,
-  },
-  codeCopyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  codeTextWrap: {
-    flex: 1,
-    minWidth: 0,
-  },
-  codeLabel: {
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-  },
-  codeValue: {
-    fontSize: 18,
-    fontWeight: '900',
-    letterSpacing: 1,
-    marginTop: 1,
-  },
+  main: { flex: 1, minWidth: 0 },
+  matchedText: { fontSize: 10, fontWeight: '900', letterSpacing: 0.3, textTransform: 'uppercase' },
+  winnerName: { fontSize: 16, fontWeight: '900', letterSpacing: 0, marginTop: 3 },
+  subText: { fontSize: 12, fontWeight: '600', marginTop: 2 },
+  questInline: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  questInlineText: { flex: 1, fontSize: 12, fontWeight: '700' },
+  sideActions: { flexDirection: 'row', gap: 6 },
+  iconButton: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  codePanel: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, marginTop: 10 },
+  codeCopyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  codeTextWrap: { flex: 1, minWidth: 0 },
+  codeLabel: { fontSize: 10, fontWeight: '900', letterSpacing: 0.5, textTransform: 'uppercase' },
+  codeValue: { fontSize: 18, fontWeight: '900', letterSpacing: 1, marginTop: 1 },
   copyButton: {
     height: 34,
     paddingHorizontal: 12,
@@ -214,13 +220,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
-  copyText: {
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  codeHint: {
-    fontSize: 11,
-    fontWeight: '600',
-    marginTop: 4,
-  },
+  copyText: { fontSize: 12, fontWeight: '900' },
+  codeHint: { fontSize: 11, fontWeight: '600', marginTop: 4 },
+  scheduleButton: { marginTop: 10, borderRadius: 12, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  scheduleIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  scheduleCopy: { flex: 1 },
+  scheduleTitle: { color: '#fff', fontSize: 14, fontWeight: '900', textTransform: 'capitalize' },
+  scheduleText: { color: 'rgba(255,255,255,0.78)', fontSize: 11, fontWeight: '700', marginTop: 2 },
+  modal: { margin: 20, padding: 20, borderRadius: 20, gap: 12 },
+  modalIcon: { width: 54, height: 54, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  modalTitle: { fontSize: 20, fontWeight: '900' },
+  modalText: { fontSize: 14, lineHeight: 21, fontWeight: '600' },
+  modalActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  modalButton: { flex: 1, borderRadius: 12 },
 });

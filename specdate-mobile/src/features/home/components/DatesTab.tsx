@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Text } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { SpecService } from '../../../services/specs';
 import { withAlpha } from '../homeUtils';
 import { HomeColors, SpecDateItem } from '../types';
@@ -17,12 +17,20 @@ type Props = {
 };
 
 export default function DatesTab({ theme, homeColors, insets, bottomNavHeight, navigation }: Props) {
-  const { data, refetch, isLoading } = useQuery({
+  const datesQuery = useInfiniteQuery({
     queryKey: ['dates'],
-    queryFn: SpecService.getDates,
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) => SpecService.getDates({ page: Number(pageParam), per_page: 20 }),
+    getNextPageParam: (lastPage) => {
+      const data = lastPage?.data;
+      const current = data?.current_page ?? 1;
+      const last = data?.last_page ?? current;
+      return current < last ? current + 1 : undefined;
+    },
   });
+  const { refetch, isLoading } = datesQuery;
 
-  const dates = useMemo<SpecDateItem[]>(() => data?.data || [], [data]);
+  const dates = useMemo<SpecDateItem[]>(() => datesQuery.data?.pages.flatMap((page) => page?.data?.data || []) ?? [], [datesQuery.data]);
 
   return (
     <View style={styles.screen}>
@@ -43,6 +51,10 @@ export default function DatesTab({ theme, homeColors, insets, bottomNavHeight, n
         keyExtractor={(item) => String(item.id)}
         onRefresh={refetch}
         refreshing={isLoading}
+        onEndReached={() => {
+          if (datesQuery.hasNextPage && !datesQuery.isFetchingNextPage) datesQuery.fetchNextPage();
+        }}
+        onEndReachedThreshold={0.35}
         contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + bottomNavHeight + 24 }]}
         ListEmptyComponent={
           isLoading ? (
@@ -68,6 +80,10 @@ export default function DatesTab({ theme, homeColors, insets, bottomNavHeight, n
             homeColors={homeColors}
             onOpenQuest={(specId) => navigation.navigate('SpecDetails', { specId: String(specId) })}
             onOpenChat={(threadId) => navigation.navigate('ChatThread', { threadId })}
+            onScheduled={() => {
+              refetch();
+              navigation.setParams?.({ initialTab: 'Matches' });
+            }}
           />
         )}
       />

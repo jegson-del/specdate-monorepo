@@ -54,7 +54,7 @@ class SpecController extends Controller
 
     public function myDates(Request $request)
     {
-        $dates = $this->specService->listDatesForUser($request->user());
+        $dates = $this->specService->listDatesForUser($request->user(), (int) $request->integer('per_page', 20));
         return $this->sendResponse($dates, 'Dates retrieved successfully.');
     }
 
@@ -344,6 +344,16 @@ class SpecController extends Controller
         try {
             $result = $this->specService->createDate($request->user(), $id);
             return $this->sendResponse($result, $result['message'] ?? 'Date created successfully.');
+        } catch (HttpException $e) {
+            return $this->sendError($e->getMessage(), [], $e->getStatusCode());
+        }
+    }
+
+    public function scheduleFollowUpDate(Request $request, int $date)
+    {
+        try {
+            $result = $this->specService->scheduleFollowUpDate($request->user(), $date);
+            return $this->sendResponse($result, $result['message'] ?? 'Date scheduled successfully.', 201);
         } catch (HttpException $e) {
             return $this->sendError($e->getMessage(), [], $e->getStatusCode());
         }

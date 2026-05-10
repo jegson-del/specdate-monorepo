@@ -696,7 +696,10 @@ class SpecService
             $date = $spec->dates()->create([
                 'owner_id' => $spec->user_id,
                 'winner_user_id' => $winnerApp->user_id,
+                'scheduled_by_user_id' => $spec->user_id,
                 'date_code' => $dateCode,
+                'date_number' => 1,
+                'status' => SpecDate::STATUS_ACTIVE,
             ]);
             $this->chatService->ensureThreadForDate($date);
             $winnerApp->update(['status' => 'WINNER']);
@@ -714,12 +717,87 @@ class SpecService
         ];
     }
 
-    public function listDatesForUser($user)
+    public function scheduleFollowUpDate(User $user, int $dateId): array
+    {
+        $selectedDate = SpecDate::with(['spec', 'owner', 'winner'])->findOrFail($dateId);
+        if ((int) $selectedDate->owner_id !== (int) $user->id && (int) $selectedDate->winner_user_id !== (int) $user->id) {
+            throw new HttpException(403, 'You cannot schedule another date for this match.');
+        }
+
+        $rootId = $selectedDate->root_spec_date_id ?: $selectedDate->id;
+        $dateCode = $this->generateDateCode();
+
+        $newDate = DB::transaction(function () use ($user, $rootId, $dateCode) {
+            $latestDate = SpecDate::query()
+                ->where(function ($q) use ($rootId) {
+                    $q->where('id', $rootId)->orWhere('root_spec_date_id', $rootId);
+                })
+                ->orderByDesc('date_number')
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if (!in_array($latestDate->status, [SpecDate::STATUS_COMPLETED, SpecDate::STATUS_CANCELLED], true)) {
+                throw new HttpException(422, 'You can schedule another date after the current date is completed or cancelled.');
+            }
+
+            $balance = $this->debitCredit(
+                $user,
+                'Scheduled another date',
+                [
+                    'spec_id' => $latestDate->spec_id,
+                    'root_spec_date_id' => $rootId,
+                    'previous_spec_date_id' => $latestDate->id,
+                    'action' => 'schedule_follow_up_date',
+                ]
+            );
+
+            $date = SpecDate::create([
+                'root_spec_date_id' => $rootId,
+                'parent_spec_date_id' => $latestDate->id,
+                'spec_id' => $latestDate->spec_id,
+                'owner_id' => $latestDate->owner_id,
+                'winner_user_id' => $latestDate->winner_user_id,
+                'scheduled_by_user_id' => $user->id,
+                'date_code' => $dateCode,
+                'date_number' => ((int) $latestDate->date_number) + 1,
+                'status' => SpecDate::STATUS_ACTIVE,
+            ]);
+
+            $this->chatService->ensureThreadForDate($date);
+
+            $date->balance_after = $balance->credits;
+            return $date;
+        });
+
+        $newDate->load([
+            'spec:id,title,description,location_city,status,created_at',
+            'owner:id,name,username',
+            'owner.profile',
+            'owner.media',
+            'winner:id,name,username',
+            'winner.profile',
+            'winner.media',
+        ]);
+
+        return [
+            'message' => $this->dateOrdinal((int) $newDate->date_number) . ' date scheduled.',
+            'date' => $this->datePayloadForUser($newDate, $user),
+            'balance' => ['credits' => $newDate->balance_after],
+        ];
+    }
+
+    public function listDatesForUser($user, int $perPage = 20)
     {
         $dates = SpecDate::query()
             ->where(function ($q) use ($user) {
                 $q->where('owner_id', $user->id)
                     ->orWhere('winner_user_id', $user->id);
+            })
+            ->whereNotExists(function ($q) {
+                $q->selectRaw('1')
+                    ->from('spec_dates as newer_dates')
+                    ->whereRaw('COALESCE(newer_dates.root_spec_date_id, newer_dates.id) = COALESCE(spec_dates.root_spec_date_id, spec_dates.id)')
+                    ->whereColumn('newer_dates.date_number', '>', 'spec_dates.date_number');
             })
             ->with([
                 'spec:id,title,description,location_city,status,created_at',
@@ -731,48 +809,69 @@ class SpecService
                 'winner.media',
             ])
             ->latest()
-            ->get();
+            ->paginate(max(1, min($perPage, 50)));
 
-        return $dates->map(function (SpecDate $date) use ($user) {
-            $owner = $date->owner;
-            $winner = $date->winner;
-            $isOwner = (int) $date->owner_id === (int) $user->id;
-            $otherUser = $isOwner ? $winner : $owner;
-            $chatThread = $this->chatService->ensureThreadForDate($date);
-            $winnerAvatar = $winner?->media?->where('type', 'avatar')->sortByDesc('id')->first()?->url;
-            $ownerAvatar = $owner?->media?->where('type', 'avatar')->sortByDesc('id')->first()?->url;
-            $otherAvatar = $otherUser?->media?->where('type', 'avatar')->sortByDesc('id')->first()?->url;
+        $dates->getCollection()->transform(fn (SpecDate $date) => $this->datePayloadForUser($date, $user));
 
-            return [
-                'id' => $date->id,
-                'spec_id' => $date->spec_id,
-                'owner_id' => $date->owner_id,
-                'winner_user_id' => $date->winner_user_id,
-                'date_code' => $date->date_code,
-                'chat_thread_id' => $chatThread->id,
-                'matched_at' => $date->created_at,
-                'is_owner' => $isOwner,
-                'spec' => $date->spec,
-                'owner' => $owner ? [
-                    'id' => $owner->id,
-                    'name' => $owner->profile?->full_name ?? $owner->name,
-                    'username' => $owner->username,
-                    'avatar' => $ownerAvatar,
-                ] : null,
-                'winner' => $winner ? [
-                    'id' => $winner->id,
-                    'name' => $winner->profile?->full_name ?? $winner->name,
-                    'username' => $winner->username,
-                    'avatar' => $winnerAvatar,
-                ] : null,
-                'other_user' => $otherUser ? [
-                    'id' => $otherUser->id,
-                    'name' => $otherUser->profile?->full_name ?? $otherUser->name,
-                    'username' => $otherUser->username,
-                    'avatar' => $otherAvatar,
-                ] : null,
-            ];
-        });
+        return $dates;
+    }
+
+    private function datePayloadForUser(SpecDate $date, User $user): array
+    {
+        $owner = $date->owner;
+        $winner = $date->winner;
+        $isOwner = (int) $date->owner_id === (int) $user->id;
+        $otherUser = $isOwner ? $winner : $owner;
+        $chatThread = $this->chatService->ensureThreadForDate($date);
+        $winnerAvatar = $winner?->media?->where('type', 'avatar')->sortByDesc('id')->first()?->url;
+        $ownerAvatar = $owner?->media?->where('type', 'avatar')->sortByDesc('id')->first()?->url;
+        $otherAvatar = $otherUser?->media?->where('type', 'avatar')->sortByDesc('id')->first()?->url;
+        $dateNumber = (int) ($date->date_number ?: 1);
+
+        return [
+            'id' => $date->id,
+            'root_spec_date_id' => $date->root_spec_date_id,
+            'parent_spec_date_id' => $date->parent_spec_date_id,
+            'spec_id' => $date->spec_id,
+            'owner_id' => $date->owner_id,
+            'winner_user_id' => $date->winner_user_id,
+            'scheduled_by_user_id' => $date->scheduled_by_user_id,
+            'date_code' => $date->date_code,
+            'date_number' => $dateNumber,
+            'date_label' => $this->dateOrdinal($dateNumber) . ' date',
+            'status' => $date->status ?: SpecDate::STATUS_ACTIVE,
+            'can_schedule_another' => in_array($date->status, [SpecDate::STATUS_COMPLETED, SpecDate::STATUS_CANCELLED], true),
+            'chat_thread_id' => $chatThread->id,
+            'matched_at' => $date->created_at,
+            'is_owner' => $isOwner,
+            'spec' => $date->spec,
+            'owner' => $owner ? [
+                'id' => $owner->id,
+                'name' => $owner->profile?->full_name ?? $owner->name,
+                'username' => $owner->username,
+                'avatar' => $ownerAvatar,
+            ] : null,
+            'winner' => $winner ? [
+                'id' => $winner->id,
+                'name' => $winner->profile?->full_name ?? $winner->name,
+                'username' => $winner->username,
+                'avatar' => $winnerAvatar,
+            ] : null,
+            'other_user' => $otherUser ? [
+                'id' => $otherUser->id,
+                'name' => $otherUser->profile?->full_name ?? $otherUser->name,
+                'username' => $otherUser->username,
+                'avatar' => $otherAvatar,
+            ] : null,
+        ];
+    }
+
+    private function dateOrdinal(int $number): string
+    {
+        if ($number === 1) return 'First';
+        if ($number === 2) return 'Second';
+        if ($number === 3) return 'Third';
+        return "{$number}th";
     }
 
     /**

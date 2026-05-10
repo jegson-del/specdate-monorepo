@@ -77,6 +77,23 @@ class DateVoucherController extends Controller
         }
     }
 
+    public function scanPreview(Request $request)
+    {
+        $data = $request->validate([
+            'code' => 'required|string',
+        ]);
+
+        try {
+            $voucher = $this->dateVoucherService->previewScan($request->user(), trim((string) $data['code']));
+            return $this->sendResponse(
+                $this->dateVoucherService->voucherPayload($voucher, $request->user()),
+                'Voucher scan preview retrieved successfully.'
+            );
+        } catch (HttpException $e) {
+            return $this->sendError($e->getMessage(), [], $e->getStatusCode());
+        }
+    }
+
     public function approve(Request $request, int $voucher)
     {
         try {

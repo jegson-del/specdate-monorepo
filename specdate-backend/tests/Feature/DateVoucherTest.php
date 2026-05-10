@@ -85,6 +85,15 @@ class DateVoucherTest extends TestCase
         $this->postJson('/api/provider/scan-qr', ['code' => $voucher['qr_token']])
             ->assertOk()
             ->assertJsonPath('data.status', DateVoucher::STATUS_REDEEMED);
+
+        $this->assertDatabaseHas('spec_dates', [
+            'id' => $date->id,
+            'status' => SpecDate::STATUS_COMPLETED,
+        ]);
+
+        $this->postJson('/api/provider/scan-qr/preview', ['code' => $voucher['qr_token']])
+            ->assertOk()
+            ->assertJsonPath('data.status', DateVoucher::STATUS_REDEEMED);
     }
 
     public function test_duplicate_unfinished_voucher_for_same_provider_is_blocked(): void

@@ -614,7 +614,7 @@ export default function ProviderDashboardScreen({ navigation }: any) {
               ) : (
                 <>
                   <Text style={[styles.voucherTitle, { color: theme.colors.onSurface }]}>
-                    {discountPercentage}% off for SpecDate users
+                    {discountPercentage}% off for DateUsher users
                   </Text>
                   <Text style={[styles.voucherDesc, { color: theme.colors.onSurfaceVariant }]}>
                     Applied to date vouchers created for your venue.

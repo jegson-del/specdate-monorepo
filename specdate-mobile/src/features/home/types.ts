@@ -30,8 +30,14 @@ export type HomeColors = {
 
 export type SpecDateItem = {
   id: number;
+  root_spec_date_id?: number | null;
+  parent_spec_date_id?: number | null;
   spec_id: number;
   date_code: string;
+  date_number?: number;
+  date_label?: string;
+  status?: 'active' | 'completed' | 'cancelled' | string;
+  can_schedule_another?: boolean;
   chat_thread_id?: number | null;
   matched_at: string;
   is_owner: boolean;

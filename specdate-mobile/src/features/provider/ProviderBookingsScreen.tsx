@@ -13,6 +13,7 @@ const statusCopy: Record<DateVoucherStatus, { label: string; tone: string; icon:
   active: { label: 'Confirmed', tone: '#16A34A', icon: 'calendar-check' },
   rejected: { label: 'Rejected', tone: '#EF4444', icon: 'calendar-remove' },
   redeemed: { label: 'Redeemed', tone: '#0891B2', icon: 'check-decagram' },
+  completed: { label: 'Completed', tone: '#16A34A', icon: 'check-circle-outline' },
   cancelled: { label: 'Cancelled', tone: '#64748B', icon: 'calendar-remove-outline' },
   expired: { label: 'Expired', tone: '#7C3AED', icon: 'timer-off-outline' },
 };
@@ -51,10 +52,10 @@ export default function ProviderBookingsScreen({ route, navigation }: any) {
   const { isLoading, refetch } = bookingsQuery;
 
   const bookings = bookingsQuery.data?.pages.flatMap((page) => page.data.data) || [];
-  const confirmedCount = bookings.filter((booking) => booking.status === 'active' || booking.status === 'redeemed').length;
+  const confirmedCount = bookings.filter((booking) => ['active', 'redeemed', 'completed'].includes(booking.status)).length;
   const pendingCount = bookings.filter((booking) => booking.status === 'pending_provider').length;
   const visibleBookings = bookings.filter((booking) => {
-    if (filter === 'confirmed') return booking.status === 'active' || booking.status === 'redeemed';
+    if (filter === 'confirmed') return ['active', 'redeemed', 'completed'].includes(booking.status);
     if (filter === 'pending') return booking.status === 'pending_provider';
     return true;
   });
