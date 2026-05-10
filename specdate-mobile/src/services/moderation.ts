@@ -1,6 +1,15 @@
 import { api } from './api';
 
-export type ReportTargetType = 'user' | 'message' | 'media' | 'profile' | 'spec' | 'round_answer';
+export type ReportTargetType =
+  | 'user'
+  | 'message'
+  | 'media'
+  | 'profile'
+  | 'provider_profile'
+  | 'provider_review'
+  | 'date_partner_review'
+  | 'spec'
+  | 'round_answer';
 
 export async function reportContent(input: {
   target_type: ReportTargetType;

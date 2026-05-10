@@ -3,7 +3,7 @@ import { FlatList, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, IconButton, Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ChatService } from '../../services/chat';
 import ChatThreadCard from './components/ChatThreadCard';
@@ -11,10 +11,17 @@ import ChatThreadCard from './components/ChatThreadCard';
 export default function ChatListScreen({ navigation }: any) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { data, isLoading, refetch } = useQuery({
+  const threadsQuery = useInfiniteQuery({
     queryKey: ['chat-threads'],
-    queryFn: () => ChatService.getThreads({ per_page: 50 }),
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) => ChatService.getThreads({ page: Number(pageParam), per_page: 30 }),
+    getNextPageParam: (lastPage) => {
+      const current = lastPage.data?.current_page ?? 1;
+      const last = lastPage.data?.last_page ?? current;
+      return current < last ? current + 1 : undefined;
+    },
   });
+  const { isLoading, refetch } = threadsQuery;
 
   useFocusEffect(
     React.useCallback(() => {
@@ -22,7 +29,7 @@ export default function ChatListScreen({ navigation }: any) {
     }, [refetch])
   );
 
-  const threads = data?.data?.data || [];
+  const threads = threadsQuery.data?.pages.flatMap((page) => page.data?.data || []) || [];
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.background, paddingTop: insets.top + 8 }]}>
@@ -40,6 +47,10 @@ export default function ChatListScreen({ navigation }: any) {
         contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 24 }]}
         onRefresh={refetch}
         refreshing={isLoading}
+        onEndReached={() => {
+          if (threadsQuery.hasNextPage && !threadsQuery.isFetchingNextPage) threadsQuery.fetchNextPage();
+        }}
+        onEndReachedThreshold={0.35}
         ListEmptyComponent={
           isLoading ? (
             <View style={styles.empty}>

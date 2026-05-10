@@ -3,7 +3,7 @@ import { View, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 're
 import { Text, useTheme, IconButton } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { api } from '../../services/api';
 import { formatDistanceToNow } from 'date-fns';
@@ -14,14 +14,21 @@ export default function NotificationsScreen() {
     const navigation = useNavigation<any>();
     const queryClient = useQueryClient();
 
-    const { data, isLoading, refetch, isRefetching } = useQuery({
+    const notificationsQuery = useInfiniteQuery({
         queryKey: ['notifications'],
-        queryFn: async () => {
-            const res = await api.get('/notifications');
+        initialPageParam: 1,
+        queryFn: async ({ pageParam }) => {
+            const res = await api.get('/notifications', { params: { page: Number(pageParam), limit: 20 } });
             return res.data; // Laravel pagination: { data: [...], current_page, ... }
+        },
+        getNextPageParam: (lastPage) => {
+            const current = lastPage?.current_page ?? 1;
+            const last = lastPage?.last_page ?? current;
+            return current < last ? current + 1 : undefined;
         },
         staleTime: 0,
     });
+    const { isLoading, refetch, isRefetching } = notificationsQuery;
 
     // When landing on Notifications (e.g. from Spec Details or anywhere), refetch all notifications for this user
     useFocusEffect(
@@ -31,8 +38,8 @@ export default function NotificationsScreen() {
     );
 
     const notifications = useMemo(() => {
-        return Array.isArray(data?.data) ? data.data : [];
-    }, [data]);
+        return notificationsQuery.data?.pages.flatMap((page) => Array.isArray(page?.data) ? page.data : []) ?? [];
+    }, [notificationsQuery.data]);
 
     const markReadMutation = useMutation({
         mutationFn: (id: string) => api.post(`/notifications/${id}/read`),
@@ -202,6 +209,12 @@ export default function NotificationsScreen() {
                         </View>
                     ) : null
                 }
+                onEndReached={() => {
+                    if (notificationsQuery.hasNextPage && !notificationsQuery.isFetchingNextPage) {
+                        notificationsQuery.fetchNextPage();
+                    }
+                }}
+                onEndReachedThreshold={0.35}
             />
         </View>
     );

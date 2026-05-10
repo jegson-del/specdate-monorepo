@@ -1,4 +1,4 @@
-export { AddReviewModal } from './AddReviewModal';
-export type { AddReviewModalProps } from './AddReviewModal';
 export { SeeAllReviewsModal } from './SeeAllReviewsModal';
-export type { SeeAllReviewsModalProps, ReviewItem } from './SeeAllReviewsModal';
+export type { SeeAllReviewsModalProps } from './SeeAllReviewsModal';
+export { ProviderReviewCard } from './ProviderReviewCard';
+export type { ProviderReviewCardProps, ReviewItem } from './ProviderReviewCard';

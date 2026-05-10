@@ -34,6 +34,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/users/{id}', [UserController::class, 'show']);
 
     Route::get('/providers', [ProviderController::class, 'index']);
+    Route::get('/providers/{provider}/reviews', [ProviderController::class, 'reviews']);
     Route::get('/providers/{provider}', [ProviderController::class, 'show']);
     Route::get('/my-specs', [SpecController::class, 'mySpecs']);
     Route::get('/dates', [SpecController::class, 'myDates']);

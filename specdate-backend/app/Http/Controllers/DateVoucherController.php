@@ -49,7 +49,10 @@ class DateVoucherController extends Controller
 
     public function index(Request $request)
     {
-        return $this->sendResponse($this->dateVoucherService->listForUser($request->user()), 'Vouchers retrieved successfully.');
+        return $this->sendResponse(
+            $this->dateVoucherService->listForUser($request->user(), (int) $request->integer('per_page', 20)),
+            'Vouchers retrieved successfully.'
+        );
     }
 
     public function show(Request $request, int $voucher)
@@ -65,7 +68,10 @@ class DateVoucherController extends Controller
     public function providerBookings(Request $request)
     {
         try {
-            return $this->sendResponse($this->dateVoucherService->listForProvider($request->user()), 'Provider bookings retrieved successfully.');
+            return $this->sendResponse(
+                $this->dateVoucherService->listForProvider($request->user(), (int) $request->integer('per_page', 20)),
+                'Provider bookings retrieved successfully.'
+            );
         } catch (HttpException $e) {
             return $this->sendError($e->getMessage(), [], $e->getStatusCode());
         }

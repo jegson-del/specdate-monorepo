@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { ActivityIndicator, IconButton, Searchbar, Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ProviderService, type ProviderMarketplaceItem } from '../../services/providers';
 import { toImageUri } from '../../utils/imageUrl';
@@ -170,12 +170,26 @@ export default function ProvidersScreen({ route, navigation }: any) {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const seeAllCategory = (route.params?.seeAllCategory as ProviderCategory | undefined) ?? null;
 
-  const { data, isLoading, isRefetching, refetch } = useQuery({
-    queryKey: ['providers'],
-    queryFn: () => ProviderService.getProviders(),
+  const providerQuery = useInfiniteQuery({
+    queryKey: ['providers', query.trim(), filters.country, filters.city, filters.service],
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) => ProviderService.getProviders({
+      q: query.trim() || undefined,
+      country: filters.country || undefined,
+      city: filters.city || undefined,
+      service: filters.service || undefined,
+      page: Number(pageParam),
+      per_page: 30,
+    }),
+    getNextPageParam: (lastPage) => {
+      const current = lastPage.data.current_page ?? 1;
+      const last = lastPage.data.last_page ?? current;
+      return current < last ? current + 1 : undefined;
+    },
   });
+  const { isLoading, isRefetching, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = providerQuery;
 
-  const allProviders = data?.data?.data ?? [];
+  const allProviders = providerQuery.data?.pages.flatMap((page) => page.data.data) ?? [];
   const filterOptions = useMemo(() => {
     const providersForCity = filters.country
       ? allProviders.filter((provider) => provider.country === filters.country)
@@ -196,20 +210,20 @@ export default function ProvidersScreen({ route, navigation }: any) {
   const providers = useMemo(() => {
     const q = query.trim().toLowerCase();
 
-    return allProviders.filter((provider) =>
-      (!filters.country || provider.country === filters.country) &&
-      (!filters.city || provider.city === filters.city) &&
-      (!filters.service ||
-        provider.category === filters.service ||
-        provider.categories?.some((category) => category.name === filters.service || category.slug === filters.service)) &&
-      (!q ||
-        [provider.name, provider.city, provider.country, provider.category]
+    return allProviders.filter((provider) => !q ||
+      [provider.name, provider.city, provider.country, provider.category]
         .filter(Boolean)
         .join(' ')
         .toLowerCase()
-          .includes(q))
+        .includes(q)
     );
-  }, [allProviders, filters, query]);
+  }, [allProviders, query]);
+
+  const maybeLoadMore = () => {
+    if (hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  };
 
   const categories = useMemo(() => {
     const names = providers.map((provider) => provider.category).filter(Boolean);
@@ -262,6 +276,11 @@ export default function ProvidersScreen({ route, navigation }: any) {
 
         <ScrollView
           showsVerticalScrollIndicator
+          onScroll={({ nativeEvent }) => {
+            const distanceFromBottom = nativeEvent.contentSize.height - nativeEvent.layoutMeasurement.height - nativeEvent.contentOffset.y;
+            if (distanceFromBottom < 320) maybeLoadMore();
+          }}
+          scrollEventThrottle={200}
           contentContainerStyle={[
             styles.seeAllScrollContent,
             { paddingHorizontal: GRID_PADDING, paddingBottom: insets.bottom + 24, paddingTop: 12 },
@@ -298,6 +317,11 @@ export default function ProvidersScreen({ route, navigation }: any) {
         style={styles.scroll}
         contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
         showsVerticalScrollIndicator={false}
+        onScroll={({ nativeEvent }) => {
+          const distanceFromBottom = nativeEvent.contentSize.height - nativeEvent.layoutMeasurement.height - nativeEvent.contentOffset.y;
+          if (distanceFromBottom < 360) maybeLoadMore();
+        }}
+        scrollEventThrottle={200}
       >
         <View style={[styles.searchWrap, { paddingHorizontal: insets.left + 16, paddingRight: insets.right + 16 }]}>
           <Searchbar
@@ -426,6 +450,11 @@ export default function ProvidersScreen({ route, navigation }: any) {
         {!isLoading && providers.length === 0 ? (
           <View style={styles.empty}>
             <Text style={[styles.emptyText, { color: theme.colors.outline }]}>No providers found.</Text>
+          </View>
+        ) : null}
+        {isFetchingNextPage ? (
+          <View style={styles.empty}>
+            <ActivityIndicator color={theme.colors.primary} />
           </View>
         ) : null}
       </ScrollView>

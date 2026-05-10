@@ -6,7 +6,17 @@ use Illuminate\Database\Eloquent\Model;
 
 class Report extends Model
 {
-    public const TARGETS = ['user', 'message', 'media', 'profile', 'spec', 'round_answer'];
+    public const TARGETS = [
+        'user',
+        'message',
+        'media',
+        'profile',
+        'provider_profile',
+        'provider_review',
+        'date_partner_review',
+        'spec',
+        'round_answer',
+    ];
     public const STATUSES = ['open', 'reviewing', 'resolved', 'dismissed'];
     public const ACTIONS = ['none', 'hide_content', 'suspend_user', 'delete_media'];
 

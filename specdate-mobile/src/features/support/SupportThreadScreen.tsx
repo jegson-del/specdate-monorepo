@@ -48,18 +48,21 @@ export default function SupportThreadScreen({ route, navigation }: any) {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const listRef = React.useRef<FlatList<SupportMessage>>(null);
+  const shouldAutoScrollRef = React.useRef(true);
   const [body, setBody] = React.useState('');
   const [selection, setSelection] = React.useState<TextSelection>({ start: 0, end: 0 });
+  const [loadingOlder, setLoadingOlder] = React.useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['support-ticket', String(ticketId)],
-    queryFn: () => SupportService.getTicket(ticketId),
+    queryFn: () => SupportService.getTicket(ticketId, { per_page: 25 }),
     enabled: ticketId != null,
   });
 
   const sendMutation = useMutation({
     mutationFn: () => SupportService.sendMessage(ticketId, body),
     onSuccess: (res) => {
+      shouldAutoScrollRef.current = true;
       setBody('');
       setSelection({ start: 0, end: 0 });
       queryClient.setQueryData(['support-ticket', String(ticketId)], (current: any) => {
@@ -90,12 +93,43 @@ export default function SupportThreadScreen({ route, navigation }: any) {
 
   const ticket = data?.data?.ticket;
   const messages = data?.data?.messages || [];
+  const pagination = data?.data?.message_pagination;
   const canSend = body.trim().length > 0 && !sendMutation.isPending;
   const handleEmojiSelected = (emoji: string) => {
     const next = insertEmojiAtSelection(body, emoji, selection);
     setBody(next.value);
     setSelection(next.selection);
   };
+
+  const loadOlderMessages = React.useCallback(async () => {
+    if (!ticketId || loadingOlder || !pagination?.has_more || !pagination.next_before_id) return;
+
+    try {
+      setLoadingOlder(true);
+      shouldAutoScrollRef.current = false;
+      const response = await SupportService.getTicket(ticketId, {
+        before_id: pagination.next_before_id,
+        per_page: 25,
+      });
+      queryClient.setQueryData(['support-ticket', String(ticketId)], (current: any) => {
+        if (!current?.data) return response;
+        const existing = new Set((current.data.messages || []).map((message: SupportMessage) => Number(message.id)));
+        const older = (response.data.messages || []).filter((message) => !existing.has(Number(message.id)));
+        return {
+          ...current,
+          data: {
+            ...current.data,
+            messages: [...older, ...(current.data.messages || [])],
+            message_pagination: response.data.message_pagination,
+          },
+        };
+      });
+    } catch (e: any) {
+      Alert.alert('Could not load older messages', e?.response?.data?.message || 'Please try again.');
+    } finally {
+      setLoadingOlder(false);
+    }
+  }, [loadingOlder, pagination?.has_more, pagination?.next_before_id, queryClient, ticketId]);
 
   return (
     <KeyboardAvoidingView
@@ -122,8 +156,26 @@ export default function SupportThreadScreen({ route, navigation }: any) {
         contentContainerStyle={styles.messagesContent}
         keyboardShouldPersistTaps="handled"
         refreshing={isLoading}
-        onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+        onContentSizeChange={() => {
+          if (!shouldAutoScrollRef.current) {
+            shouldAutoScrollRef.current = true;
+            return;
+          }
+          listRef.current?.scrollToEnd({ animated: true });
+        }}
         renderItem={({ item }) => <SupportBubble message={item} />}
+        ListHeaderComponent={
+          pagination?.has_more ? (
+            <View style={styles.loadOlderWrap}>
+              <Text
+                onPress={loadOlderMessages}
+                style={[styles.loadOlderText, { color: theme.colors.primary }]}
+              >
+                {loadingOlder ? 'Loading older messages...' : 'Load older messages'}
+              </Text>
+            </View>
+          ) : null
+        }
       />
 
       <View style={[styles.composerWrap, { paddingBottom: Math.max(insets.bottom, 8), backgroundColor: theme.colors.surface, borderTopColor: theme.colors.outlineVariant }]}>
@@ -183,6 +235,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingTop: 16,
     paddingBottom: 18,
+  },
+  loadOlderWrap: {
+    alignItems: 'center',
+    paddingBottom: 12,
+  },
+  loadOlderText: {
+    fontSize: 13,
+    fontWeight: '800',
   },
   messageRow: {
     flexDirection: 'row',

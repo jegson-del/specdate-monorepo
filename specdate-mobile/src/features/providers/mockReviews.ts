@@ -1,4 +1,4 @@
-import type { ReviewItem } from './components/SeeAllReviewsModal';
+import type { ReviewItem } from './components';
 
 /**
  * Shared dummy reviews for provider detail and provider dashboard.

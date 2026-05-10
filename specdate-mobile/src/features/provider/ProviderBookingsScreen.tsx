@@ -1,9 +1,9 @@
 import React from 'react';
-import { Alert, Animated, Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Alert, Animated, FlatList, Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Button, IconButton, Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { DateVoucherItem, DateVoucherStatus, VoucherService } from '../../services/vouchers';
 
 type BookingFilter = 'confirmed' | 'pending' | 'all';
@@ -38,12 +38,19 @@ export default function ProviderBookingsScreen({ route, navigation }: any) {
   const [selectedBooking, setSelectedBooking] = React.useState<DateVoucherItem | null>(null);
   const detailAnim = React.useRef(new Animated.Value(0)).current;
 
-  const { data, isLoading, refetch } = useQuery({
+  const bookingsQuery = useInfiniteQuery({
     queryKey: ['provider-bookings'],
-    queryFn: VoucherService.getProviderBookings,
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) => VoucherService.getProviderBookings({ page: Number(pageParam), per_page: 20 }),
+    getNextPageParam: (lastPage) => {
+      const current = lastPage.data.current_page ?? 1;
+      const last = lastPage.data.last_page ?? current;
+      return current < last ? current + 1 : undefined;
+    },
   });
+  const { isLoading, refetch } = bookingsQuery;
 
-  const bookings = data?.data || [];
+  const bookings = bookingsQuery.data?.pages.flatMap((page) => page.data.data) || [];
   const confirmedCount = bookings.filter((booking) => booking.status === 'active' || booking.status === 'redeemed').length;
   const pendingCount = bookings.filter((booking) => booking.status === 'pending_provider').length;
   const visibleBookings = bookings.filter((booking) => {
@@ -123,8 +130,18 @@ export default function ProviderBookingsScreen({ route, navigation }: any) {
         <FilterButton label="All" active={filter === 'all'} onPress={() => setFilter('all')} theme={theme} />
       </View>
 
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]} showsVerticalScrollIndicator={false}>
-        {visibleBookings.length === 0 ? (
+      <FlatList
+        data={visibleBookings}
+        keyExtractor={(booking) => String(booking.id)}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
+        showsVerticalScrollIndicator={false}
+        onRefresh={refetch}
+        refreshing={isLoading}
+        onEndReached={() => {
+          if (bookingsQuery.hasNextPage && !bookingsQuery.isFetchingNextPage) bookingsQuery.fetchNextPage();
+        }}
+        onEndReachedThreshold={0.35}
+        ListEmptyComponent={
           <View style={[styles.emptyCard, { backgroundColor: theme.colors.surface }]}>
             <MaterialCommunityIcons name={isLoading ? 'progress-clock' : 'calendar-search'} size={36} color={theme.colors.primary} />
             <Text style={[styles.emptyTitle, { color: theme.colors.onSurface }]}>
@@ -132,10 +149,9 @@ export default function ProviderBookingsScreen({ route, navigation }: any) {
             </Text>
             <Text style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>{emptyCopy}</Text>
           </View>
-        ) : (
-          visibleBookings.map((booking) => (
+        }
+        renderItem={({ item: booking }) => (
             <BookingCard
-              key={booking.id}
               booking={booking}
               theme={theme}
               onPress={() => setSelectedBooking(booking)}
@@ -143,9 +159,8 @@ export default function ProviderBookingsScreen({ route, navigation }: any) {
               onReject={() => handleBookingAction(booking, 'reject')}
               loading={approveMutation.isPending || rejectMutation.isPending}
             />
-          ))
         )}
-      </ScrollView>
+      />
 
       <BookingDetailModal
         booking={selectedBooking}

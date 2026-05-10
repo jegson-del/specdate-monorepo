@@ -29,9 +29,9 @@ export type Spec = {
 };
 
 export const SpecService = {
-    async getAll(filter = 'LIVE') {
+    async getAll(filter = 'LIVE', page = 1) {
         // GET /api/specs?filter=...
-        const response = await api.get('/specs', { params: { filter } });
+        const response = await api.get('/specs', { params: { filter, page } });
         return response.data; // { success, message, data: { current_page, data: Spec[] } }
     },
 

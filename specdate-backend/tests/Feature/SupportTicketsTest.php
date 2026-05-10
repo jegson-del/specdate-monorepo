@@ -94,4 +94,41 @@ class SupportTicketsTest extends TestCase
             ->assertOk()
             ->assertJsonPath('unread_support_count', 0);
     }
+
+    public function test_support_ticket_messages_are_cursor_paginated(): void
+    {
+        $user = User::factory()->create();
+
+        Sanctum::actingAs($user);
+        $ticketId = $this->postJson('/api/support/tickets', [
+            'category' => 'technical',
+            'subject' => 'Long support thread',
+            'message' => 'Message 1',
+        ])->assertCreated()->json('data.id');
+
+        foreach (range(2, 6) as $index) {
+            $this->postJson("/api/support/tickets/{$ticketId}/messages", [
+                'body' => "Message {$index}",
+            ])->assertCreated();
+        }
+
+        $firstPage = $this->getJson("/api/support/tickets/{$ticketId}?per_page=3")
+            ->assertOk()
+            ->assertJsonPath('data.message_pagination.has_more', true)
+            ->assertJsonCount(3, 'data.messages')
+            ->json('data');
+
+        $this->assertSame('Message 4', $firstPage['messages'][0]['body']);
+        $this->assertSame('Message 6', $firstPage['messages'][2]['body']);
+
+        $nextBeforeId = $firstPage['message_pagination']['next_before_id'];
+        $secondPage = $this->getJson("/api/support/tickets/{$ticketId}?per_page=3&before_id={$nextBeforeId}")
+            ->assertOk()
+            ->assertJsonPath('data.message_pagination.has_more', false)
+            ->assertJsonCount(3, 'data.messages')
+            ->json('data');
+
+        $this->assertSame('Message 1', $secondPage['messages'][0]['body']);
+        $this->assertSame('Message 3', $secondPage['messages'][2]['body']);
+    }
 }

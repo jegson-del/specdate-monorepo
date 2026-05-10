@@ -3,7 +3,7 @@ import { FlatList, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { ActivityIndicator, Button, IconButton, Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SupportService, type SupportTicket } from '../../services/support';
 
@@ -50,10 +50,17 @@ function SupportTicketCard({ ticket, onPress }: { ticket: SupportTicket; onPress
 export default function SupportTicketsScreen({ navigation }: any) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { data, isLoading, refetch } = useQuery({
+  const ticketsQuery = useInfiniteQuery({
     queryKey: ['support-tickets'],
-    queryFn: SupportService.getTickets,
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) => SupportService.getTickets({ page: Number(pageParam), per_page: 30 }),
+    getNextPageParam: (lastPage) => {
+      const current = lastPage.data.current_page ?? 1;
+      const last = lastPage.data.last_page ?? current;
+      return current < last ? current + 1 : undefined;
+    },
   });
+  const { isLoading, refetch } = ticketsQuery;
 
   useFocusEffect(
     React.useCallback(() => {
@@ -61,7 +68,7 @@ export default function SupportTicketsScreen({ navigation }: any) {
     }, [refetch])
   );
 
-  const tickets = data?.data?.data || [];
+  const tickets = ticketsQuery.data?.pages.flatMap((page) => page.data.data) || [];
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.background, paddingTop: insets.top + 8 }]}>
@@ -91,6 +98,10 @@ export default function SupportTicketsScreen({ navigation }: any) {
         contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 24 }]}
         onRefresh={refetch}
         refreshing={isLoading}
+        onEndReached={() => {
+          if (ticketsQuery.hasNextPage && !ticketsQuery.isFetchingNextPage) ticketsQuery.fetchNextPage();
+        }}
+        onEndReachedThreshold={0.35}
         renderItem={({ item }) => (
           <SupportTicketCard
             ticket={item}

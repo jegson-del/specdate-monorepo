@@ -37,7 +37,15 @@ class SupportController extends Controller
     public function show(Request $request, int $ticket)
     {
         try {
-            return $this->sendResponse($this->supportService->getTicket($request->user(), $ticket), 'Support ticket retrieved.');
+            return $this->sendResponse(
+                $this->supportService->getTicket(
+                    $request->user(),
+                    $ticket,
+                    $request->filled('before_id') ? (int) $request->integer('before_id') : null,
+                    (int) $request->integer('per_page', 25)
+                ),
+                'Support ticket retrieved.'
+            );
         } catch (HttpException $e) {
             return $this->sendError($e->getMessage(), [], $e->getStatusCode());
         }

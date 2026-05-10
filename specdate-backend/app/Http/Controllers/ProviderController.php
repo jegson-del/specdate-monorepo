@@ -75,7 +75,7 @@ class ProviderController extends Controller
     public function show(int $provider)
     {
         $profile = ProviderProfile::query()
-            ->with(['categories', 'user.media', 'providerReviews.reviewer.profile'])
+            ->with(['categories', 'user.media', 'providerReviews' => fn ($q) => $q->with('reviewer.profile')->latest()->limit(3)])
             ->withAvg('providerReviews as rating', 'rating')
             ->withCount('providerReviews as reviews_count')
             ->whereHas('user', fn ($q) => $q->where('role', 'provider'))
@@ -84,6 +84,31 @@ class ProviderController extends Controller
         return response()->json([
             'message' => 'Provider retrieved successfully.',
             'data' => $this->providerPayload($profile, true),
+        ]);
+    }
+
+    public function reviews(Request $request, int $provider)
+    {
+        $profile = ProviderProfile::query()
+            ->whereHas('user', fn ($q) => $q->where('role', 'provider'))
+            ->findOrFail($provider);
+
+        $reviews = $profile->providerReviews()
+            ->with('reviewer.profile')
+            ->latest()
+            ->paginate((int) $request->integer('per_page', 20));
+
+        $reviews->getCollection()->transform(fn ($review) => [
+            'id' => (string) $review->id,
+            'userName' => $review->reviewer?->profile?->full_name ?? $review->reviewer?->name ?? 'Dater',
+            'rating' => (int) $review->rating,
+            'text' => $review->comment ?? '',
+            'date' => $review->created_at?->diffForHumans(),
+        ]);
+
+        return response()->json([
+            'message' => 'Provider reviews retrieved successfully.',
+            'data' => $reviews,
         ]);
     }
 

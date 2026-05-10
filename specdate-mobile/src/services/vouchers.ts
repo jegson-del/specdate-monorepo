@@ -55,10 +55,18 @@ export type DateVoucherPreview = {
   };
 };
 
+export type PaginatedDateVouchers = {
+  data: DateVoucherItem[];
+  current_page?: number;
+  last_page?: number;
+  per_page?: number;
+  total?: number;
+};
+
 export const VoucherService = {
-  async getVouchers() {
-    const response = await api.get('/date-vouchers');
-    return response.data as { success: boolean; data: DateVoucherItem[]; message: string };
+  async getVouchers(params?: { page?: number; per_page?: number }) {
+    const response = await api.get('/date-vouchers', { params });
+    return response.data as { success: boolean; data: PaginatedDateVouchers; message: string };
   },
 
   async getVoucher(voucherId: number | string) {
@@ -82,9 +90,9 @@ export const VoucherService = {
     return response.data as { success: boolean; data: DateVoucherItem; message: string };
   },
 
-  async getProviderBookings() {
-    const response = await api.get('/provider/bookings');
-    return response.data as { success: boolean; data: DateVoucherItem[]; message: string };
+  async getProviderBookings(params?: { page?: number; per_page?: number }) {
+    const response = await api.get('/provider/bookings', { params });
+    return response.data as { success: boolean; data: PaginatedDateVouchers; message: string };
   },
 
   async approve(voucherId: number | string) {

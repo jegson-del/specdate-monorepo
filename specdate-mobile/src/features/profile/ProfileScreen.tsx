@@ -786,19 +786,18 @@ export default function ProfileScreen({ navigation }: any) {
                     {!!errors.hobbies && <HelperText type="error" visible>{errors.hobbies}</HelperText>}
 
                     <Divider style={{ marginVertical: 14 }} />
-                    <Text variant="titleSmall" style={{ color: theme.colors.onSurface, fontWeight: '900', marginBottom: 8 }}>
-                        Ideal date ideas
-                    </Text>
-                    <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 10 }}>
-                        Pick examples of where you enjoy dating so people get a feel for your vibe.
-                    </Text>
                     <MultiSelectModal
                         title="Select ideal dates"
+                        label="Ideal date ideas"
+                        actionPlacement="header"
                         options={IDEAL_DATE_OPTIONS}
                         value={normalizeStringArray(form?.ideal_dates)}
                         onChange={(next) => updateForm({ ideal_dates: next })}
                         placeholder="Add date ideas"
                     />
+                    <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 2, marginBottom: 10 }}>
+                        Pick examples of where you enjoy dating so people get a feel for your vibe.
+                    </Text>
                 </Surface>
 
                 <Surface style={[styles.section, { backgroundColor: theme.colors.elevation.level1 }]} elevation={0}>

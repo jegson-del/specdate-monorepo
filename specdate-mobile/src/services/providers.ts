@@ -36,8 +36,10 @@ export type ProviderMarketplaceItem = {
   created_at?: string | null;
 };
 
-type PaginatedProviders = {
-  data: ProviderMarketplaceItem[];
+export type ProviderReviewItem = { id: string; userName: string; rating: number; text: string; date: string };
+
+export type PaginatedResponse<T> = {
+  data: T[];
   current_page?: number;
   last_page?: number;
   per_page?: number;
@@ -45,13 +47,18 @@ type PaginatedProviders = {
 };
 
 export const ProviderService = {
-  async getProviders(params?: { q?: string; category?: string; service?: string; country?: string; city?: string }) {
+  async getProviders(params?: { q?: string; category?: string; service?: string; country?: string; city?: string; page?: number; per_page?: number }) {
     const response = await api.get('/providers', { params });
-    return response.data as { message: string; data: PaginatedProviders };
+    return response.data as { message: string; data: PaginatedResponse<ProviderMarketplaceItem> };
   },
 
   async getProvider(providerId: number | string) {
     const response = await api.get(`/providers/${providerId}`);
     return response.data as { message: string; data: ProviderMarketplaceItem };
+  },
+
+  async getProviderReviews(providerId: number | string, params?: { page?: number; per_page?: number }) {
+    const response = await api.get(`/providers/${providerId}/reviews`, { params });
+    return response.data as { message: string; data: PaginatedResponse<ProviderReviewItem> };
   },
 };

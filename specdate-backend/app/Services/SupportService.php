@@ -59,20 +59,35 @@ class SupportService
         return $ticket->fresh(['user:id,name,username', 'messages.sender:id,name,username']);
     }
 
-    public function getTicket(User $user, int $ticketId): array
+    public function getTicket(User $user, int $ticketId, ?int $beforeId = null, int $perPage = 25): array
     {
         $ticket = SupportTicket::with(['user:id,name,username'])->findOrFail($ticketId);
         $this->authorizeTicket($user, $ticket);
 
-        $messages = $ticket->messages()
+        $perPage = max(1, min($perPage, 50));
+        $messageQuery = $ticket->messages()
             ->with('sender:id,name,username')
-            ->orderBy('created_at')
-            ->get()
+            ->when($beforeId, fn ($q) => $q->where('id', '<', $beforeId))
+            ->orderByDesc('id');
+
+        $messages = $messageQuery
+            ->limit($perPage + 1)
+            ->get();
+        $hasMore = $messages->count() > $perPage;
+        $messages = $messages
+            ->take($perPage)
+            ->sortBy('id')
+            ->values()
             ->map(fn (SupportMessage $message) => $this->messagePayload($message));
 
         return [
             'ticket' => $this->ticketPayload($ticket, $user),
             'messages' => $messages,
+            'message_pagination' => [
+                'has_more' => $hasMore,
+                'next_before_id' => $hasMore && $messages->isNotEmpty() ? (int) $messages->first()['id'] : null,
+                'per_page' => $perPage,
+            ],
         ];
     }
 

@@ -3,7 +3,10 @@
 namespace App\Services;
 
 use App\Models\ChatMessage;
+use App\Models\DatePartnerReview;
 use App\Models\Media;
+use App\Models\ProviderProfile;
+use App\Models\ProviderReview;
 use App\Models\Report;
 use App\Models\Spec;
 use App\Models\SpecRoundAnswer;
@@ -66,6 +69,9 @@ class ReportService
     {
         return match ($targetType) {
             'user', 'profile' => User::findOrFail($targetId),
+            'provider_profile' => ProviderProfile::findOrFail($targetId),
+            'provider_review' => ProviderReview::findOrFail($targetId),
+            'date_partner_review' => DatePartnerReview::findOrFail($targetId),
             'message' => ChatMessage::findOrFail($targetId),
             'media' => Media::findOrFail($targetId),
             'spec' => Spec::findOrFail($targetId),
@@ -78,6 +84,8 @@ class ReportService
     {
         return match ($targetType) {
             'user', 'profile' => (int) $target->id,
+            'provider_profile' => (int) $target->user_id,
+            'provider_review', 'date_partner_review' => (int) $target->reviewer_id,
             'message' => (int) $target->sender_id,
             'media' => (int) $target->user_id,
             'spec' => (int) $target->user_id,

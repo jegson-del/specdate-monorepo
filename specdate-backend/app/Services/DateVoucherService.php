@@ -69,17 +69,20 @@ class DateVoucherService
         return $voucher->fresh($this->voucherRelations());
     }
 
-    public function listForUser(User $user)
+    public function listForUser(User $user, int $perPage = 20)
     {
-        return DateVoucher::query()
+        $vouchers = DateVoucher::query()
             ->where(fn ($q) => $q->where('owner_id', $user->id)->orWhere('winner_user_id', $user->id))
             ->with($this->voucherRelations())
             ->latest()
-            ->get()
-            ->map(fn (DateVoucher $voucher) => $this->voucherPayload($voucher, $user));
+            ->paginate(max(1, min($perPage, 50)));
+
+        $vouchers->getCollection()->transform(fn (DateVoucher $voucher) => $this->voucherPayload($voucher, $user));
+
+        return $vouchers;
     }
 
-    public function listForProvider(User $providerUser)
+    public function listForProvider(User $providerUser, int $perPage = 20)
     {
         if ($providerUser->role !== 'provider') {
             throw new HttpException(403, 'Provider access required.');
@@ -87,15 +90,18 @@ class DateVoucherService
 
         $providerProfileId = $providerUser->providerProfile?->id;
         if (!$providerProfileId) {
-            return collect();
+            return DateVoucher::query()->whereRaw('1 = 0')->paginate(max(1, min($perPage, 50)));
         }
 
-        return DateVoucher::query()
+        $vouchers = DateVoucher::query()
             ->where('provider_profile_id', $providerProfileId)
             ->with($this->voucherRelations())
             ->latest()
-            ->get()
-            ->map(fn (DateVoucher $voucher) => $this->voucherPayload($voucher, $providerUser));
+            ->paginate(max(1, min($perPage, 50)));
+
+        $vouchers->getCollection()->transform(fn (DateVoucher $voucher) => $this->voucherPayload($voucher, $providerUser));
+
+        return $vouchers;
     }
 
     public function getForUser(User $user, int $voucherId): DateVoucher

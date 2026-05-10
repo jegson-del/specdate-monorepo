@@ -5,7 +5,11 @@ namespace Tests\Feature;
 use App\Models\BlockedUser;
 use App\Models\ChatMessage;
 use App\Models\ChatThread;
+use App\Models\DatePartnerReview;
+use App\Models\DateVoucher;
 use App\Models\Media;
+use App\Models\ProviderProfile;
+use App\Models\ProviderReview;
 use App\Models\Report;
 use App\Models\Spec;
 use App\Models\SpecDate;
@@ -129,6 +133,81 @@ class ModerationAndBlockingTest extends TestCase
         $this->assertSame(0, Report::count());
     }
 
+    public function test_user_can_report_provider_profile(): void
+    {
+        $reporter = User::factory()->create();
+        $providerUser = User::factory()->create(['role' => 'provider']);
+        $provider = ProviderProfile::create([
+            'user_id' => $providerUser->id,
+            'company_name' => 'Date Venue',
+            'description' => 'Misleading venue content',
+            'city' => 'Lagos',
+            'country' => 'Nigeria',
+        ]);
+
+        Sanctum::actingAs($reporter);
+
+        $this->postJson('/api/reports', [
+            'target_type' => 'provider_profile',
+            'target_id' => $provider->id,
+            'reason' => 'Scam or misleading content',
+        ])->assertCreated()
+            ->assertJsonPath('data.reported_user_id', $providerUser->id);
+    }
+
+    public function test_user_can_report_provider_review_and_date_partner_review(): void
+    {
+        [$owner, $winner, , $date] = $this->createChatThread();
+        $reporter = User::factory()->create();
+        $providerUser = User::factory()->create(['role' => 'provider']);
+        $provider = ProviderProfile::create([
+            'user_id' => $providerUser->id,
+            'company_name' => 'Review Venue',
+        ]);
+        $voucher = DateVoucher::create([
+            'spec_date_id' => $date->id,
+            'provider_profile_id' => $provider->id,
+            'owner_id' => $owner->id,
+            'winner_user_id' => $winner->id,
+            'requested_by_user_id' => $owner->id,
+            'voucher_code' => 'RVW12345',
+            'qr_token' => 'review-token-12345',
+            'discount_percentage' => 15,
+            'status' => DateVoucher::STATUS_REDEEMED,
+        ]);
+        $providerReview = ProviderReview::create([
+            'provider_profile_id' => $provider->id,
+            'date_voucher_id' => $voucher->id,
+            'reviewer_id' => $owner->id,
+            'rating' => 1,
+            'comment' => 'Unsafe wording',
+        ]);
+        $partnerReview = DatePartnerReview::create([
+            'spec_date_id' => $date->id,
+            'date_voucher_id' => $voucher->id,
+            'reviewer_id' => $winner->id,
+            'reviewed_user_id' => $owner->id,
+            'rating' => 1,
+            'comment' => 'Abusive wording',
+        ]);
+
+        Sanctum::actingAs($reporter);
+
+        $this->postJson('/api/reports', [
+            'target_type' => 'provider_review',
+            'target_id' => $providerReview->id,
+            'reason' => 'Harassment or abuse',
+        ])->assertCreated()
+            ->assertJsonPath('data.reported_user_id', $owner->id);
+
+        $this->postJson('/api/reports', [
+            'target_type' => 'date_partner_review',
+            'target_id' => $partnerReview->id,
+            'reason' => 'Harassment or abuse',
+        ])->assertCreated()
+            ->assertJsonPath('data.reported_user_id', $winner->id);
+    }
+
     private function createChatThread(): array
     {
         $owner = User::factory()->create();
@@ -154,6 +233,6 @@ class ModerationAndBlockingTest extends TestCase
             'winner_user_id' => $winner->id,
         ]);
 
-        return [$owner, $winner, $thread];
+        return [$owner, $winner, $thread, $date];
     }
 }

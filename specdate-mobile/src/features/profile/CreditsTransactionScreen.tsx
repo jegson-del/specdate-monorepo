@@ -3,7 +3,7 @@ import { View, StyleSheet, FlatList, RefreshControl } from 'react-native';
 import { Text, useTheme, IconButton } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { api } from '../../services/api';
 import { formatDistanceToNow } from 'date-fns';
@@ -26,16 +26,23 @@ export default function CreditsTransactionScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
 
-  const { data, isLoading, refetch, isRefetching } = useQuery({
+  const transactionsQuery = useInfiniteQuery({
     queryKey: ['credits-transactions'],
-    queryFn: async () => {
-      const res = await api.get('/credits/transactions');
-      return res.data as { data: TransactionRow[] };
+    initialPageParam: 1,
+    queryFn: async ({ pageParam }) => {
+      const res = await api.get('/credits/transactions', { params: { page: Number(pageParam), per_page: 30 } });
+      return res.data as { data: { data: TransactionRow[]; current_page?: number; last_page?: number } };
+    },
+    getNextPageParam: (lastPage) => {
+      const current = lastPage.data.current_page ?? 1;
+      const last = lastPage.data.last_page ?? current;
+      return current < last ? current + 1 : undefined;
     },
     staleTime: 60 * 1000,
   });
+  const { isLoading, refetch, isRefetching } = transactionsQuery;
 
-  const list = useMemo(() => Array.isArray(data?.data) ? data.data : [], [data]);
+  const list = useMemo(() => transactionsQuery.data?.pages.flatMap((page) => page.data.data) || [], [transactionsQuery.data]);
 
   const renderItem = ({ item }: { item: TransactionRow }) => {
     const isCredit = item.type === 'CREDIT';
@@ -102,6 +109,10 @@ export default function CreditsTransactionScreen() {
         renderItem={renderItem}
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
+        onEndReached={() => {
+          if (transactionsQuery.hasNextPage && !transactionsQuery.isFetchingNextPage) transactionsQuery.fetchNextPage();
+        }}
+        onEndReachedThreshold={0.35}
         refreshControl={
           <RefreshControl
             refreshing={isLoading || isRefetching}

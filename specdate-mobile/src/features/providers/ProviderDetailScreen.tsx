@@ -14,9 +14,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ImageViewerModal } from '../profile/components';
-import { AddReviewModal, SeeAllReviewsModal } from './components';
-import { getMockReviewsForProvider } from './mockReviews';
+import { ProviderReviewCard } from './components';
+import ChatSafetySheet from '../chat/components/ChatSafetySheet';
 import { ChatService } from '../../services/chat';
+import { ModerationService, type ReportTargetType } from '../../services/moderation';
 import { ProviderService, type ProviderMarketplaceItem } from '../../services/providers';
 import { toImageUri } from '../../utils/imageUrl';
 
@@ -25,7 +26,12 @@ const GALLERY_ITEM_SIZE = 72;
 const GALLERY_GAP = 8;
 
 export type ProviderItem = ProviderMarketplaceItem;
-export type ProviderReview = import('./components/SeeAllReviewsModal').ReviewItem;
+export type ProviderReview = import('./components').ReviewItem;
+
+type ReportSheetState =
+  | { mode: 'report'; targetType: ReportTargetType; targetId: number; label: string }
+  | { mode: 'success'; title: string; subtitle: string }
+  | null;
 
 function buildAddress(provider: ProviderItem) {
   return [provider.address, provider.city, provider.country].filter(Boolean).join(', ');
@@ -44,19 +50,14 @@ export default function ProviderDetailScreen({ route, navigation }: any) {
   });
 
   const provider = providerResponse?.data ?? routeProvider;
-  const [submitting, setSubmitting] = useState(false);
   const [openingChat, setOpeningChat] = useState(false);
   const [galleryViewerVisible, setGalleryViewerVisible] = useState(false);
   const [galleryInitialIndex, setGalleryInitialIndex] = useState(0);
-  const [addReviewModalVisible, setAddReviewModalVisible] = useState(false);
-  const [seeAllReviewsVisible, setSeeAllReviewsVisible] = useState(false);
+  const [reportSheet, setReportSheet] = useState<ReportSheetState>(null);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
 
-  const baseReviews = useMemo(
-    () => provider?.reviews?.length ? provider.reviews : getMockReviewsForProvider(provider?.id != null ? String(provider.id) : undefined),
-    [provider?.id, provider?.reviews]
-  );
-  const [userReviews, setUserReviews] = useState<ProviderReview[]>([]);
-  const reviews = useMemo(() => [...userReviews, ...baseReviews], [userReviews, baseReviews]);
+  const reviews = useMemo(() => provider?.reviews ?? [], [provider?.reviews]);
   const reviewsPreview = useMemo(() => reviews.slice(0, 3), [reviews]);
 
   const galleryImages = useMemo(() => {
@@ -79,6 +80,52 @@ export default function ProviderDetailScreen({ route, navigation }: any) {
   const address = buildAddress(provider) || 'Address will be shared by the provider.';
   const ratingLabel = provider.rating != null ? provider.rating.toFixed(1) : provider.isVerified ? 'Verified' : 'New';
   const hasMoreReviews = reviews.length > reviewsPreview.length;
+
+  const closeReportSheet = () => {
+    setReportSheet(null);
+    setReportError(null);
+  };
+
+  const openReportSheet = (targetType: ReportTargetType, targetId: number, label: string) => {
+    setReportError(null);
+    setReportSheet({ mode: 'report', targetType, targetId, label });
+  };
+
+  const reportableReviewId = (review: ProviderReview) => {
+    const id = String(review.id);
+    return /^\d+$/.test(id) ? Number(id) : null;
+  };
+
+  const openReviewReport = (review: ProviderReview) => {
+    const reviewId = reportableReviewId(review);
+    if (!reviewId) {
+      Alert.alert('Review cannot be reported', 'Only published DateUsher reviews can be sent to moderation.');
+      return;
+    }
+    openReportSheet('provider_review', reviewId, 'review');
+  };
+
+  const submitReport = async (reason: string) => {
+    if (reportSheet?.mode !== 'report') return;
+    setReportLoading(true);
+    setReportError(null);
+    try {
+      await ModerationService.reportContent({
+        target_type: reportSheet.targetType,
+        target_id: reportSheet.targetId,
+        reason,
+      });
+      setReportSheet({
+        mode: 'success',
+        title: 'Report submitted',
+        subtitle: 'Thanks. Our moderation team will review this.',
+      });
+    } catch (error: any) {
+      setReportError(error?.response?.data?.message || error?.message || 'Could not submit report.');
+    } finally {
+      setReportLoading(false);
+    }
+  };
 
   const openGalleryAt = (index: number) => {
     setGalleryInitialIndex(index);
@@ -122,33 +169,20 @@ export default function ProviderDetailScreen({ route, navigation }: any) {
     }
   };
 
-  const handleSubmitReview = (rating: number, text: string) => {
-    const trimmed = text.trim();
-    if (trimmed.length < 2) {
-      Alert.alert('Too short', 'Please write at least a few words for your review.');
-      return;
-    }
-    if (rating < 1) {
-      Alert.alert('Add a rating', 'Please tap the stars to rate your experience.');
-      return;
-    }
-
-    setSubmitting(true);
-    setUserReviews((prev) => [
-      { id: `user-${Date.now()}`, userName: 'You', rating, text: trimmed, date: 'Just now' },
-      ...prev,
-    ]);
-    setAddReviewModalVisible(false);
-    setSubmitting(false);
-    Alert.alert('Thanks!', 'Your review has been posted.');
-  };
-
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={[styles.header, { paddingTop: insets.top + 4 }]}>
         <IconButton icon="arrow-left" size={24} onPress={() => navigation.goBack()} iconColor={theme.colors.onSurface} />
         <Text style={[styles.headerTitle, { color: theme.colors.onSurface }]} numberOfLines={1}>{provider.name}</Text>
-        <View style={{ width: 48 }} />
+        <IconButton
+          icon="flag"
+          size={20}
+          onPress={() => openReportSheet('provider_profile', Number(provider.id), 'provider')}
+          iconColor="#fff"
+          containerColor="#F59E0B"
+          style={styles.reportHeaderButton}
+          accessibilityLabel="Report provider"
+        />
       </View>
 
       <ScrollView
@@ -260,44 +294,26 @@ export default function ProviderDetailScreen({ route, navigation }: any) {
 
           <View style={styles.reviewsSectionHeader}>
             <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Reviews</Text>
-            <Button
-              mode="outlined"
-              onPress={() => setAddReviewModalVisible(true)}
-              icon="pencil"
-              style={[styles.addReviewBtn, { borderColor: theme.colors.primary }]}
-              labelStyle={{ color: theme.colors.primary, fontWeight: '700' }}
-              compact
-            >
-              Add a review
-            </Button>
           </View>
 
           {reviewsPreview.length > 0 ? (
             <View style={styles.reviewList}>
               {reviewsPreview.map((review) => (
-                <View key={review.id} style={[styles.reviewCard, { backgroundColor: theme.colors.surface }]}>
-                  <View style={styles.reviewCardHeader}>
-                    <View>
-                      <Text style={[styles.reviewReviewerLabel, { color: theme.colors.onSurfaceVariant }]}>Reviewer</Text>
-                      <Text style={[styles.reviewUserName, { color: theme.colors.onSurface }]}>{review.userName}</Text>
-                    </View>
-                    <View style={styles.reviewRatingRow}>
-                      <MaterialCommunityIcons name="star" size={14} color="#F59E0B" />
-                      <Text style={[styles.reviewRatingText, { color: theme.colors.onSurfaceVariant }]}>{review.rating.toFixed(0)}</Text>
-                    </View>
-                  </View>
-                  <Text style={[styles.reviewText, { color: theme.colors.onSurface }]}>{review.text}</Text>
-                  <Text style={[styles.reviewDate, { color: theme.colors.onSurfaceVariant }]}>{review.date}</Text>
-                </View>
+                <ProviderReviewCard key={review.id} review={review} onReport={openReviewReport} />
               ))}
             </View>
           ) : (
-            <Text style={[styles.noReviews, { color: theme.colors.onSurfaceVariant }]}>No reviews yet.</Text>
+              <Text style={[styles.noReviews, { color: theme.colors.onSurfaceVariant }]}>
+                Reviews appear after daters redeem a voucher and review their date experience.
+              </Text>
           )}
 
           {hasMoreReviews ? (
-            <TouchableOpacity onPress={() => setSeeAllReviewsVisible(true)} style={styles.seeAllReviewsInline}>
-              <Text style={[styles.seeAllReviewsInlineText, { color: theme.colors.primary }]}>See all {reviews.length} reviews</Text>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('ProviderReviews', { providerId: provider.id, reviews, canReport: true })}
+              style={styles.seeAllReviewsInline}
+            >
+              <Text style={[styles.seeAllReviewsInlineText, { color: theme.colors.primary }]}>Read more reviews</Text>
               <MaterialCommunityIcons name="chevron-right" size={18} color={theme.colors.primary} />
             </TouchableOpacity>
           ) : null}
@@ -321,9 +337,17 @@ export default function ProviderDetailScreen({ route, navigation }: any) {
         </View>
       </ScrollView>
 
-      <SeeAllReviewsModal visible={seeAllReviewsVisible} onDismiss={() => setSeeAllReviewsVisible(false)} reviews={reviews} />
-      <AddReviewModal visible={addReviewModalVisible} onDismiss={() => setAddReviewModalVisible(false)} onSubmit={handleSubmitReview} submitting={submitting} />
       <ImageViewerModal visible={galleryViewerVisible} images={galleryImages} initialIndex={galleryInitialIndex} onClose={() => setGalleryViewerVisible(false)} />
+      <ChatSafetySheet
+        visible={!!reportSheet}
+        mode={reportSheet?.mode ?? 'report'}
+        title={reportSheet?.mode === 'report' ? `Report ${reportSheet.label}?` : reportSheet?.title ?? ''}
+        subtitle={reportSheet?.mode === 'report' ? 'Tell us what is wrong. This will be sent to moderation.' : reportSheet?.subtitle}
+        loading={reportLoading}
+        error={reportError}
+        onDismiss={closeReportSheet}
+        onSubmitReport={submitReport}
+      />
     </View>
   );
 }
@@ -337,6 +361,16 @@ const styles = StyleSheet.create({
   centered: { justifyContent: 'center', alignItems: 'center' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4 },
   headerTitle: { flex: 1, fontSize: 18, fontWeight: '800', textAlign: 'center' },
+  reportHeaderButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.18,
+    shadowRadius: 2,
+  },
   scroll: { flex: 1 },
   mainImageWrap: { position: 'relative', width: SCREEN_WIDTH },
   mainImage: { width: SCREEN_WIDTH, height: 240, backgroundColor: '#E8EEF6' },
@@ -389,7 +423,6 @@ const styles = StyleSheet.create({
   voucherTitle: { fontSize: 16, fontWeight: '800', marginBottom: 4 },
   voucherDesc: { fontSize: 14, lineHeight: 20 },
   reviewsSectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 20, marginBottom: 12, gap: 8 },
-  addReviewBtn: { borderRadius: 20 },
   reviewList: { gap: 12 },
   reviewCard: { padding: 14, borderRadius: 12 },
   reviewCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },

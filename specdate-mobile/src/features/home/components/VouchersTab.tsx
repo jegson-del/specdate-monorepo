@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Text } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { VoucherService } from '../../../services/vouchers';
 import { withAlpha } from '../homeUtils';
 import { HomeColors } from '../types';
@@ -17,12 +17,19 @@ type Props = {
 };
 
 export default function VouchersTab({ theme, homeColors, insets, bottomNavHeight, navigation }: Props) {
-  const { data, refetch, isLoading } = useQuery({
+  const vouchersQuery = useInfiniteQuery({
     queryKey: ['date-vouchers'],
-    queryFn: VoucherService.getVouchers,
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) => VoucherService.getVouchers({ page: Number(pageParam), per_page: 20 }),
+    getNextPageParam: (lastPage) => {
+      const current = lastPage.data.current_page ?? 1;
+      const last = lastPage.data.last_page ?? current;
+      return current < last ? current + 1 : undefined;
+    },
   });
+  const { refetch, isLoading } = vouchersQuery;
 
-  const vouchers = useMemo(() => data?.data || [], [data]);
+  const vouchers = useMemo(() => vouchersQuery.data?.pages.flatMap((page) => page.data.data) || [], [vouchersQuery.data]);
 
   return (
     <View style={styles.screen}>
@@ -43,6 +50,10 @@ export default function VouchersTab({ theme, homeColors, insets, bottomNavHeight
         keyExtractor={(item) => String(item.id)}
         onRefresh={refetch}
         refreshing={isLoading}
+        onEndReached={() => {
+          if (vouchersQuery.hasNextPage && !vouchersQuery.isFetchingNextPage) vouchersQuery.fetchNextPage();
+        }}
+        onEndReachedThreshold={0.35}
         contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + bottomNavHeight + 24 }]}
         ListEmptyComponent={
           isLoading ? (

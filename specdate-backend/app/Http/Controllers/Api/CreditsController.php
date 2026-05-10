@@ -110,8 +110,7 @@ class CreditsController extends Controller
                     });
             })
             ->orderByDesc('created_at')
-            ->limit(50)
-            ->get(['id', 'type', 'item_type', 'quantity', 'amount', 'currency', 'purpose', 'revenue_cat_transaction_id', 'metadata', 'created_at']);
+            ->paginate((int) $request->integer('per_page', 30), ['id', 'type', 'item_type', 'quantity', 'amount', 'currency', 'purpose', 'revenue_cat_transaction_id', 'metadata', 'created_at']);
 
         return response()->json(['data' => $list]);
     }

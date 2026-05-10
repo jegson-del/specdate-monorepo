@@ -50,6 +50,12 @@ export type PaginatedSupportTickets = {
   total: number;
 };
 
+export type SupportMessagePagination = {
+  has_more: boolean;
+  next_before_id?: number | null;
+  per_page: number;
+};
+
 export const SUPPORT_CATEGORIES: { value: SupportCategory; label: string; helper: string }[] = [
   { value: 'safety', label: 'Safety concern', helper: 'Harassment, threats, scams, or urgent safety issues' },
   { value: 'account', label: 'Account access', helper: 'Login, pause, profile, or account changes' },
@@ -61,8 +67,8 @@ export const SUPPORT_CATEGORIES: { value: SupportCategory; label: string; helper
 ];
 
 export const SupportService = {
-  async getTickets() {
-    const response = await api.get('/support/tickets');
+  async getTickets(params?: { page?: number; per_page?: number }) {
+    const response = await api.get('/support/tickets', { params });
     return response.data as { success: boolean; data: PaginatedSupportTickets; message: string };
   },
 
@@ -71,11 +77,11 @@ export const SupportService = {
     return response.data as { success: boolean; data: SupportTicket; message: string };
   },
 
-  async getTicket(ticketId: number | string) {
-    const response = await api.get(`/support/tickets/${ticketId}`);
+  async getTicket(ticketId: number | string, params?: { before_id?: number; per_page?: number }) {
+    const response = await api.get(`/support/tickets/${ticketId}`, { params });
     return response.data as {
       success: boolean;
-      data: { ticket: SupportTicket; messages: SupportMessage[] };
+      data: { ticket: SupportTicket; messages: SupportMessage[]; message_pagination?: SupportMessagePagination };
       message: string;
     };
   },

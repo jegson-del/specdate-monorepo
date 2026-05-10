@@ -500,9 +500,9 @@ export default function ProviderDashboardScreen({ navigation }: any) {
                 activeOpacity={0.8}
                 onPress={startEditing}
                 style={[styles.inlineEditButton, { backgroundColor: theme.colors.primary }]}
+                accessibilityLabel="Edit provider profile"
               >
-                <MaterialCommunityIcons name="pencil-outline" size={18} color="#FFFFFF" />
-                <Text style={styles.inlineEditText}>Edit profile</Text>
+                <MaterialCommunityIcons name="pencil" size={16} color="#FFFFFF" />
               </TouchableOpacity>
             ) : null}
           </View>
@@ -927,16 +927,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   inlineEditButton: {
-    minHeight: 34,
+    width: 34,
+    height: 34,
     borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 6,
-    paddingHorizontal: 12,
     marginTop: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.18,
+    shadowRadius: 2,
   },
-  inlineEditText: { fontSize: 12, fontWeight: '800', color:"#FFFFFF" },
   addressRow: {
     flexDirection: 'row',
     alignItems: 'center',

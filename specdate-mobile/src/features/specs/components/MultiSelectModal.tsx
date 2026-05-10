@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Button, Chip, Divider, Modal, Portal, Searchbar, Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 type Props = {
   title: string;
@@ -9,6 +10,8 @@ type Props = {
   value: string[];
   onChange: (next: string[]) => void;
   placeholder?: string;
+  label?: string;
+  actionPlacement?: 'inline' | 'header';
 };
 
 function uniq(xs: string[]) {
@@ -21,6 +24,8 @@ export function MultiSelectModal({
   value,
   onChange,
   placeholder = 'Select...',
+  label,
+  actionPlacement = 'inline',
 }: Props) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -61,8 +66,38 @@ export function MultiSelectModal({
     }
   };
 
+  const showActions = value.length > 0;
+  const actionButtons = showActions ? (
+    <View style={styles.iconActions}>
+      <TouchableOpacity
+        accessibilityLabel={`Edit ${label ?? title}`}
+        onPress={openPicker}
+        activeOpacity={0.85}
+        style={[styles.circleAction, { backgroundColor: theme.colors.primary }]}
+      >
+        <MaterialCommunityIcons name="pencil" size={16} color={theme.colors.onPrimary} />
+      </TouchableOpacity>
+      <TouchableOpacity
+        accessibilityLabel={`Clear ${label ?? title}`}
+        onPress={() => onChange([])}
+        activeOpacity={0.85}
+        style={[styles.circleAction, styles.clearCircleAction]}
+      >
+        <MaterialCommunityIcons name="trash-can-outline" size={16} color="#fff" />
+      </TouchableOpacity>
+    </View>
+  ) : null;
+
   return (
     <View style={styles.wrap}>
+      {label ? (
+        <View style={styles.labelRow}>
+          <Text variant="titleSmall" style={[styles.labelText, { color: theme.colors.onSurface }]}>
+            {label}
+          </Text>
+          {actionPlacement === 'header' ? actionButtons : null}
+        </View>
+      ) : null}
       <View style={styles.previewRow}>
         {value.length === 0 ? (
           <Chip onPress={openPicker} textStyle={styles.placeholderChipText}>
@@ -80,12 +115,16 @@ export function MultiSelectModal({
                 {item}
               </Chip>
             ))}
-            <Chip icon="pencil-outline" onPress={openPicker} textStyle={styles.editChipText} style={styles.editChip}>
-              Edit
-            </Chip>
-            <Chip icon="trash-can-outline" onPress={() => onChange([])} textStyle={styles.clearChipText} style={styles.clearChip}>
-              Clear
-            </Chip>
+            {actionPlacement === 'inline' ? (
+              <>
+                <Chip icon="pencil-outline" onPress={openPicker} textStyle={styles.editChipText} style={styles.editChip}>
+                  Edit
+                </Chip>
+                <Chip icon="trash-can-outline" onPress={() => onChange([])} textStyle={styles.clearChipText} style={styles.clearChip}>
+                  Clear
+                </Chip>
+              </>
+            ) : null}
           </>
         )}
       </View>
@@ -174,6 +213,36 @@ export function MultiSelectModal({
 const styles = StyleSheet.create({
   wrap: {
     gap: 10,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  labelText: {
+    flex: 1,
+    fontWeight: '900',
+  },
+  iconActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  circleAction: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.18,
+    shadowRadius: 2,
+  },
+  clearCircleAction: {
+    backgroundColor: '#DC2626',
   },
   previewRow: {
     flexDirection: 'row',

@@ -3,7 +3,7 @@ import { FlatList, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-
 import { ActivityIndicator, SegmentedButtons, Text, TextInput } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { SpecService } from '../../../services/specs';
 import { UserService } from '../../../services/user';
 import { FEED_KEYS, mapSpecsResponse, tagColor, withAlpha } from '../homeUtils';
@@ -35,45 +35,57 @@ export default function HomeFeedTab({ theme, homeColors, insets, bottomNavHeight
     return () => clearTimeout(t);
   }, [cityFilter]);
 
-  const fetchSpecsForFeed = useCallback(async (f: FeedKey): Promise<SpecCardItem[]> => {
-    const res = await SpecService.getAll(f);
-    return mapSpecsResponse(res, f);
+  const fetchSpecsForFeed = useCallback(async (f: FeedKey, page = 1) => {
+    const res = await SpecService.getAll(f, page);
+    return { res, items: await mapSpecsResponse(res, f) };
   }, []);
 
-  const { data: specs = [], isLoading, error, isError, refetch, isRefetching } = useQuery({
+  const specsQuery = useInfiniteQuery({
     queryKey: ['specs', feed],
+    initialPageParam: 1,
     retry: false,
     staleTime: 0,
-    queryFn: () => fetchSpecsForFeed(feed),
+    queryFn: ({ pageParam }) => fetchSpecsForFeed(feed, Number(pageParam)),
+    getNextPageParam: (lastPage) => {
+      const current = lastPage.res?.data?.current_page ?? 1;
+      const last = lastPage.res?.data?.last_page ?? current;
+      return current < last ? current + 1 : undefined;
+    },
   });
+  const specs = useMemo(() => specsQuery.data?.pages.flatMap((page) => page.items) ?? [], [specsQuery.data]);
+  const { isLoading, error, isError, refetch, isRefetching } = specsQuery;
 
-  const { data: usersData, refetch: refetchUsers, isLoading: isLoadingUsers } = useQuery({
+  const usersQuery = useInfiniteQuery({
     queryKey: ['users', sexFilter, cityQuery, query],
-    queryFn: () => UserService.getAll({
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) => UserService.getAll({
       sex: sexFilter,
       city: cityQuery || undefined,
       query,
-      page: 1,
+      page: Number(pageParam),
     }),
+    getNextPageParam: (lastPage) => {
+      const data = lastPage?.data;
+      const current = data?.current_page ?? 1;
+      const last = data?.last_page ?? current;
+      return current < last ? current + 1 : undefined;
+    },
     enabled: tab === 'People',
   });
+  const refetchUsers = usersQuery.refetch;
 
   useFocusEffect(
     useCallback(() => {
       refetch();
       FEED_KEYS.forEach((f) => {
         if (f !== feed) {
-          queryClient.prefetchQuery({ queryKey: ['specs', f], queryFn: () => fetchSpecsForFeed(f) });
+          queryClient.prefetchInfiniteQuery({ queryKey: ['specs', f], queryFn: ({ pageParam }) => fetchSpecsForFeed(f, Number(pageParam ?? 1)), initialPageParam: 1 });
         }
       });
     }, [feed, fetchSpecsForFeed, queryClient, refetch])
   );
 
-  const usersList = useMemo(() => {
-    const raw = usersData?.data;
-    const list = Array.isArray(raw) ? raw : (raw?.data || []);
-    return list as UserItem[];
-  }, [usersData]);
+  const usersList = useMemo(() => usersQuery.data?.pages.flatMap((page) => page?.data?.data || []) as UserItem[] ?? [], [usersQuery.data]);
 
   const filteredItems = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -197,6 +209,10 @@ export default function HomeFeedTab({ theme, homeColors, insets, bottomNavHeight
             contentContainerStyle={[styles.listContent, { paddingLeft: insets.left + 16, paddingRight: insets.right + 16, paddingBottom: insets.bottom + bottomNavHeight + 24 }]}
             onRefresh={refetch}
             refreshing={isRefetching}
+            onEndReached={() => {
+              if (specsQuery.hasNextPage && !specsQuery.isFetchingNextPage) specsQuery.fetchNextPage();
+            }}
+            onEndReachedThreshold={0.4}
             ListEmptyComponent={
               isLoading ? (
                 <View style={styles.empty}>
@@ -237,7 +253,11 @@ export default function HomeFeedTab({ theme, homeColors, insets, bottomNavHeight
             columnWrapperStyle={styles.peopleGridRow}
             contentContainerStyle={[styles.peopleGridContent, { paddingLeft: insets.left + 16, paddingRight: insets.right + 16, paddingBottom: insets.bottom + bottomNavHeight + 24 }]}
             onRefresh={refetchUsers}
-            refreshing={isLoadingUsers}
+            refreshing={usersQuery.isLoading || usersQuery.isRefetching}
+            onEndReached={() => {
+              if (usersQuery.hasNextPage && !usersQuery.isFetchingNextPage) usersQuery.fetchNextPage();
+            }}
+            onEndReachedThreshold={0.4}
             ListEmptyComponent={
               <View style={styles.peopleEmpty}>
                 <MaterialCommunityIcons name="account-search-outline" size={42} color={theme.colors.outline} />

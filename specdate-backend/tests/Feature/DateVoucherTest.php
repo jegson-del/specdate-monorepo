@@ -76,7 +76,7 @@ class DateVoucherTest extends TestCase
         Sanctum::actingAs($provider);
         $this->getJson('/api/provider/bookings')
             ->assertOk()
-            ->assertJsonPath('data.0.id', $voucher['id']);
+            ->assertJsonPath('data.data.0.id', $voucher['id']);
 
         $this->postJson("/api/provider/bookings/{$voucher['id']}/approve")
             ->assertOk()
