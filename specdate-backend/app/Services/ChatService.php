@@ -55,8 +55,11 @@ class ChatService
         );
     }
 
-    public function listThreads(User $user)
+    public function listThreads(User $user, int $perPage = 50, int $page = 1): array
     {
+        $perPage = min(max($perPage, 1), 100);
+        $page = max($page, 1);
+
         $threads = ChatThread::query()
             ->where(fn ($q) => $q->where('owner_id', $user->id)->orWhere('winner_user_id', $user->id))
             ->whereDoesntHave('owner.blockedUsers', fn ($q) => $q->where('blocked_id', $user->id))
@@ -77,43 +80,69 @@ class ChatService
                 'lastMessage.sender:id,name,username',
             ])
             ->withCount(['messages as unread_count' => function ($q) use ($user) {
-                $q->where('sender_id', '!=', $user->id)->whereNull('read_at');
+                $q->where('sender_id', '!=', $user->id)->whereNull('read_at')->whereNull('hidden_at');
             }])
             ->orderByDesc(DB::raw('COALESCE(last_message_at, created_at)'))
-            ->get();
+            ->paginate($perPage, ['*'], 'page', $page);
 
-        return $threads->map(fn (ChatThread $thread) => $this->threadPayload($thread, $user));
+        return [
+            'data' => $threads->getCollection()
+                ->map(fn (ChatThread $thread) => $this->threadPayload($thread, $user))
+                ->values(),
+            'current_page' => $threads->currentPage(),
+            'last_page' => $threads->lastPage(),
+            'per_page' => $threads->perPage(),
+            'total' => $threads->total(),
+        ];
     }
 
-    public function getThread(User $user, int $threadId): array
+    public function getThread(User $user, int $threadId, int $perPage = 25, ?int $beforeId = null): array
     {
-        $thread = ChatThread::with([
-            'spec:id,title,location_city',
-            'specDate:id,date_code,created_at',
-            'owner:id,name,username',
-            'owner.profile',
-            'owner.media',
-            'winner:id,name,username',
-            'winner.profile',
-            'winner.media',
-            'customer:id,name,username',
-            'provider:id,name,username',
-        ])->findOrFail($threadId);
+        $thread = $this->findThreadWithParticipants($threadId);
 
         $this->authorizeThread($thread, $user);
         $this->authorizeNotBlocked($thread);
 
-        $messages = $thread->messages()
+        $perPage = min(max($perPage, 1), 50);
+        $messageQuery = $thread->messages()
             ->with('sender:id,name,username', 'sender.profile', 'sender.media', 'media')
-            ->whereNull('hidden_at')
-            ->orderBy('created_at')
-            ->get()
+            ->whereNull('hidden_at');
+
+        if ($beforeId) {
+            $messageQuery->where('id', '<', $beforeId);
+        }
+
+        $fetched = $messageQuery
+            ->orderByDesc('id')
+            ->limit($perPage + 1)
+            ->get();
+
+        $hasMore = $fetched->count() > $perPage;
+        $messages = $fetched
+            ->take($perPage)
+            ->sortBy('id')
+            ->values()
             ->map(fn (ChatMessage $message) => $this->messagePayload($message));
 
         return [
             'thread' => $this->threadPayload($thread, $user),
             'messages' => $messages,
+            'pagination' => [
+                'per_page' => $perPage,
+                'has_more' => $hasMore,
+                'next_before_id' => $messages->first()['id'] ?? null,
+            ],
         ];
+    }
+
+    public function getThreadOverview(User $user, int $threadId): array
+    {
+        $thread = $this->findThreadWithParticipants($threadId);
+
+        $this->authorizeThread($thread, $user);
+        $this->authorizeNotBlocked($thread);
+
+        return $this->threadPayload($thread, $user);
     }
 
     public function sendMessage(User $user, int $threadId, ?string $body, $mediaId = null): ChatMessage
@@ -125,6 +154,9 @@ class ChatService
         $body = $body !== null ? trim($body) : null;
         if (($body === null || $body === '') && !$mediaId) {
             throw new HttpException(422, 'Message text or media is required.');
+        }
+        if ($body !== null && mb_strlen($body) > 2000) {
+            throw new HttpException(422, 'Messages must be 2,000 characters or less.');
         }
 
         if ($mediaId) {
@@ -185,6 +217,7 @@ class ChatService
         $thread->messages()
             ->where('sender_id', '!=', $user->id)
             ->whereNull('read_at')
+            ->whereNull('hidden_at')
             ->update(['read_at' => now()]);
     }
 
@@ -199,6 +232,22 @@ class ChatService
         if (!$thread->hasParticipant((int) $user->id)) {
             throw new HttpException(403, 'You are not part of this chat.');
         }
+    }
+
+    private function findThreadWithParticipants(int $threadId): ChatThread
+    {
+        return ChatThread::with([
+            'spec:id,title,location_city',
+            'specDate:id,date_code,created_at',
+            'owner:id,name,username',
+            'owner.profile',
+            'owner.media',
+            'winner:id,name,username',
+            'winner.profile',
+            'winner.media',
+            'customer:id,name,username',
+            'provider:id,name,username',
+        ])->findOrFail($threadId);
     }
 
     private function authorizeNotBlocked(ChatThread $thread): void

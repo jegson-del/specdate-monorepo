@@ -29,6 +29,8 @@ class DateVoucher extends Model
         'provider_decision_by',
         'redeemed_at',
         'redeemed_by_provider_user_id',
+        'total_spent',
+        'spend_recorded_at',
         'expires_at',
         'cancelled_at',
     ];
@@ -36,8 +38,10 @@ class DateVoucher extends Model
     protected $casts = [
         'booking_required' => 'boolean',
         'minimum_spend' => 'decimal:2',
+        'total_spent' => 'decimal:2',
         'provider_decision_at' => 'datetime',
         'redeemed_at' => 'datetime',
+        'spend_recorded_at' => 'datetime',
         'expires_at' => 'datetime',
         'cancelled_at' => 'datetime',
     ];
@@ -70,5 +74,15 @@ class DateVoucher extends Model
     public function redeemedByProvider()
     {
         return $this->belongsTo(User::class, 'redeemed_by_provider_user_id');
+    }
+
+    public function providerReviews()
+    {
+        return $this->hasMany(ProviderReview::class);
+    }
+
+    public function datePartnerReviews()
+    {
+        return $this->hasMany(DatePartnerReview::class);
     }
 }

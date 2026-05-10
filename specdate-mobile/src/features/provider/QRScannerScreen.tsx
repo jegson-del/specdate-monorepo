@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Alert, Dimensions } from 'react-native';
-import { Text, Button, IconButton, useTheme, ActivityIndicator, TextInput } from 'react-native-paper';
+import { Text, Button, IconButton, useTheme, ActivityIndicator, TextInput, Modal, Portal } from 'react-native-paper';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '../../services/api';
@@ -13,6 +13,9 @@ export default function QRScannerScreen({ navigation }: any) {
     const [scanned, setScanned] = useState(false);
     const [loading, setLoading] = useState(false);
     const [manualCode, setManualCode] = useState('');
+    const [pendingCode, setPendingCode] = useState('');
+    const [spendModalVisible, setSpendModalVisible] = useState(false);
+    const [totalSpent, setTotalSpent] = useState('');
 
     if (!permission) {
         // Camera permissions are still loading
@@ -28,20 +31,39 @@ export default function QRScannerScreen({ navigation }: any) {
         );
     }
 
-    const redeemCode = async (code: string) => {
+    const redeemCode = (code: string) => {
         if (scanned || loading) return;
 
+        const trimmed = code.trim();
+        if (!trimmed) return;
         setScanned(true);
+        setPendingCode(trimmed);
+        setSpendModalVisible(true);
+    };
+
+    const resetPendingRedemption = () => {
+        setSpendModalVisible(false);
+        setPendingCode('');
+        setTotalSpent('');
+        setScanned(false);
+        setLoading(false);
+    };
+
+    const submitRedemption = async (amount?: number | null) => {
+        if (!pendingCode || loading) return;
+
         setLoading(true);
 
         try {
-            await api.post('/provider/scan-qr', { code });
+            await api.post('/provider/scan-qr', { code: pendingCode, total_spent: amount ?? null });
+            setSpendModalVisible(false);
+            setTotalSpent('');
 
             Alert.alert(
                 'Success!',
                 'Voucher redeemed successfully.',
                 [
-                    { text: 'Scan Another', onPress: () => { setScanned(false); setLoading(false); } },
+                    { text: 'Scan Another', onPress: () => { setPendingCode(''); setScanned(false); setLoading(false); } },
                     { text: 'Done', onPress: () => navigation.goBack() }
                 ]
             );
@@ -51,9 +73,14 @@ export default function QRScannerScreen({ navigation }: any) {
             Alert.alert(
                 'Error',
                 message,
-                [{ text: 'Try Again', onPress: () => { setScanned(false); setLoading(false); } }]
+                [{ text: 'Try Again', onPress: resetPendingRedemption }]
             );
         }
+    };
+
+    const submitSpend = () => {
+        const cleaned = totalSpent.replace(/[^0-9.]/g, '');
+        submitRedemption(cleaned ? Number(cleaned) : null);
     };
 
     const handleBarCodeScanned = async ({ data }: any) => {
@@ -111,6 +138,38 @@ export default function QRScannerScreen({ navigation }: any) {
                     </View>
                 </View>
             </View>
+            <Portal>
+                <Modal
+                    visible={spendModalVisible}
+                    onDismiss={loading ? undefined : resetPendingRedemption}
+                    contentContainerStyle={[styles.spendModal, { backgroundColor: theme.colors.surface }]}
+                >
+                    <View style={styles.spendIcon}>
+                        <MaterialCommunityIcons name="cash-register" size={26} color={theme.colors.primary} />
+                    </View>
+                    <Text style={[styles.spendTitle, { color: theme.colors.onSurface }]}>Total spent on this visit</Text>
+                    <Text style={[styles.spendText, { color: theme.colors.onSurfaceVariant }]}>
+                        Add the total bill for this redeemed voucher. You can skip this if the spend is not available.
+                    </Text>
+                    <TextInput
+                        mode="outlined"
+                        label="Total spent"
+                        value={totalSpent}
+                        onChangeText={(value) => setTotalSpent(value.replace(/[^0-9.]/g, ''))}
+                        keyboardType="numeric"
+                        left={<TextInput.Affix text="₦" />}
+                        style={{ backgroundColor: theme.colors.surface }}
+                    />
+                    <View style={styles.spendActions}>
+                        <Button mode="outlined" onPress={() => submitRedemption(null)} disabled={loading} style={styles.spendButton}>
+                            Skip
+                        </Button>
+                        <Button mode="contained" onPress={submitSpend} loading={loading} disabled={loading} style={styles.spendButton}>
+                            Save & redeem
+                        </Button>
+                    </View>
+                </Modal>
+            </Portal>
         </View>
     );
 }
@@ -160,4 +219,22 @@ const styles = StyleSheet.create({
     manualInput: {
         backgroundColor: '#fff',
     },
+    spendModal: {
+        margin: 20,
+        padding: 20,
+        borderRadius: 20,
+        gap: 12,
+    },
+    spendIcon: {
+        width: 48,
+        height: 48,
+        borderRadius: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(139,92,246,0.12)',
+    },
+    spendTitle: { fontSize: 18, fontWeight: '900' },
+    spendText: { fontSize: 14, lineHeight: 20 },
+    spendActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
+    spendButton: { flex: 1, borderRadius: 12 },
 });

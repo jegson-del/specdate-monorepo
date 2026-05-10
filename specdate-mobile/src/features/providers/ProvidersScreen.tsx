@@ -24,6 +24,77 @@ const GRID_CARD_WIDTH = (SCREEN_WIDTH - GRID_PADDING * 2 - GRID_GAP) / 2;
 
 type ProviderCategory = string;
 type ProviderItem = ProviderMarketplaceItem;
+type FilterKey = 'country' | 'city' | 'service';
+
+function uniqueSorted(values: Array<string | null | undefined>) {
+  return Array.from(new Set(values.map((value) => value?.trim()).filter(Boolean) as string[])).sort((a, b) =>
+    a.localeCompare(b)
+  );
+}
+
+function FilterGroup({
+  label,
+  value,
+  options,
+  onSelect,
+  theme,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  onSelect: (value: string) => void;
+  theme: any;
+}) {
+  if (!options.length) return null;
+
+  return (
+    <View style={styles.filterGroup}>
+      <Text style={[styles.filterLabel, { color: theme.colors.onSurfaceVariant }]}>{label}</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChipRow}>
+        <FilterChip label="All" selected={!value} onPress={() => onSelect('')} theme={theme} />
+        {options.map((option) => (
+          <FilterChip
+            key={`${label}-${option}`}
+            label={option}
+            selected={value === option}
+            onPress={() => onSelect(value === option ? '' : option)}
+            theme={theme}
+          />
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+function FilterChip({
+  label,
+  selected,
+  onPress,
+  theme,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+  theme: any;
+}) {
+  return (
+    <TouchableOpacity
+      activeOpacity={0.82}
+      onPress={onPress}
+      style={[
+        styles.filterChip,
+        {
+          backgroundColor: selected ? theme.colors.primary : theme.colors.surface,
+          borderColor: selected ? theme.colors.primary : theme.colors.outline,
+        },
+      ]}
+    >
+      <Text style={[styles.filterChipText, { color: selected ? '#FFFFFF' : theme.colors.onSurface }]} numberOfLines={1}>
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
+}
 
 function ProviderCard({
   item,
@@ -90,7 +161,13 @@ function ProviderCard({
 export default function ProvidersScreen({ route, navigation }: any) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState((route.params?.query as string | undefined) ?? '');
+  const [filters, setFilters] = useState<Record<FilterKey, string>>({
+    country: (route.params?.country as string | undefined) ?? '',
+    city: (route.params?.city as string | undefined) ?? '',
+    service: (route.params?.service as string | undefined) ?? '',
+  });
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const seeAllCategory = (route.params?.seeAllCategory as ProviderCategory | undefined) ?? null;
 
   const { data, isLoading, isRefetching, refetch } = useQuery({
@@ -99,18 +176,40 @@ export default function ProvidersScreen({ route, navigation }: any) {
   });
 
   const allProviders = data?.data?.data ?? [];
+  const filterOptions = useMemo(() => {
+    const providersForCity = filters.country
+      ? allProviders.filter((provider) => provider.country === filters.country)
+      : allProviders;
+
+    return {
+      country: uniqueSorted(allProviders.map((provider) => provider.country)),
+      city: uniqueSorted(providersForCity.map((provider) => provider.city)),
+      service: uniqueSorted(
+        allProviders.flatMap((provider) =>
+          provider.categories?.length ? provider.categories.map((category) => category.name) : [provider.category]
+        )
+      ),
+    };
+  }, [allProviders, filters.country]);
+  const activeFilterCount = Object.values(filters).filter(Boolean).length;
+
   const providers = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return allProviders;
 
     return allProviders.filter((provider) =>
-      [provider.name, provider.city, provider.country, provider.category]
+      (!filters.country || provider.country === filters.country) &&
+      (!filters.city || provider.city === filters.city) &&
+      (!filters.service ||
+        provider.category === filters.service ||
+        provider.categories?.some((category) => category.name === filters.service || category.slug === filters.service)) &&
+      (!q ||
+        [provider.name, provider.city, provider.country, provider.category]
         .filter(Boolean)
         .join(' ')
         .toLowerCase()
-        .includes(q)
+          .includes(q))
     );
-  }, [allProviders, query]);
+  }, [allProviders, filters, query]);
 
   const categories = useMemo(() => {
     const names = providers.map((provider) => provider.category).filter(Boolean);
@@ -130,6 +229,20 @@ export default function ProvidersScreen({ route, navigation }: any) {
 
   const openProvider = (provider: ProviderItem) => {
     navigation.push('ProviderDetail', { providerId: provider.id, provider });
+  };
+
+  const setFilter = (key: FilterKey, value: string) => {
+    setFilters((current) => {
+      const next = { ...current, [key]: value };
+      if (key === 'country') {
+        next.city = '';
+      }
+      return next;
+    });
+  };
+
+  const clearFilters = () => {
+    setFilters({ country: '', city: '', service: '' });
   };
 
   if (seeAllCategory) {
@@ -197,6 +310,70 @@ export default function ProvidersScreen({ route, navigation }: any) {
           />
         </View>
 
+        <View style={[styles.filtersPanel, { paddingLeft: insets.left + 16, paddingRight: insets.right + 16 }]}>
+          <View style={styles.filtersHeader}>
+            <TouchableOpacity
+              activeOpacity={0.82}
+              onPress={() => setFiltersOpen((open) => !open)}
+              style={styles.filtersTitleRow}
+            >
+              <MaterialCommunityIcons name="filter-variant" size={18} color={theme.colors.primary} />
+              <Text style={[styles.filtersTitle, { color: theme.colors.onSurface }]}>Filters</Text>
+              {activeFilterCount > 0 ? (
+                <Text style={[styles.filtersCount, { color: theme.colors.primary }]}>{activeFilterCount}</Text>
+              ) : null}
+              <MaterialCommunityIcons
+                name={filtersOpen ? 'chevron-up' : 'chevron-down'}
+                size={18}
+                color={theme.colors.onSurfaceVariant}
+              />
+            </TouchableOpacity>
+            <View style={styles.filtersHeaderActions}>
+              {activeFilterCount > 0 ? (
+                <TouchableOpacity onPress={clearFilters} hitSlop={10}>
+                  <Text style={[styles.clearFiltersText, { color: theme.colors.primary }]}>Clear</Text>
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity
+                activeOpacity={0.82}
+                onPress={() => setFiltersOpen((open) => !open)}
+                hitSlop={10}
+              >
+                <MaterialCommunityIcons
+                  name={filtersOpen ? 'filter-off-outline' : 'filter-outline'}
+                  size={22}
+                  color={theme.colors.primary}
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+          {filtersOpen ? (
+            <>
+              <FilterGroup
+                label="Country"
+                value={filters.country}
+                options={filterOptions.country}
+                onSelect={(value) => setFilter('country', value)}
+                theme={theme}
+              />
+              <FilterGroup
+                label="City"
+                value={filters.city}
+                options={filterOptions.city}
+                onSelect={(value) => setFilter('city', value)}
+                theme={theme}
+              />
+              <FilterGroup
+                label="Service"
+                value={filters.service}
+                options={filterOptions.service}
+                onSelect={(value) => setFilter('service', value)}
+                theme={theme}
+              />
+            </>
+          ) : null}
+        </View>
+
         {isLoading ? (
           <View style={styles.empty}>
             <ActivityIndicator color={theme.colors.primary} />
@@ -213,7 +390,7 @@ export default function ProvidersScreen({ route, navigation }: any) {
               <View style={[styles.sectionHeader, { paddingLeft: insets.left + 20, paddingRight: insets.right + 20 }]}>
                 <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>{category}</Text>
                 <TouchableOpacity
-                  onPress={() => navigation.push('Providers', { seeAllCategory: category })}
+                  onPress={() => navigation.push('Providers', { seeAllCategory: category, query, ...filters })}
                   hitSlop={12}
                   style={[styles.seeAllBtn, styles.seeAllPill, { backgroundColor: theme.colors.primary + '18' }]}
                 >
@@ -269,6 +446,29 @@ const styles = StyleSheet.create({
   },
   searchWrap: { paddingTop: 12, paddingBottom: 8 },
   searchBar: { borderRadius: 14, elevation: 0 },
+  filtersPanel: { paddingBottom: 12, gap: 10 },
+  filtersHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  filtersTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  filtersHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  filtersTitle: { fontSize: 14, fontWeight: '900' },
+  filtersCount: { fontSize: 12, fontWeight: '900' },
+  clearFiltersText: { fontSize: 13, fontWeight: '900' },
+  filterGroup: { gap: 6 },
+  filterLabel: { fontSize: 11, fontWeight: '900', textTransform: 'uppercase' },
+  filterChipRow: { gap: 8, paddingRight: 8 },
+  filterChip: {
+    maxWidth: 150,
+    minHeight: 34,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    borderRadius: 17,
+    borderWidth: 1,
+  },
+  filterChipText: { fontSize: 13, fontWeight: '800' },
   scroll: { flex: 1 },
   section: {
     marginBottom: 28,

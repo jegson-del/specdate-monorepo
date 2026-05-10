@@ -52,8 +52,8 @@ export default function ProviderDetailScreen({ route, navigation }: any) {
   const [seeAllReviewsVisible, setSeeAllReviewsVisible] = useState(false);
 
   const baseReviews = useMemo(
-    () => getMockReviewsForProvider(provider?.id != null ? String(provider.id) : undefined),
-    [provider?.id]
+    () => provider?.reviews?.length ? provider.reviews : getMockReviewsForProvider(provider?.id != null ? String(provider.id) : undefined),
+    [provider?.id, provider?.reviews]
   );
   const [userReviews, setUserReviews] = useState<ProviderReview[]>([]);
   const reviews = useMemo(() => [...userReviews, ...baseReviews], [userReviews, baseReviews]);
@@ -233,6 +233,16 @@ export default function ProviderDetailScreen({ route, navigation }: any) {
               />
               <Text style={[styles.termsText, { color: theme.colors.onSurface }]}>
                 {provider.bookingRequired ? 'Booking required before arrival' : 'Walk-ins allowed'}
+              </Text>
+            </View>
+            <View style={styles.termsRow}>
+              <MaterialCommunityIcons
+                name={provider.idRequired ? 'card-account-details-outline' : 'card-account-details-star-outline'}
+                size={22}
+                color={provider.idRequired ? '#16A34A' : theme.colors.onSurfaceVariant}
+              />
+              <Text style={[styles.termsText, { color: theme.colors.onSurface }]}>
+                {provider.idRequired ? 'Government ID required at venue' : 'No ID requirement'}
               </Text>
             </View>
           </View>

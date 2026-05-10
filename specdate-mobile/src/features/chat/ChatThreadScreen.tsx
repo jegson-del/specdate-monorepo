@@ -31,22 +31,25 @@ export default function ChatThreadScreen({ route, navigation }: any) {
   const queryClient = useQueryClient();
   const { data: user } = useUser();
   const listRef = React.useRef<FlatList<ChatMessage>>(null);
+  const shouldAutoScrollRef = React.useRef(true);
   const [mediaSending, setMediaSending] = React.useState(false);
   const [mediaSheet, setMediaSheet] = React.useState<'file' | 'camera' | null>(null);
   const [videoViewerUri, setVideoViewerUri] = React.useState<string | null>(null);
   const [safetySheet, setSafetySheet] = React.useState<SafetySheetState>(null);
   const [safetyLoading, setSafetyLoading] = React.useState(false);
   const [safetyError, setSafetyError] = React.useState<string | null>(null);
+  const [loadingOlder, setLoadingOlder] = React.useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['chat-thread', String(threadId)],
-    queryFn: () => ChatService.getThread(threadId),
+    queryFn: () => ChatService.getThread(threadId, { per_page: 25 }),
     enabled: threadId != null,
   });
 
   const sendMutation = useMutation({
     mutationFn: ({ body, mediaId }: { body: string; mediaId?: number }) => ChatService.sendMessage(threadId, body, mediaId),
     onSuccess: (res) => {
+      shouldAutoScrollRef.current = true;
       queryClient.setQueryData(['chat-thread', String(threadId)], (current: any) => {
         if (!current?.data) return current;
         return {
@@ -249,6 +252,7 @@ export default function ChatThreadScreen({ route, navigation }: any) {
     channel.listen('.MessageSent', (event: any) => {
       const incoming = event?.message as ChatMessage | undefined;
       if (!incoming) return;
+      shouldAutoScrollRef.current = true;
       queryClient.setQueryData(['chat-thread', String(threadId)], (current: any) => {
         if (!current?.data) return current;
         const exists = current.data.messages?.some((m: ChatMessage) => Number(m.id) === Number(incoming.id));
@@ -280,12 +284,39 @@ export default function ChatThreadScreen({ route, navigation }: any) {
   const payload = data?.data;
   const thread = payload?.thread;
   const messages = payload?.messages || [];
+  const pagination = payload?.pagination;
   const avatar = toImageUri(thread?.other_user?.avatar);
   const isProviderChat = thread?.type === 'provider';
   const currentUserIsProvider = isProviderChat && Number(thread?.provider_id) === Number(user?.id);
   const otherPartyLabel = isProviderChat ? (currentUserIsProvider ? 'customer' : 'provider') : 'user';
   const otherPartyTitle = otherPartyLabel.charAt(0).toUpperCase() + otherPartyLabel.slice(1);
   const name = thread?.other_user?.name || (isProviderChat ? otherPartyTitle : 'Your match');
+  const loadOlderMessages = React.useCallback(async () => {
+    if (!threadId || loadingOlder || !pagination?.has_more || !pagination.next_before_id) return;
+
+    try {
+      setLoadingOlder(true);
+      shouldAutoScrollRef.current = false;
+      const response = await ChatService.getThread(threadId, { before_id: pagination.next_before_id, per_page: 25 });
+      queryClient.setQueryData(['chat-thread', String(threadId)], (current: any) => {
+        if (!current?.data) return response;
+        const existing = new Set((current.data.messages || []).map((message: ChatMessage) => Number(message.id)));
+        const older = (response.data.messages || []).filter((message) => !existing.has(Number(message.id)));
+        return {
+          ...current,
+          data: {
+            ...current.data,
+            messages: [...older, ...(current.data.messages || [])],
+            pagination: response.data.pagination,
+          },
+        };
+      });
+    } catch (e: any) {
+      Alert.alert('Could not load older messages', e?.response?.data?.message || 'Please try again.');
+    } finally {
+      setLoadingOlder(false);
+    }
+  }, [loadingOlder, pagination?.has_more, pagination?.next_before_id, queryClient, threadId]);
 
   return (
     <KeyboardAvoidingView
@@ -323,7 +354,13 @@ export default function ChatThreadScreen({ route, navigation }: any) {
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={styles.messagesContent}
         keyboardShouldPersistTaps="handled"
-        onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+        onContentSizeChange={() => {
+          if (!shouldAutoScrollRef.current) {
+            shouldAutoScrollRef.current = true;
+            return;
+          }
+          listRef.current?.scrollToEnd({ animated: true });
+        }}
         refreshing={isLoading}
         renderItem={({ item }) => (
           <MessageBubble
@@ -335,6 +372,18 @@ export default function ChatThreadScreen({ route, navigation }: any) {
             onOpenMenu={openMessageActions}
           />
         )}
+        ListHeaderComponent={
+          pagination?.has_more ? (
+            <View style={styles.loadOlderWrap}>
+              <Text
+                onPress={loadOlderMessages}
+                style={[styles.loadOlderText, { color: theme.colors.primary }]}
+              >
+                {loadingOlder ? 'Loading older messages...' : 'Load older messages'}
+              </Text>
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
           !isLoading ? (
             <View style={styles.empty}>
@@ -482,6 +531,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingTop: 16,
     paddingBottom: 18,
+  },
+  loadOlderWrap: {
+    alignItems: 'center',
+    paddingBottom: 12,
+  },
+  loadOlderText: {
+    fontSize: 13,
+    fontWeight: '900',
   },
   empty: {
     alignItems: 'center',

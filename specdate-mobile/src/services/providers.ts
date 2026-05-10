@@ -28,9 +28,11 @@ export type ProviderMarketplaceItem = {
   discountPercentage: number;
   minimumSpend?: number | null;
   bookingRequired: boolean;
+  idRequired: boolean;
   isVerified: boolean;
   rating?: number | null;
   reviewsCount: number;
+  reviews?: { id: string; userName: string; rating: number; text: string; date: string }[];
   created_at?: string | null;
 };
 
@@ -43,7 +45,7 @@ type PaginatedProviders = {
 };
 
 export const ProviderService = {
-  async getProviders(params?: { q?: string; category?: string }) {
+  async getProviders(params?: { q?: string; category?: string; service?: string; country?: string; city?: string }) {
     const response = await api.get('/providers', { params });
     return response.data as { message: string; data: PaginatedProviders };
   },

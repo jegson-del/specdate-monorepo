@@ -17,6 +17,7 @@ export type User = {
     email: string;
     username?: string;
     mobile?: string;
+    role?: 'user' | 'provider' | 'admin' | string;
     profile?: any;
     profile_complete: boolean;
     balance?: UserBalance;

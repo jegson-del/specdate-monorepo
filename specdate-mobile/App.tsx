@@ -34,6 +34,7 @@ import ChatListScreen from './src/features/chat/ChatListScreen';
 import ChatThreadScreen from './src/features/chat/ChatThreadScreen';
 import LegalScreen from './src/features/legal/LegalScreen';
 import SafetyCenterScreen from './src/features/safety/SafetyCenterScreen';
+import PostDateReviewScreen from './src/features/reviews/PostDateReviewScreen';
 import SupportTicketsScreen from './src/features/support/SupportTicketsScreen';
 import SupportThreadScreen from './src/features/support/SupportThreadScreen';
 import CreateSupportTicketScreen from './src/features/support/CreateSupportTicketScreen';
@@ -141,6 +142,7 @@ export default function App() {
               <Stack.Screen name="ChatThread" component={ChatThreadScreen} />
               <Stack.Screen name="Legal" component={LegalScreen} />
               <Stack.Screen name="SafetyCenter" component={SafetyCenterScreen} />
+              <Stack.Screen name="PostDateReview" component={PostDateReviewScreen} />
               <Stack.Screen name="SupportTickets" component={SupportTicketsScreen} />
               <Stack.Screen name="SupportThread" component={SupportThreadScreen} />
               <Stack.Screen name="CreateSupportTicket" component={CreateSupportTicketScreen} />

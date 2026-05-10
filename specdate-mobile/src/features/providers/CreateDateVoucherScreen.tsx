@@ -88,7 +88,8 @@ export default function CreateDateVoucherScreen({ route, navigation }: any) {
             </View>
             <Text style={[styles.previewText, { color: theme.colors.onSurfaceVariant }]}>
               {terms.minimum_spend ? `Minimum spend ₦${Number(terms.minimum_spend).toLocaleString()}. ` : 'No minimum spend. '}
-              {terms.booking_required ? 'Provider approval is required before the voucher becomes active.' : 'This voucher will become active immediately.'}
+              {terms.booking_required ? 'Provider approval is required before the voucher becomes active. ' : 'This voucher will become active immediately. '}
+              {terms.id_required ? 'Bring a valid ID for venue verification.' : 'No ID check is required.'}
             </Text>
           </View>
         ) : null}

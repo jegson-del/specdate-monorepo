@@ -1,9 +1,9 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { useTheme } from 'react-native-paper';
+import { Button, Modal, Portal, Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAudioPlayer } from 'expo-audio';
 import { useUser } from '../../hooks/useUser';
 import BottomNav from './components/BottomNav';
@@ -14,6 +14,7 @@ import MySpecsTab from './components/MySpecsTab';
 import RequestsTab from './components/RequestsTab';
 import VouchersTab from './components/VouchersTab';
 import { BottomTabKey, HomeColors } from './types';
+import { ReviewService } from '../../services/reviews';
 
 export default function HomeScreen({ navigation, route }: any) {
   const theme = useTheme();
@@ -27,6 +28,18 @@ export default function HomeScreen({ navigation, route }: any) {
       ? route.params.initialTab
       : 'Home'
   );
+  const [dismissedPromptId, setDismissedPromptId] = useState<number | null>(null);
+
+  const { data: reviewPromptData } = useQuery({
+    queryKey: ['review-prompts'],
+    queryFn: ReviewService.getPendingPrompts,
+    enabled: Boolean(user?.id && user.role !== 'provider'),
+  });
+  const reviewPrompt = reviewPromptData?.data?.find((prompt) => Number(prompt.voucher.id) !== dismissedPromptId);
+  const dismissReviewPrompt = useMutation({
+    mutationFn: (voucherId: number) => ReviewService.dismissPrompt(voucherId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['review-prompts'] }),
+  });
 
   const homeColors = useMemo<HomeColors>(
     () => ({
@@ -134,6 +147,39 @@ export default function HomeScreen({ navigation, route }: any) {
         homeColors={homeColors}
         insets={insets}
       />
+
+      <Portal>
+        <Modal
+          visible={Boolean(reviewPrompt)}
+          onDismiss={() => reviewPrompt && setDismissedPromptId(Number(reviewPrompt.voucher.id))}
+          contentContainerStyle={[styles.reviewPrompt, { backgroundColor: theme.colors.surface }]}
+        >
+          <Text style={[styles.reviewPromptTitle, { color: theme.colors.onSurface }]}>How was your date?</Text>
+          <Text style={[styles.reviewPromptText, { color: theme.colors.onSurfaceVariant }]}>
+            {reviewPrompt?.provider.name || 'Your provider'} confirmed your visit. Review the venue and your date experience when you have a moment.
+          </Text>
+          <View style={styles.reviewPromptActions}>
+            <Button
+              mode="outlined"
+              onPress={() => {
+                if (!reviewPrompt) return;
+                dismissReviewPrompt.mutate(Number(reviewPrompt.voucher.id));
+                setDismissedPromptId(Number(reviewPrompt.voucher.id));
+              }}
+              style={styles.reviewPromptButton}
+            >
+              Disregard
+            </Button>
+            <Button
+              mode="contained"
+              onPress={() => reviewPrompt && navigation.navigate('PostDateReview', { voucherId: reviewPrompt.voucher.id })}
+              style={styles.reviewPromptButton}
+            >
+              Review now
+            </Button>
+          </View>
+        </Modal>
+      </Portal>
     </View>
   );
 }
@@ -144,5 +190,28 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  reviewPrompt: {
+    margin: 20,
+    padding: 20,
+    borderRadius: 20,
+    gap: 12,
+  },
+  reviewPromptTitle: {
+    fontSize: 19,
+    fontWeight: '900',
+  },
+  reviewPromptText: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  reviewPromptActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 4,
+  },
+  reviewPromptButton: {
+    flex: 1,
+    borderRadius: 12,
   },
 });

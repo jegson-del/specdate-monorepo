@@ -13,7 +13,7 @@ export default function ChatListScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['chat-threads'],
-    queryFn: ChatService.getThreads,
+    queryFn: () => ChatService.getThreads({ per_page: 50 }),
   });
 
   useFocusEffect(
@@ -22,7 +22,7 @@ export default function ChatListScreen({ navigation }: any) {
     }, [refetch])
   );
 
-  const threads = data?.data || [];
+  const threads = data?.data?.data || [];
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.background, paddingTop: insets.top + 8 }]}>

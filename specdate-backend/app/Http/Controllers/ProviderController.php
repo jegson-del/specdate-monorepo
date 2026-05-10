@@ -25,6 +25,8 @@ class ProviderController extends Controller
     {
         $query = ProviderProfile::query()
             ->with(['categories', 'user.media'])
+            ->withAvg('providerReviews as rating', 'rating')
+            ->withCount('providerReviews as reviews_count')
             ->whereHas('user', fn ($q) => $q->where('role', 'provider'));
 
         if ($request->filled('q')) {
@@ -37,8 +39,18 @@ class ProviderController extends Controller
             });
         }
 
-        if ($request->filled('category')) {
-            $category = trim((string) $request->query('category'));
+        if ($request->filled('country')) {
+            $country = trim((string) $request->query('country'));
+            $query->where('country', $country);
+        }
+
+        if ($request->filled('city')) {
+            $city = trim((string) $request->query('city'));
+            $query->where('city', $city);
+        }
+
+        if ($request->filled('category') || $request->filled('service')) {
+            $category = trim((string) ($request->query('category') ?? $request->query('service')));
             $query->whereHas('categories', function ($q) use ($category) {
                 $q->where('name', $category)->orWhere('slug', $category);
             });
@@ -63,7 +75,9 @@ class ProviderController extends Controller
     public function show(int $provider)
     {
         $profile = ProviderProfile::query()
-            ->with(['categories', 'user.media'])
+            ->with(['categories', 'user.media', 'providerReviews.reviewer.profile'])
+            ->withAvg('providerReviews as rating', 'rating')
+            ->withCount('providerReviews as reviews_count')
             ->whereHas('user', fn ($q) => $q->where('role', 'provider'))
             ->findOrFail($provider);
 
@@ -93,6 +107,7 @@ class ProviderController extends Controller
                 'user_id' => $user->id,
                 'discount_percentage' => 10,
                 'booking_required' => false,
+                'id_required' => false,
             ]);
         }
 
@@ -108,8 +123,11 @@ class ProviderController extends Controller
         $pendingBookings = $profile ? DateVoucher::where('provider_profile_id', $profile->id)
             ->where('status', DateVoucher::STATUS_PENDING_PROVIDER)
             ->count() : 0;
+        $confirmedBookings = $profile ? DateVoucher::where('provider_profile_id', $profile->id)
+            ->whereIn('status', [DateVoucher::STATUS_ACTIVE, DateVoucher::STATUS_REDEEMED])
+            ->count() : 0;
         $upcomingBookings = $profile ? DateVoucher::where('provider_profile_id', $profile->id)
-            ->whereIn('status', [DateVoucher::STATUS_PENDING_PROVIDER, DateVoucher::STATUS_ACTIVE])
+            ->whereIn('status', [DateVoucher::STATUS_ACTIVE, DateVoucher::STATUS_REDEEMED])
             ->with($this->dateVoucherService->voucherRelations())
             ->latest()
             ->limit(5)
@@ -133,6 +151,8 @@ class ProviderController extends Controller
                     })
                     ->count(),
                 'pending_bookings' => $pendingBookings,
+                'confirmed_bookings' => $confirmedBookings,
+                'unconfirmed_bookings' => $pendingBookings,
             ],
             'upcoming_bookings' => $upcomingBookings,
         ]);
@@ -162,6 +182,7 @@ class ProviderController extends Controller
             'discount_percentage' => 'required|integer|min:10|max:50',
             'minimum_spend' => 'nullable|numeric|min:0|max:99999999.99',
             'booking_required' => 'nullable|boolean',
+            'id_required' => 'nullable|boolean',
             'categories' => 'nullable|array',
             'categories.*' => 'exists:provider_categories,id',
         ]);
@@ -184,6 +205,7 @@ class ProviderController extends Controller
             'discount_percentage',
             'minimum_spend',
             'booking_required',
+            'id_required',
         ]));
         $profile->save();
 
@@ -211,10 +233,15 @@ class ProviderController extends Controller
 
         $request->validate([
             'code' => 'required|string',
+            'total_spent' => 'nullable|numeric|min:0|max:99999999.99',
         ]);
 
         try {
-            $voucher = $this->dateVoucherService->redeem($user, trim((string) $request->input('code')));
+            $voucher = $this->dateVoucherService->redeem(
+                $user,
+                trim((string) $request->input('code')),
+                $request->filled('total_spent') ? (float) $request->input('total_spent') : null
+            );
 
             return response()->json([
                 'message' => 'Voucher redeemed successfully.',
@@ -264,12 +291,24 @@ class ProviderController extends Controller
                 'id' => $item->id,
                 'url' => $item->url,
             ])->all() : [],
+            'reviews' => $includeGallery ? $profile->providerReviews
+                ->sortByDesc('created_at')
+                ->map(fn ($review) => [
+                    'id' => (string) $review->id,
+                    'userName' => $review->reviewer?->profile?->full_name ?? $review->reviewer?->name ?? 'Dater',
+                    'rating' => (int) $review->rating,
+                    'text' => $review->comment ?? '',
+                    'date' => $review->created_at?->diffForHumans(),
+                ])
+                ->values()
+                ->all() : [],
             'discountPercentage' => (int) ($profile->discount_percentage ?? 10),
             'minimumSpend' => $profile->minimum_spend !== null ? (float) $profile->minimum_spend : null,
             'bookingRequired' => (bool) $profile->booking_required,
+            'idRequired' => (bool) $profile->id_required,
             'isVerified' => (bool) $profile->is_verified,
-            'rating' => null,
-            'reviewsCount' => 0,
+            'rating' => $profile->rating !== null ? round((float) $profile->rating, 1) : null,
+            'reviewsCount' => (int) ($profile->reviews_count ?? 0),
             'created_at' => $profile->created_at,
         ];
     }

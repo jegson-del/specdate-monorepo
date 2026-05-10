@@ -1,9 +1,10 @@
 import React from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
+import { Alert, Linking, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, IconButton, Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
+import QRCode from 'react-native-qrcode-svg';
 import { DateVoucherItem, VoucherService } from '../../services/vouchers';
 
 const statusLabels: Record<string, string> = {
@@ -46,6 +47,32 @@ export default function DateVoucherDetailScreen({ route, navigation }: any) {
     }
   };
 
+  const callProvider = async () => {
+    const phone = voucher.provider?.phone?.trim();
+    if (!phone) {
+      Alert.alert('No phone number', 'This provider has not added a phone number to their profile yet.');
+      return;
+    }
+
+    const dialNumber = phone.replace(/[^\d+]/g, '');
+    if (!dialNumber) {
+      Alert.alert('No phone number', 'This provider has not added a valid phone number to their profile yet.');
+      return;
+    }
+
+    const dialUrl = `tel:${dialNumber}`;
+    try {
+      const canOpen = await Linking.canOpenURL(dialUrl);
+      if (!canOpen) {
+        Alert.alert('Call unavailable', `Call the provider on ${phone}.`);
+        return;
+      }
+      await Linking.openURL(dialUrl);
+    } catch {
+      Alert.alert('Call unavailable', `Call the provider on ${phone}.`);
+    }
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={[styles.header, { paddingTop: insets.top + 4 }]}>
@@ -54,7 +81,11 @@ export default function DateVoucherDetailScreen({ route, navigation }: any) {
         <View style={{ width: 48 }} />
       </View>
 
-      <View style={styles.content}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={[styles.hero, { backgroundColor: theme.colors.primary }]}>
           <MaterialCommunityIcons name="ticket-percent-outline" size={34} color="#fff" />
           <Text style={styles.heroTitle}>{voucher.discount_percentage}% off</Text>
@@ -72,6 +103,12 @@ export default function DateVoucherDetailScreen({ route, navigation }: any) {
             theme={theme}
           />
           <InfoRow
+            label="ID check"
+            value={voucher.provider?.idRequired ? 'ID required at venue' : 'No ID requirement'}
+            icon={voucher.provider?.idRequired ? 'card-account-details-outline' : 'card-account-details-star-outline'}
+            theme={theme}
+          />
+          <InfoRow
             label="Minimum spend"
             value={voucher.minimum_spend ? `₦${Number(voucher.minimum_spend).toLocaleString()}` : 'No minimum spend'}
             icon="cash-multiple"
@@ -80,7 +117,9 @@ export default function DateVoucherDetailScreen({ route, navigation }: any) {
         </View>
 
         <View style={[styles.codeCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outline }]}>
-          <MaterialCommunityIcons name="qrcode-scan" size={34} color={theme.colors.primary} />
+          <View style={styles.qrWrap}>
+            <QRCode value={voucher.qr_token || voucher.voucher_code} size={220} quietZone={12} />
+          </View>
           <View style={styles.codeCopy}>
             <Text style={[styles.codeTitle, { color: theme.colors.onSurface }]}>Provider scan code</Text>
             <Text style={[styles.codeText, { color: theme.colors.onSurfaceVariant }]}>
@@ -93,10 +132,10 @@ export default function DateVoucherDetailScreen({ route, navigation }: any) {
         <Button mode="outlined" icon="content-copy" onPress={copyCode} style={styles.button}>
           Copy voucher code
         </Button>
-        <Button mode="contained" icon="phone" onPress={() => Alert.alert('Book with provider', 'Call or message the provider to arrange your visit time.')} style={styles.button}>
+        <Button mode="contained" icon="phone" onPress={callProvider} style={styles.button}>
           Book with provider
         </Button>
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -118,6 +157,7 @@ const styles = StyleSheet.create({
   centered: { justifyContent: 'center', alignItems: 'center' },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4, paddingBottom: 8 },
   title: { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '800' },
+  scroll: { flex: 1 },
   content: { padding: 16, gap: 12 },
   hero: { alignItems: 'center', padding: 22, borderRadius: 16 },
   heroTitle: { color: '#fff', fontSize: 30, fontWeight: '900', marginTop: 8 },
@@ -128,6 +168,7 @@ const styles = StyleSheet.create({
   infoLabel: { fontSize: 11, fontWeight: '900', textTransform: 'uppercase' },
   infoValue: { fontSize: 15, fontWeight: '800', marginTop: 2 },
   codeCard: { alignItems: 'center', padding: 16, borderRadius: 14, borderWidth: 1 },
+  qrWrap: { padding: 8, borderRadius: 10, backgroundColor: '#FFFFFF' },
   codeCopy: { alignItems: 'center', marginTop: 8 },
   codeTitle: { fontSize: 16, fontWeight: '900' },
   codeText: { fontSize: 13, lineHeight: 18, textAlign: 'center', marginTop: 4 },

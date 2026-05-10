@@ -17,7 +17,11 @@ class ChatController extends Controller
 
     public function index(Request $request)
     {
-        $threads = $this->chatService->listThreads($request->user());
+        $threads = $this->chatService->listThreads(
+            $request->user(),
+            (int) $request->integer('per_page', 50),
+            (int) $request->integer('page', 1)
+        );
         return $this->sendResponse($threads, 'Chats retrieved successfully.');
     }
 
@@ -25,9 +29,12 @@ class ChatController extends Controller
     {
         try {
             $thread = $this->chatService->ensureThreadForProvider($request->user(), $provider);
-            $payload = $this->chatService->getThread($request->user(), $thread->id);
 
-            return $this->sendResponse($payload['thread'], 'Provider chat opened successfully.', 201);
+            return $this->sendResponse(
+                $this->chatService->getThreadOverview($request->user(), $thread->id),
+                'Provider chat opened successfully.',
+                201
+            );
         } catch (HttpException $e) {
             return $this->sendError($e->getMessage(), [], $e->getStatusCode());
         }
@@ -36,7 +43,12 @@ class ChatController extends Controller
     public function show(Request $request, int $thread)
     {
         try {
-            $payload = $this->chatService->getThread($request->user(), $thread);
+            $payload = $this->chatService->getThread(
+                $request->user(),
+                $thread,
+                (int) $request->integer('per_page', 25),
+                $request->integer('before_id') ?: null
+            );
             return $this->sendResponse($payload, 'Chat retrieved successfully.');
         } catch (HttpException $e) {
             return $this->sendError($e->getMessage(), [], $e->getStatusCode());
@@ -46,7 +58,7 @@ class ChatController extends Controller
     public function sendMessage(Request $request, int $thread)
     {
         $request->validate([
-            'body' => 'nullable|string|required_without:media_id',
+            'body' => 'nullable|string|max:2000|required_without:media_id',
             'media_id' => 'nullable|exists:media,id',
         ]);
 

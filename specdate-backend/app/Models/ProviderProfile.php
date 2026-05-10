@@ -22,11 +22,13 @@ class ProviderProfile extends Model
         'discount_percentage',
         'minimum_spend',
         'booking_required',
+        'id_required',
         'is_verified',
     ];
 
     protected $casts = [
         'booking_required' => 'boolean',
+        'id_required' => 'boolean',
         'minimum_spend' => 'decimal:2',
     ];
 
@@ -43,5 +45,10 @@ class ProviderProfile extends Model
     public function dateVouchers()
     {
         return $this->hasMany(DateVoucher::class);
+    }
+
+    public function providerReviews()
+    {
+        return $this->hasMany(ProviderReview::class);
     }
 }

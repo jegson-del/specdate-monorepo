@@ -107,7 +107,14 @@ export default function ProviderDashboardScreen({ navigation }: any) {
   const [minimumSpend, setMinimumSpend] = useState('');
   const [minimumSpendEnabled, setMinimumSpendEnabled] = useState(false);
   const [bookingRequired, setBookingRequired] = useState(false);
-  const [counts, setCounts] = useState({ unread_notifications: 0, unread_messages: 0, pending_bookings: 0 });
+  const [idRequired, setIdRequired] = useState(false);
+  const [counts, setCounts] = useState({
+    unread_notifications: 0,
+    unread_messages: 0,
+    pending_bookings: 0,
+    confirmed_bookings: 0,
+    unconfirmed_bookings: 0,
+  });
   const [upcomingBookings, setUpcomingBookings] = useState<ProviderBooking[]>([]);
 
   const [galleryViewerVisible, setGalleryViewerVisible] = useState(false);
@@ -123,7 +130,13 @@ export default function ProviderDashboardScreen({ navigation }: any) {
       const data = response.data as any;
       setProfile(data.profile);
       setGallery(data.gallery || []);
-      setCounts(data.counts || { unread_notifications: 0, unread_messages: 0, pending_bookings: 0 });
+      setCounts(data.counts || {
+        unread_notifications: 0,
+        unread_messages: 0,
+        pending_bookings: 0,
+        confirmed_bookings: 0,
+        unconfirmed_bookings: 0,
+      });
       setUpcomingBookings(data.upcoming_bookings || []);
       if (data.profile) {
         setCompanyName(data.profile.company_name || '');
@@ -137,6 +150,7 @@ export default function ProviderDashboardScreen({ navigation }: any) {
         setMinimumSpend(data.profile.minimum_spend != null ? String(Math.round(Number(data.profile.minimum_spend))) : '');
         setMinimumSpendEnabled(data.profile.minimum_spend != null && Number(data.profile.minimum_spend) > 0);
         setBookingRequired(Boolean(data.profile.booking_required));
+        setIdRequired(Boolean(data.profile.id_required));
       }
     } catch {
       Alert.alert('Error', 'Failed to load dashboard data.');
@@ -167,6 +181,7 @@ export default function ProviderDashboardScreen({ navigation }: any) {
         discount_percentage: parseInt(discountPercentage, 10) || 10,
         minimum_spend: minimumSpendEnabled && minimumSpend.trim() ? Number(minimumSpend) : null,
         booking_required: bookingRequired,
+        id_required: idRequired,
       });
       setEditMode(false);
       Alert.alert('Success', 'Settings updated.');
@@ -371,21 +386,21 @@ export default function ProviderDashboardScreen({ navigation }: any) {
           <View style={styles.dashboardGrid}>
             <DashboardCard
               title="Bookings"
-              value={counts.pending_bookings}
-              helper="Requests"
-              icon="calendar-clock"
+              value={counts.confirmed_bookings}
+              helper="Confirmed"
+              icon="calendar-check"
               color={theme.colors.primary}
               theme={theme}
-              onPress={() => navigation.navigate('ProviderBookings', { bookings: upcomingBookings })}
+              onPress={() => navigation.navigate('ProviderBookings', { initialFilter: 'confirmed' })}
             />
             <DashboardCard
               title="Upcoming"
-              value={upcomingBookings.length}
-              helper="Confirmed"
-              icon="calendar-heart"
+              value={counts.unconfirmed_bookings}
+              helper="Pending"
+              icon="calendar-clock"
               color="#0891B2"
               theme={theme}
-              onPress={() => navigation.navigate('ProviderBookings', { bookings: upcomingBookings })}
+              onPress={() => navigation.navigate('ProviderBookings', { initialFilter: 'pending' })}
             />
             <DashboardCard
               title="Discount"
@@ -671,6 +686,28 @@ export default function ProviderDashboardScreen({ navigation }: any) {
                     </TouchableOpacity>
                   </View>
                 </View>
+                <View style={styles.switchRow}>
+                  <View style={styles.switchCopy}>
+                    <Text style={[styles.switchTitle, { color: theme.colors.onSurface }]}>ID required</Text>
+                    <Text style={[styles.switchText, { color: theme.colors.onSurfaceVariant }]}>
+                      Daters will see if they need valid ID for verification.
+                    </Text>
+                  </View>
+                  <View style={styles.yesNoToggle}>
+                    <TouchableOpacity
+                      style={[styles.yesNoOption, idRequired && { backgroundColor: theme.colors.primary }]}
+                      onPress={() => setIdRequired(true)}
+                    >
+                      <Text style={[styles.yesNoText, { color: idRequired ? '#fff' : theme.colors.onSurfaceVariant }]}>Yes</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.yesNoOption, !idRequired && { backgroundColor: theme.colors.primary }]}
+                      onPress={() => setIdRequired(false)}
+                    >
+                      <Text style={[styles.yesNoText, { color: !idRequired ? '#fff' : theme.colors.onSurfaceVariant }]}>No</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
               </>
             ) : (
               <>
@@ -701,6 +738,22 @@ export default function ProviderDashboardScreen({ navigation }: any) {
                     </View>
                     <View style={[styles.yesNoOption, !bookingRequired && { backgroundColor: theme.colors.primary }]}>
                       <Text style={[styles.yesNoText, { color: !bookingRequired ? '#fff' : theme.colors.onSurfaceVariant }]}>No</Text>
+                    </View>
+                  </View>
+                </View>
+                <View style={styles.switchRow}>
+                  <View style={styles.switchCopy}>
+                    <Text style={[styles.switchTitle, { color: theme.colors.onSurface }]}>ID required</Text>
+                    <Text style={[styles.switchText, { color: theme.colors.onSurfaceVariant }]}>
+                      {idRequired ? 'Daters must bring valid ID.' : 'No ID check is required.'}
+                    </Text>
+                  </View>
+                  <View style={styles.yesNoToggle}>
+                    <View style={[styles.yesNoOption, idRequired && { backgroundColor: theme.colors.primary }]}>
+                      <Text style={[styles.yesNoText, { color: idRequired ? '#fff' : theme.colors.onSurfaceVariant }]}>Yes</Text>
+                    </View>
+                    <View style={[styles.yesNoOption, !idRequired && { backgroundColor: theme.colors.primary }]}>
+                      <Text style={[styles.yesNoText, { color: !idRequired ? '#fff' : theme.colors.onSurfaceVariant }]}>No</Text>
                     </View>
                   </View>
                 </View>

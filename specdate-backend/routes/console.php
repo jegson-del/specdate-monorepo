@@ -9,3 +9,4 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('specs:send-start-reminders')->dailyAt('08:00');
+Schedule::command('chats:prune-old-messages --days=180')->dailyAt('03:30');

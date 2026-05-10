@@ -59,6 +59,7 @@ export default function NotificationsScreen() {
         const specId = navData?.spec_id != null ? String(navData.spec_id) : null;
         const roundId = navData?.round_id != null ? navData.round_id : null;
         const ticketId = navData?.ticket_id != null ? navData.ticket_id : null;
+        const voucherId = navData?.voucher_id != null ? navData.voucher_id : null;
 
         if (type === 'join_request') {
             navigation.navigate('Home', { initialTab: 'Requests' });
@@ -67,6 +68,11 @@ export default function NotificationsScreen() {
 
         if ((type === 'support_reply' || type === 'support_ticket') && ticketId != null) {
             navigation.navigate('SupportThread', { ticketId });
+            return;
+        }
+
+        if (type === 'voucher_redeemed' && voucherId != null) {
+            navigation.navigate('PostDateReview', { voucherId });
             return;
         }
 
@@ -135,6 +141,10 @@ export default function NotificationsScreen() {
             iconName = 'lifebuoy';
             color = '#0EA5E9';
             bgColor = 'rgba(14, 165, 233, 0.15)';
+        } else if (type === 'voucher_redeemed') {
+            iconName = 'clipboard-check-outline';
+            color = '#16A34A';
+            bgColor = 'rgba(22, 163, 74, 0.15)';
         }
 
         const timeText = item.created_at ? formatDistanceToNow(new Date(item.created_at), { addSuffix: true }) : '';

@@ -28,6 +28,7 @@ class DateVoucherService
                 'discount_percentage' => (int) ($provider->discount_percentage ?? 10),
                 'minimum_spend' => $provider->minimum_spend !== null ? (float) $provider->minimum_spend : null,
                 'booking_required' => (bool) $provider->booking_required,
+                'id_required' => (bool) $provider->id_required,
                 'initial_status' => $provider->booking_required ? DateVoucher::STATUS_PENDING_PROVIDER : DateVoucher::STATUS_ACTIVE,
             ],
         ];
@@ -141,7 +142,7 @@ class DateVoucherService
         return $voucher->fresh($this->voucherRelations());
     }
 
-    public function redeem(User $providerUser, string $code): DateVoucher
+    public function redeem(User $providerUser, string $code, ?float $totalSpent = null): DateVoucher
     {
         if ($providerUser->role !== 'provider') {
             throw new HttpException(403, 'Provider access required.');
@@ -170,9 +171,16 @@ class DateVoucherService
             'status' => DateVoucher::STATUS_REDEEMED,
             'redeemed_at' => now(),
             'redeemed_by_provider_user_id' => $providerUser->id,
+            'total_spent' => $totalSpent,
+            'spend_recorded_at' => $totalSpent !== null ? now() : null,
         ]);
 
-        $this->notifyMatchedUsers($voucher->fresh($this->voucherRelations()), 'voucher_redeemed', 'Date voucher redeemed', 'Your provider confirmed that you attended this date.');
+        $this->notifyMatchedUsers(
+            $voucher->fresh($this->voucherRelations()),
+            'voucher_redeemed',
+            'Date voucher redeemed',
+            'Your provider confirmed that you attended this date. Share a quick review when you can.'
+        );
 
         return $voucher->fresh($this->voucherRelations());
     }
@@ -196,6 +204,8 @@ class DateVoucherService
             'status' => $voucher->status,
             'expires_at' => $voucher->expires_at,
             'redeemed_at' => $voucher->redeemed_at,
+            'total_spent' => $voucher->total_spent !== null ? (float) $voucher->total_spent : null,
+            'spend_recorded_at' => $voucher->spend_recorded_at,
             'created_at' => $voucher->created_at,
             'provider' => $this->providerPayload($voucher->providerProfile),
             'date' => $this->datePayload($voucher->specDate, $viewer),
@@ -280,6 +290,8 @@ class DateVoucherService
             'discountPercentage' => (int) ($profile->discount_percentage ?? 10),
             'minimumSpend' => $profile->minimum_spend !== null ? (float) $profile->minimum_spend : null,
             'bookingRequired' => (bool) $profile->booking_required,
+            'idRequired' => (bool) $profile->id_required,
+            'phone' => $profile->phone,
         ];
     }
 
@@ -333,7 +345,12 @@ class DateVoucherService
     {
         foreach ([$voucher->owner, $voucher->winner] as $recipient) {
             if ($recipient) {
-                $this->notificationService->notify($recipient, $type, ['voucher_id' => $voucher->id], $title, $body);
+                $this->notificationService->notify($recipient, $type, [
+                    'voucher_id' => $voucher->id,
+                    'spec_date_id' => $voucher->spec_date_id,
+                    'provider_profile_id' => $voucher->provider_profile_id,
+                    'review_prompt' => $type === 'voucher_redeemed',
+                ], $title, $body);
             }
         }
     }

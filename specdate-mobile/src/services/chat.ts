@@ -44,6 +44,14 @@ export type ChatThread = {
   created_at: string;
 };
 
+export type PaginatedChatThreads = {
+  data: ChatThread[];
+  current_page?: number;
+  last_page?: number;
+  per_page?: number;
+  total?: number;
+};
+
 export type ChatMessage = {
   id: number;
   chat_thread_id: number;
@@ -55,17 +63,23 @@ export type ChatMessage = {
   sender?: ChatUser | null;
 };
 
+export type ChatThreadPagination = {
+  per_page: number;
+  has_more: boolean;
+  next_before_id?: number | null;
+};
+
 export const ChatService = {
-  async getThreads() {
-    const response = await api.get('/chats');
-    return response.data as { success: boolean; data: ChatThread[]; message: string };
+  async getThreads(params?: { page?: number; per_page?: number }) {
+    const response = await api.get('/chats', { params });
+    return response.data as { success: boolean; data: PaginatedChatThreads; message: string };
   },
 
-  async getThread(threadId: number | string) {
-    const response = await api.get(`/chats/${threadId}`);
+  async getThread(threadId: number | string, params?: { before_id?: number; per_page?: number }) {
+    const response = await api.get(`/chats/${threadId}`, { params });
     return response.data as {
       success: boolean;
-      data: { thread: ChatThread; messages: ChatMessage[] };
+      data: { thread: ChatThread; messages: ChatMessage[]; pagination: ChatThreadPagination };
       message: string;
     };
   },

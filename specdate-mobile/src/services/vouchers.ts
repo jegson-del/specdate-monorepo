@@ -25,8 +25,10 @@ export type DateVoucherItem = {
   status: DateVoucherStatus;
   expires_at?: string | null;
   redeemed_at?: string | null;
+  total_spent?: number | null;
+  spend_recorded_at?: string | null;
   created_at?: string | null;
-  provider?: Pick<ProviderMarketplaceItem, 'id' | 'user_id' | 'name' | 'category' | 'city' | 'address' | 'imageUrl' | 'discountPercentage' | 'minimumSpend' | 'bookingRequired'> | null;
+  provider?: Pick<ProviderMarketplaceItem, 'id' | 'user_id' | 'name' | 'category' | 'city' | 'address' | 'phone' | 'imageUrl' | 'discountPercentage' | 'minimumSpend' | 'bookingRequired' | 'idRequired'> | null;
   date?: {
     id: number;
     date_code: string;
@@ -48,6 +50,7 @@ export type DateVoucherPreview = {
     discount_percentage: number;
     minimum_spend?: number | null;
     booking_required: boolean;
+    id_required: boolean;
     initial_status: DateVoucherStatus;
   };
 };
