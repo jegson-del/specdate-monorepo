@@ -2,13 +2,13 @@
 
 namespace App\Console\Commands;
 
-use App\Mail\SpecReminderMail;
 use App\Models\Spec;
 use App\Models\SpecNotificationLog;
+use App\Models\User;
+use App\Services\EmailService;
 use App\Services\NotificationService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Mail;
 
 class SendSpecStartReminders extends Command
 {
@@ -21,7 +21,7 @@ class SendSpecStartReminders extends Command
 
     protected $description = 'Send today/tomorrow spec start reminders to spec owners and accepted participants.';
 
-    public function handle(NotificationService $notifications): int
+    public function handle(NotificationService $notifications, EmailService $emails): int
     {
         $today = $this->option('date')
             ? Carbon::parse((string) $this->option('date'))->startOfDay()
@@ -37,9 +37,9 @@ class SendSpecStartReminders extends Command
                 ->whereIn('status', ['OPEN', 'ACTIVE'])
                 ->whereBetween('expires_at', [$date->copy()->startOfDay(), $date->copy()->endOfDay()])
                 ->orderBy('id')
-                ->chunkById($chunkSize, function ($specs) use ($notifications, $timing, $date, &$sent) {
+                ->chunkById($chunkSize, function ($specs) use ($notifications, $emails, $timing, $date, &$sent) {
                     foreach ($specs as $spec) {
-                        $sent += $this->sendSpecReminders($notifications, $spec, $timing, $date);
+                        $sent += $this->sendSpecReminders($notifications, $emails, $spec, $timing, $date);
                     }
                 });
         }
@@ -51,6 +51,7 @@ class SendSpecStartReminders extends Command
 
     private function sendSpecReminders(
         NotificationService $notifications,
+        EmailService $emails,
         Spec $spec,
         string $timing,
         Carbon $date
@@ -58,7 +59,7 @@ class SendSpecStartReminders extends Command
         $sent = 0;
         $sentUserIds = [];
 
-        if ($spec->owner && $this->sendReminder($notifications, $spec->owner, $spec, $timing, $date)) {
+        if ($spec->owner && $this->sendReminder($notifications, $emails, $spec->owner, $spec, $timing, $date)) {
             $sent++;
             $sentUserIds[(int) $spec->owner->id] = true;
         }
@@ -68,14 +69,14 @@ class SendSpecStartReminders extends Command
             ->where('status', 'ACCEPTED')
             ->with('user')
             ->orderBy('id')
-            ->chunkById(self::RECIPIENT_CHUNK_SIZE, function ($applications) use ($notifications, $spec, $timing, $date, &$sent, &$sentUserIds) {
+            ->chunkById(self::RECIPIENT_CHUNK_SIZE, function ($applications) use ($notifications, $emails, $spec, $timing, $date, &$sent, &$sentUserIds) {
                 foreach ($applications as $application) {
                     $user = $application->user;
                     if (!$user || isset($sentUserIds[(int) $user->id])) {
                         continue;
                     }
 
-                    if ($this->sendReminder($notifications, $user, $spec, $timing, $date)) {
+                    if ($this->sendReminder($notifications, $emails, $user, $spec, $timing, $date)) {
                         $sent++;
                     }
                     $sentUserIds[(int) $user->id] = true;
@@ -87,6 +88,7 @@ class SendSpecStartReminders extends Command
 
     private function sendReminder(
         NotificationService $notifications,
+        EmailService $emails,
         User $user,
         Spec $spec,
         string $timing,
@@ -123,7 +125,7 @@ class SendSpecStartReminders extends Command
             $body
         );
 
-        Mail::to($user->email)->send(new SpecReminderMail($user, $spec, $timing));
+        $emails->sendSpecReminder($user, $spec, $timing);
 
         SpecNotificationLog::create([
             'spec_id' => $spec->id,

@@ -55,6 +55,15 @@ export function createProviderRegistrationSchema(validCountryCodes: ReadonlySet<
         message: 'Address must include letters or numbers.',
       }),
 
+    postcode: z
+      .string()
+      .trim()
+      .min(2, { message: 'Postcode / zipcode must be at least 2 characters.' })
+      .max(32, { message: 'Postcode / zipcode must be at most 32 characters.' })
+      .refine((s) => /[\p{L}\p{N}]/u.test(s), {
+        message: 'Postcode / zipcode must include letters or numbers.',
+      }),
+
     country: z
       .string()
       .trim()
@@ -80,6 +89,13 @@ export function createProviderRegistrationSchema(validCountryCodes: ReadonlySet<
       .string()
       .trim()
       .max(2000, { message: 'Message must be at most 2000 characters.' })
+      .optional()
+      .default(''),
+
+    otpCode: z
+      .string()
+      .trim()
+      .max(6, { message: 'Verification code must be 6 digits.' })
       .optional()
       .default(''),
   })

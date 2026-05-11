@@ -115,4 +115,8 @@ return [
         'name' => env('MAIL_FROM_NAME', 'Example'),
     ],
 
+    'admin_address' => env('ADMIN_EMAIL', env('MAIL_FROM_ADDRESS', 'hello@example.com')),
+
+    'logo_url' => env('MAIL_LOGO_URL') ?: rtrim(env('APP_URL', 'http://localhost'), '/') . '/images/dateusher-email-logo.png',
+
 ];

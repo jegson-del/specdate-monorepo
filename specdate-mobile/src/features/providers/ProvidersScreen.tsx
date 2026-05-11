@@ -26,9 +26,25 @@ type ProviderCategory = string;
 type ProviderItem = ProviderMarketplaceItem;
 type FilterKey = 'country' | 'city' | 'service';
 
+function normalizeFilterValue(value: string) {
+  return value.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+}
+
 function uniqueSorted(values: Array<string | null | undefined>) {
-  return Array.from(new Set(values.map((value) => value?.trim()).filter(Boolean) as string[])).sort((a, b) =>
-    a.localeCompare(b)
+  const uniqueByNormalized = new Map<string, string>();
+
+  values.forEach((value) => {
+    const trimmed = value?.trim();
+    if (!trimmed) return;
+
+    const normalized = normalizeFilterValue(trimmed);
+    if (!uniqueByNormalized.has(normalized)) {
+      uniqueByNormalized.set(normalized, trimmed);
+    }
+  });
+
+  return Array.from(uniqueByNormalized.values()).sort((a, b) =>
+    a.localeCompare(b, undefined, { sensitivity: 'base' })
   );
 }
 

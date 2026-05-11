@@ -41,8 +41,8 @@ class ProviderChatTest extends TestCase
 
         $this->getJson('/api/chats')
             ->assertOk()
-            ->assertJsonPath('data.0.id', $threadId)
-            ->assertJsonPath('data.0.other_user.id', $customer->id);
+            ->assertJsonPath('data.data.0.id', $threadId)
+            ->assertJsonPath('data.data.0.other_user.id', $customer->id);
 
         $this->postJson("/api/chats/{$threadId}/messages", [
             'body' => 'We can help with your booking.',

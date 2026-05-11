@@ -7,14 +7,28 @@ use App\Models\DateVoucher;
 use App\Models\ProviderCategory;
 use App\Models\ProviderProfile;
 use App\Models\User;
+use App\Services\AuthService;
 use App\Services\DateVoucherService;
+use App\Services\EmailService;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Str;
+use Illuminate\Auth\Events\PasswordReset;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 class ProviderController extends Controller
 {
-    public function __construct(private DateVoucherService $dateVoucherService)
+    public function __construct(
+        private DateVoucherService $dateVoucherService,
+        private AuthService $authService,
+        private EmailService $emailService
+    )
     {
     }
 
@@ -27,6 +41,7 @@ class ProviderController extends Controller
             ->with(['categories', 'user.media'])
             ->withAvg('providerReviews as rating', 'rating')
             ->withCount('providerReviews as reviews_count')
+            ->where('is_verified', true)
             ->whereHas('user', fn ($q) => $q->where('role', 'provider'));
 
         if ($request->filled('q')) {
@@ -40,13 +55,13 @@ class ProviderController extends Controller
         }
 
         if ($request->filled('country')) {
-            $country = trim((string) $request->query('country'));
-            $query->where('country', $country);
+            $country = strtolower(trim((string) $request->query('country')));
+            $query->whereRaw('LOWER(TRIM(country)) = ?', [$country]);
         }
 
         if ($request->filled('city')) {
-            $city = trim((string) $request->query('city'));
-            $query->where('city', $city);
+            $city = strtolower(trim((string) $request->query('city')));
+            $query->whereRaw('LOWER(TRIM(city)) = ?', [$city]);
         }
 
         if ($request->filled('category') || $request->filled('service')) {
@@ -78,6 +93,7 @@ class ProviderController extends Controller
             ->with(['categories', 'user.media', 'providerReviews' => fn ($q) => $q->with('reviewer.profile')->latest()->limit(3)])
             ->withAvg('providerReviews as rating', 'rating')
             ->withCount('providerReviews as reviews_count')
+            ->where('is_verified', true)
             ->whereHas('user', fn ($q) => $q->where('role', 'provider'))
             ->findOrFail($provider);
 
@@ -110,6 +126,175 @@ class ProviderController extends Controller
             'message' => 'Provider reviews retrieved successfully.',
             'data' => $reviews,
         ]);
+    }
+
+    public function approveRegistration(Request $request, int $provider)
+    {
+        if ($request->user()?->role !== 'admin') {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $profile = ProviderProfile::query()
+            ->with('user')
+            ->whereHas('user', fn ($q) => $q->where('role', 'provider'))
+            ->findOrFail($provider);
+
+        $user = DB::transaction(function () use ($profile) {
+            $profile->forceFill([
+                'is_verified' => true,
+                'approved_at' => $profile->approved_at ?? now(),
+            ])->save();
+
+            $profile->user->forceFill([
+                'email_verified_at' => $profile->user->email_verified_at ?? now(),
+            ])->save();
+
+            return $profile->user->fresh('providerProfile.categories');
+        });
+
+        $token = Password::broker()->createToken($user);
+        $setupUrl = $this->providerPasswordSetupUrl($user->email, $token);
+
+        $setupEmailSent = $this->emailService->sendProviderApproved($user, $setupUrl);
+
+        return response()->json([
+            'message' => $setupEmailSent
+                ? 'Provider approved and password setup email sent.'
+                : 'Provider approved, but password setup email could not be sent. Please retry sending the setup email.',
+            'data' => [
+                'id' => $user->providerProfile?->id,
+                'status' => 'approved',
+                'is_verified' => true,
+                'setup_email_sent' => $setupEmailSent,
+            ],
+        ]);
+    }
+
+    public function setupPassword(Request $request)
+    {
+        $data = $request->validate([
+            'email' => 'required|string|email|max:254',
+            'token' => 'required|string',
+            'password' => 'required|string|min:8|confirmed',
+            'password_confirmation' => 'required|string',
+            'terms_accepted' => 'required|accepted',
+        ]);
+
+        $email = strtolower(trim($data['email']));
+        $user = User::query()
+            ->where('email', $email)
+            ->where('role', 'provider')
+            ->with('providerProfile')
+            ->first();
+
+        if (!$user || !$user->providerProfile?->is_verified) {
+            throw ValidationException::withMessages([
+                'email' => ['This provider account is not approved for password setup.'],
+            ]);
+        }
+
+        $status = Password::broker()->reset(
+            [
+                'email' => $email,
+                'token' => $data['token'],
+                'password' => $data['password'],
+                'password_confirmation' => $data['password_confirmation'],
+            ],
+            function (User $user, string $password) {
+                $user->forceFill([
+                    'password' => Hash::make($password),
+                    'remember_token' => Str::random(60),
+                    'email_verified_at' => $user->email_verified_at ?? now(),
+                    'terms_accepted' => true,
+                ])->save();
+
+                event(new PasswordReset($user));
+            }
+        );
+
+        if ($status !== Password::PASSWORD_RESET) {
+            throw ValidationException::withMessages([
+                'token' => ['This password setup link is invalid or expired.'],
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Password set successfully. Download the DateUsher app and log in with your new password.',
+            'data' => [
+                'email' => $email,
+                'next_step' => 'download_app',
+            ],
+        ]);
+    }
+
+    /**
+     * Public web provider-interest registration.
+     */
+    public function registerInterest(Request $request)
+    {
+        $data = $request->validate([
+            'business_name' => 'required|string|min:2|max:120',
+            'service_type' => 'required|string|in:hotel,spa,restaurant,venue,experience,other',
+            'email' => 'required|string|email|max:254|unique:users,email',
+            'address' => 'required|string|min:10|max:500',
+            'postcode' => 'required|string|min:2|max:32',
+            'country_code' => 'required|string|size:2',
+            'country_name' => 'nullable|string|max:120',
+            'phone' => ['required', 'string', 'max:20', 'regex:/^\+[1-9]\d{6,14}$/', 'unique:users,mobile'],
+            'notes' => 'nullable|string|max:2000',
+            'otp_code' => 'required|string|size:6',
+        ]);
+
+        $data['email'] = strtolower(trim($data['email']));
+
+        if (!$this->authService->verifyOtp('email', $data['email'], $data['otp_code'])) {
+            throw ValidationException::withMessages([
+                'otp_code' => ['Invalid or expired verification code.'],
+            ]);
+        }
+
+        $user = DB::transaction(function () use ($data) {
+            $user = User::create([
+                'name' => trim($data['business_name']),
+                'username' => $this->uniqueProviderUsername($data['business_name']),
+                'email' => $data['email'],
+                'mobile' => trim($data['phone']),
+                'password' => Hash::make(Str::random(48)),
+                'role' => 'provider',
+                'terms_accepted' => false,
+            ]);
+
+            $profile = $user->providerProfile()->create([
+                'company_name' => trim($data['business_name']),
+                'description' => trim((string) ($data['notes'] ?? '')) ?: null,
+                'phone' => trim($data['phone']),
+                'address' => trim($data['address']),
+                'postcode' => strtoupper(trim($data['postcode'])),
+                'country' => trim((string) ($data['country_name'] ?? '')) ?: strtoupper($data['country_code']),
+                'discount_percentage' => 10,
+                'booking_required' => false,
+                'id_required' => false,
+                'is_verified' => false,
+            ]);
+
+            $category = $this->providerCategoryForService($data['service_type']);
+            if ($category) {
+                $profile->categories()->sync([$category->id]);
+            }
+
+            return $user->load('providerProfile.categories');
+        });
+
+        $this->emailService->sendWelcomeProvider($user);
+        $this->emailService->sendNewProviderAdminNotification($user);
+
+        return response()->json([
+            'message' => 'Provider registration received. We will review your application and contact you by email.',
+            'data' => [
+                'id' => $user->providerProfile?->id,
+                'status' => 'pending_review',
+            ],
+        ], 201);
     }
 
     /**
@@ -391,5 +576,51 @@ class ProviderController extends Controller
             'united arab emirates' => 'AED',
             'uae' => 'AED',
         ][$country] ?? 'USD';
+    }
+
+    private function providerCategoryForService(string $serviceType): ?ProviderCategory
+    {
+        $name = [
+            'hotel' => 'Hotel',
+            'spa' => 'Spa',
+            'restaurant' => 'Restaurant',
+            'venue' => 'Venue',
+            'experience' => 'Experience',
+            'other' => 'Other',
+        ][$serviceType] ?? null;
+
+        if (!$name) {
+            return null;
+        }
+
+        return ProviderCategory::firstOrCreate(
+            ['slug' => Str::slug($name)],
+            ['name' => $name]
+        );
+    }
+
+    private function providerPasswordSetupUrl(string $email, string $token): string
+    {
+        $baseUrl = rtrim((string) config('app.frontend_url', config('app.url')), '/');
+
+        return $baseUrl . '/provider/setup-password?' . http_build_query([
+            'email' => $email,
+            'token' => $token,
+        ]);
+    }
+
+    private function uniqueProviderUsername(string $businessName): string
+    {
+        $base = Str::slug($businessName);
+        $base = $base !== '' ? Str::limit($base, 32, '') : 'provider';
+        $username = $base;
+        $counter = 1;
+
+        while (User::where('username', $username)->exists()) {
+            $counter++;
+            $username = Str::limit($base, 26, '') . '-' . $counter;
+        }
+
+        return $username;
     }
 }

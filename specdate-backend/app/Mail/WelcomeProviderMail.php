@@ -21,7 +21,7 @@ class WelcomeProviderMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Welcome to SpecDate Partner Program',
+            subject: 'DateUsher provider application received',
         );
     }
 

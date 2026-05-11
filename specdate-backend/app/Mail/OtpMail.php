@@ -20,7 +20,7 @@ class OtpMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Your SpecDate verification code',
+            subject: 'Your DateUsher verification code',
             from: config('mail.from.address'),
             replyTo: [config('mail.from.address')],
         );

@@ -3,17 +3,12 @@
 namespace App\Services;
 
 use App\Models\User;
-use App\Mail\OtpMail;
-use App\Mail\WelcomeUserMail;
-use App\Mail\WelcomeProviderMail;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Http\Exceptions\HttpResponseException;
-use App\Mail\NewProviderAdminNotificationMail;
 
 class AuthService
 {
@@ -21,10 +16,12 @@ class AuthService
     private const OTP_CACHE_PREFIX = 'otp:';
 
     protected $sparkService;
+    protected $emailService;
 
-    public function __construct(SparkService $sparkService)
+    public function __construct(SparkService $sparkService, EmailService $emailService)
     {
         $this->sparkService = $sparkService;
+        $this->emailService = $emailService;
     }
 
     /**
@@ -43,19 +40,16 @@ class AuthService
         Cache::put($key, $code, self::OTP_TTL_SECONDS);
 
         if ($channel === 'email') {
-            try {
-                Mail::to(trim($target))->send(new OtpMail($code, $target));
+            if ($this->emailService->sendOtpEmail($target, $code)) {
                 return [
                     'success' => true,
                     'message' => 'Verification code sent to your email.',
                 ];
-            } catch (\Throwable $e) {
-                Log::warning('OTP email send failed', ['target' => $target, 'error' => $e->getMessage()]);
-                return [
-                    'success' => false,
-                    'message' => 'Failed to send verification code. Please try again.',
-                ];
             }
+            return [
+                'success' => false,
+                'message' => 'Failed to send verification code. Please try again.',
+            ];
         }
 
         if ($channel === 'mobile') {
@@ -160,6 +154,8 @@ class AuthService
 
         $name = $data['name'] ?? $data['username'];
 
+        $role = ($data['role'] ?? 'user') === 'provider' ? 'user' : ($data['role'] ?? 'user');
+
         // 1. Create User
         $user = User::create([
             'name' => $name,
@@ -167,7 +163,7 @@ class AuthService
             'email' => $data['email'],
             'mobile' => $data['mobile'],
             'password' => Hash::make($data['password']),
-            'role' => $data['role'] ?? 'user',
+            'role' => $role,
             'terms_accepted' => filter_var($data['terms_accepted'] ?? false, FILTER_VALIDATE_BOOLEAN),
         ]);
 
@@ -179,12 +175,8 @@ class AuthService
                 'is_verified' => false,
             ]);
 
-            Mail::to($user->email)->send(new WelcomeProviderMail($user));
-
-            $adminEmail = config('mail.from.address');
-            if ($adminEmail) {
-                Mail::to($adminEmail)->send(new NewProviderAdminNotificationMail($user));
-            }
+            $this->emailService->sendWelcomeProvider($user);
+            $this->emailService->sendNewProviderAdminNotification($user);
 
         } else {
             // Create User Profile with Location
@@ -198,7 +190,7 @@ class AuthService
                 'continent' => $data['continent'] ?? null,
             ]);
 
-            Mail::to($user->email)->send(new WelcomeUserMail($user));
+            $this->emailService->sendWelcomeUser($user);
         }
 
         // 2. Initialize Sparks

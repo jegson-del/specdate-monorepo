@@ -21,6 +21,8 @@ use Illuminate\Support\Facades\Route;
 Route::post('/send-otp', [AuthController::class, 'sendOtp']);
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
+Route::post('/provider-registrations', [ProviderController::class, 'registerInterest']);
+Route::post('/provider-password/setup', [ProviderController::class, 'setupPassword']);
 
 Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
@@ -59,6 +61,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/date-vouchers/{voucher}/review-dismiss', [ReviewController::class, 'dismiss']);
     Route::get('/admin/reports', [ReportController::class, 'index']);
     Route::patch('/admin/reports/{report}', [ReportController::class, 'update']);
+    Route::patch('/admin/providers/{provider}/approve', [ProviderController::class, 'approveRegistration']);
     Route::get('/support/tickets', [SupportController::class, 'index']);
     Route::post('/support/tickets', [SupportController::class, 'store']);
     Route::get('/support/tickets/{ticket}', [SupportController::class, 'show']);

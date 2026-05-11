@@ -19,17 +19,21 @@ class ProviderProfile extends Model
         'address',
         'city',
         'country',
+        'postcode',
         'currency',
         'discount_percentage',
         'minimum_spend',
         'booking_required',
         'id_required',
         'is_verified',
+        'approved_at',
     ];
 
     protected $casts = [
         'booking_required' => 'boolean',
         'id_required' => 'boolean',
+        'is_verified' => 'boolean',
+        'approved_at' => 'datetime',
         'minimum_spend' => 'decimal:2',
     ];
 

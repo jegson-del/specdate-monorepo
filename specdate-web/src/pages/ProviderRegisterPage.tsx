@@ -10,7 +10,6 @@ import {
   type ProviderRegistrationOutput,
 } from '../schemas/providerRegistrationSchema'
 
-/** RHF submit values match input; resolver has already applied Zod transforms — safe to treat as output for API. */
 function asParsedOutput(data: ProviderRegistrationFormInput): ProviderRegistrationOutput {
   return data as unknown as ProviderRegistrationOutput
 }
@@ -18,20 +17,20 @@ function asParsedOutput(data: ProviderRegistrationFormInput): ProviderRegistrati
 const inputClass =
   'mt-2 w-full rounded-xl border border-white/15 bg-black/40 px-4 py-3 text-white placeholder:text-white/35 focus:border-pink-500/60 focus:outline-none focus:ring-2 focus:ring-pink-500/40'
 const inputErrorClass = ' border-red-400/70 focus:border-red-400 focus:ring-red-500/40'
+const otpCodePattern = /^\d{6}$/
 
 const defaultValues: ProviderRegistrationFormInput = {
   businessName: '',
   serviceType: '',
   email: '',
   address: '',
+  postcode: '',
   country: '',
   phone: '',
   notes: '',
+  otpCode: '',
 }
 
-/**
- * Provider registration — Zod schema + react-hook-form + TypeScript.
- */
 export default function ProviderRegisterPage() {
   const countryOptions = useMemo(() => getCountryOptions(), [])
   const validCountryCodes = useMemo(() => getValidCountryCodes(), [])
@@ -39,33 +38,141 @@ export default function ProviderRegisterPage() {
     () => createProviderRegistrationSchema(validCountryCodes),
     [validCountryCodes],
   )
-
   const [submittedOk, setSubmittedOk] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [statusMessage, setStatusMessage] = useState<string | null>(null)
+  const [otpSentTo, setOtpSentTo] = useState<string | null>(null)
+  const [isSendingOtp, setIsSendingOtp] = useState(false)
 
   const {
     register,
     handleSubmit,
     reset,
-    formState: { errors },
+    setError,
+    formState: { errors, isSubmitting },
   } = useForm<ProviderRegistrationFormInput>({
     resolver: zodResolver(schema),
     defaultValues,
     mode: 'onTouched',
   })
 
-  const onValid = (data: ProviderRegistrationFormInput) => {
-    const parsed = asParsedOutput(data)
-    const payload = {
-      businessName: parsed.businessName,
-      serviceType: parsed.serviceType,
-      email: parsed.email,
-      address: parsed.address,
-      countryCode: parsed.country,
-      phoneE164: parsed.phone,
-      notes: parsed.notes ?? '',
+  const apiBase = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+
+  const extractErrorMessage = (result: unknown, fallback: string) => {
+    if (!result || typeof result !== 'object') return fallback
+
+    const response = result as {
+      message?: string
+      errors?: Record<string, string[]>
+      data?: { errors?: Record<string, string[]> }
     }
-    console.info('[Provider registration — wire to API]', payload)
+
+    return (
+      response.message ||
+      response.errors?.otp_code?.[0] ||
+      response.errors?.email?.[0] ||
+      response.errors?.phone?.[0] ||
+      response.data?.errors?.otp_code?.[0] ||
+      fallback
+    )
+  }
+
+  const sendEmailOtp = async (email: string) => {
+    setSubmitError(null)
+    setStatusMessage(null)
+    setSubmittedOk(false)
+    setIsSendingOtp(true)
+
+    try {
+      const response = await fetch(`${apiBase}/api/send-otp`, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          channel: 'email',
+          target: email,
+        }),
+      })
+      const result = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        setSubmitError(
+          extractErrorMessage(
+            result,
+            'We could not send the verification code. Please check the email and try again.',
+          ),
+        )
+        return false
+      }
+
+      setOtpSentTo(email)
+      setStatusMessage(`We sent a 6-digit verification code to ${email}. Enter it below to submit.`)
+      return true
+    } finally {
+      setIsSendingOtp(false)
+    }
+  }
+
+  const onValid = async (data: ProviderRegistrationFormInput) => {
+    const parsed = asParsedOutput(data)
+    const normalizedEmail = parsed.email.toLowerCase()
+
+    if (otpSentTo !== normalizedEmail) {
+      await sendEmailOtp(normalizedEmail)
+      return
+    }
+
+    if (!otpCodePattern.test(parsed.otpCode ?? '')) {
+      setError('otpCode', {
+        type: 'manual',
+        message: 'Enter the 6-digit code we sent to your email.',
+      })
+      return
+    }
+
+    const country = countryOptions.find((option) => option.code === parsed.country)
+    const payload = {
+      business_name: parsed.businessName,
+      service_type: parsed.serviceType,
+      email: normalizedEmail,
+      address: parsed.address,
+      postcode: parsed.postcode,
+      country_code: parsed.country,
+      country_name: country?.name ?? parsed.country,
+      phone: parsed.phone,
+      notes: parsed.notes ?? '',
+      otp_code: parsed.otpCode,
+    }
+
+    setSubmitError(null)
+    setStatusMessage(null)
+    setSubmittedOk(false)
+
+    const response = await fetch(`${apiBase}/api/provider-registrations`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    })
+    const result = await response.json().catch(() => null)
+
+    if (!response.ok) {
+      setSubmitError(
+        extractErrorMessage(
+          result,
+          'We could not submit your provider application. Please check the form and try again.',
+        ),
+      )
+      return
+    }
+
     setSubmittedOk(true)
+    setOtpSentTo(null)
+    setStatusMessage(null)
     reset(defaultValues)
   }
 
@@ -75,9 +182,9 @@ export default function ProviderRegisterPage() {
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4 sm:px-6">
           <Link
             to="/"
-            className="text-sm font-medium text-pink-400 transition hover:text-pink-300 focus:outline-none focus:ring-2 focus:ring-pink-500 rounded"
+            className="rounded text-sm font-medium text-pink-400 transition hover:text-pink-300 focus:outline-none focus:ring-2 focus:ring-pink-500"
           >
-            ← Back to home
+            Back to home
           </Link>
           <span className="text-sm text-white/50">Provider registration</span>
         </div>
@@ -88,8 +195,8 @@ export default function ProviderRegisterPage() {
           Register as a provider
         </h1>
         <p className="mt-3 text-white/65">
-          Join Dateusher and reach daters worldwide. Use your full street address, country, and
-          international phone number (with country code).
+          Join DateUsher and reach daters worldwide. Use your full street address, country, and
+          international phone number with country code.
         </p>
 
         {submittedOk && (
@@ -97,8 +204,26 @@ export default function ProviderRegisterPage() {
             className="mt-6 rounded-xl border border-green-500/40 bg-green-500/10 px-4 py-3 text-sm text-green-200"
             role="status"
           >
-            Thanks — your details look valid. Connect your API to save submissions; we logged a preview
-            in the browser console for development.
+            Thanks. Your provider application has been received. We have emailed you a confirmation
+            and sent the details to our admin team for review.
+          </p>
+        )}
+
+        {submitError && (
+          <p
+            className="mt-6 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200"
+            role="alert"
+          >
+            {submitError}
+          </p>
+        )}
+
+        {statusMessage && (
+          <p
+            className="mt-6 rounded-xl border border-pink-400/40 bg-pink-500/10 px-4 py-3 text-sm text-pink-100"
+            role="status"
+          >
+            {statusMessage}
           </p>
         )}
 
@@ -135,10 +260,10 @@ export default function ProviderRegisterPage() {
               aria-describedby={errors.serviceType ? 'err-serviceType' : undefined}
               {...register('serviceType')}
             >
-              <option value="">Select…</option>
-              {SERVICE_TYPE_VALUES.map((v) => (
-                <option key={v} value={v}>
-                  {v.charAt(0).toUpperCase() + v.slice(1)}
+              <option value="">Select...</option>
+              {SERVICE_TYPE_VALUES.map((value) => (
+                <option key={value} value={value}>
+                  {value.charAt(0).toUpperCase() + value.slice(1)}
                 </option>
               ))}
             </select>
@@ -179,18 +304,38 @@ export default function ProviderRegisterPage() {
               id="address"
               rows={4}
               autoComplete="street-address"
-              placeholder="Building name, street, district, city — as you would write on mail"
+              placeholder="Building name, street, district, city"
               className={`${inputClass} resize-y${errors.address ? inputErrorClass : ''}`}
               aria-invalid={Boolean(errors.address)}
               aria-describedby={errors.address ? 'err-address' : undefined}
               {...register('address')}
             />
             <p className="mt-1 text-xs text-white/45">
-              10–500 characters. Any language / script is allowed.
+              10-500 characters. Any language or script is allowed.
             </p>
             {errors.address && (
               <p id="err-address" className="mt-1.5 text-sm text-red-300" role="alert">
                 {errors.address.message}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label htmlFor="postcode" className="block text-sm font-medium text-white/80">
+              Postcode / zipcode <span className="text-pink-400">*</span>
+            </label>
+            <input
+              id="postcode"
+              autoComplete="postal-code"
+              placeholder="SW1A 1AA or 10001"
+              className={`${inputClass}${errors.postcode ? inputErrorClass : ''}`}
+              aria-invalid={Boolean(errors.postcode)}
+              aria-describedby={errors.postcode ? 'err-postcode' : undefined}
+              {...register('postcode')}
+            />
+            {errors.postcode && (
+              <p id="err-postcode" className="mt-1.5 text-sm text-red-300" role="alert">
+                {errors.postcode.message}
               </p>
             )}
           </div>
@@ -207,7 +352,7 @@ export default function ProviderRegisterPage() {
               aria-describedby={errors.country ? 'err-country' : undefined}
               {...register('country')}
             >
-              <option value="">Select country…</option>
+              <option value="">Select country...</option>
               {countryOptions.map(({ code, name }) => (
                 <option key={code} value={code}>
                   {name}
@@ -237,9 +382,7 @@ export default function ProviderRegisterPage() {
               {...register('phone')}
             />
             <p className="mt-1 text-xs text-white/45">
-              International format (E.164): start with <strong className="text-white/70">+</strong> and
-              your country code, then the number (spaces optional). Example: +234 801 234 5678, +1 415
-              555 2671.
+              International format: start with + and your country code, then the number.
             </p>
             {errors.phone && (
               <p id="err-phone" className="mt-1.5 text-sm text-red-300" role="alert">
@@ -255,7 +398,7 @@ export default function ProviderRegisterPage() {
             <textarea
               id="notes"
               rows={4}
-              placeholder="Tell us about your location, capacity, or partnership goals…"
+              placeholder="Tell us about your location, capacity, or partnership goals..."
               className={`${inputClass} resize-y${errors.notes ? inputErrorClass : ''}`}
               aria-invalid={Boolean(errors.notes)}
               aria-describedby={errors.notes ? 'err-notes' : undefined}
@@ -268,14 +411,58 @@ export default function ProviderRegisterPage() {
             )}
           </div>
 
+          {otpSentTo && (
+            <div className="rounded-2xl border border-white/12 bg-black/35 p-4 shadow-2xl shadow-pink-950/20">
+              <label htmlFor="otp-code" className="block text-sm font-medium text-white/80">
+                Email verification code <span className="text-pink-400">*</span>
+              </label>
+              <input
+                id="otp-code"
+                autoComplete="one-time-code"
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="123456"
+                className={`${inputClass}${errors.otpCode ? inputErrorClass : ''}`}
+                aria-invalid={Boolean(errors.otpCode)}
+                aria-describedby={errors.otpCode ? 'err-otpCode' : 'hint-otpCode'}
+                {...register('otpCode')}
+              />
+              <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p id="hint-otpCode" className="text-xs text-white/45">
+                  The code expires in 10 minutes. Check spam if it is not in your inbox.
+                </p>
+                <button
+                  type="button"
+                  disabled={isSendingOtp || isSubmitting}
+                  onClick={handleSubmit((data) => sendEmailOtp(asParsedOutput(data).email.toLowerCase()))}
+                  className="self-start rounded-full border border-white/15 px-4 py-2 text-xs font-semibold text-white/80 transition hover:border-pink-400/60 hover:text-pink-200 focus:outline-none focus:ring-2 focus:ring-pink-500 disabled:cursor-not-allowed disabled:opacity-60 sm:self-auto"
+                >
+                  {isSendingOtp ? 'Sending...' : 'Resend code'}
+                </button>
+              </div>
+              {errors.otpCode && (
+                <p id="err-otpCode" className="mt-1.5 text-sm text-red-300" role="alert">
+                  {errors.otpCode.message}
+                </p>
+              )}
+            </div>
+          )}
+
           <button
             type="submit"
-            className="w-full rounded-full bg-pink-600 py-3.5 text-base font-semibold text-white shadow-lg transition hover:bg-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+            disabled={isSubmitting || isSendingOtp}
+            className="w-full rounded-full bg-pink-600 py-3.5 text-base font-semibold text-white shadow-lg transition hover:bg-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 focus:ring-offset-gray-900 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Submit interest
+            {isSubmitting || isSendingOtp
+              ? otpSentTo
+                ? 'Submitting...'
+                : 'Sending code...'
+              : otpSentTo
+                ? 'Submit verified application'
+                : 'Send verification code'}
           </button>
           <p className="text-center text-xs text-white/45">
-            Form submission will be connected to your backend later.
+            We review every provider before they appear in the marketplace.
           </p>
         </form>
       </main>

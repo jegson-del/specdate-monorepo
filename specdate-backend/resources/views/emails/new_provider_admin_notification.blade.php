@@ -1,16 +1,56 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>New Provider Registration</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New provider application</title>
 </head>
-<body>
-    <h1>New Provider Registration</h1>
-    <p>A new provider has registered and is awaiting verification.</p>
-    <ul>
-        <li><strong>Name:</strong> {{ $user->name }}</li>
-        <li><strong>Email:</strong> {{ $user->email }}</li>
-        <li><strong>Company Name:</strong> {{ $user->providerProfile->company_name ?? 'N/A' }}</li>
-    </ul>
-    <p>Please review their details in the admin panel.</p>
+<body style="margin: 0; background: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: #111827;">
+    <div style="max-width: 680px; margin: 0 auto; padding: 24px;">
+        @include('emails.partials.header')
+        <div style="background: #ffffff; border: 1px solid #e5e7eb; border-radius: 18px; padding: 28px;">
+            <h1 style="margin: 0 0 12px; font-size: 26px; line-height: 1.2;">New provider application</h1>
+            <p style="margin: 0 0 20px; color: #4b5563; line-height: 1.6;">A provider has submitted the website registration form and is awaiting admin review.</p>
+
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse;">
+                <tr>
+                    <td style="padding: 10px 0; color: #6b7280; width: 150px;">Business</td>
+                    <td style="padding: 10px 0; font-weight: 700;">{{ $user->providerProfile->company_name ?? $user->name }}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 10px 0; color: #6b7280;">Email</td>
+                    <td style="padding: 10px 0;">{{ $user->email }}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 10px 0; color: #6b7280;">Phone</td>
+                    <td style="padding: 10px 0;">{{ $user->providerProfile->phone ?? $user->mobile }}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 10px 0; color: #6b7280;">Category</td>
+                    <td style="padding: 10px 0;">{{ $user->providerProfile?->categories?->first()?->name ?? 'N/A' }}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 10px 0; color: #6b7280;">Country</td>
+                    <td style="padding: 10px 0;">{{ $user->providerProfile->country ?? 'N/A' }}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 10px 0; color: #6b7280;">Postcode</td>
+                    <td style="padding: 10px 0;">{{ $user->providerProfile->postcode ?? 'N/A' }}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 10px 0; color: #6b7280; vertical-align: top;">Address</td>
+                    <td style="padding: 10px 0; line-height: 1.5;">{{ $user->providerProfile->address ?? 'N/A' }}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 10px 0; color: #6b7280; vertical-align: top;">Notes</td>
+                    <td style="padding: 10px 0; line-height: 1.5;">{{ $user->providerProfile->description ?? 'None' }}</td>
+                </tr>
+            </table>
+
+            <div style="margin-top: 22px; border-radius: 14px; background: #111827; padding: 16px; color: #ffffff;">
+                Review this application in the admin dashboard when provider approvals are enabled.
+            </div>
+        </div>
+    </div>
 </body>
 </html>
