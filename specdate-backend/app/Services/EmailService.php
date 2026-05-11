@@ -18,20 +18,20 @@ class EmailService
 {
     public function sendOtpEmail(string $target, string $code): bool
     {
-        return $this->dispatch(
+        return $this->sendNow(
             trim($target),
             new OtpMail($code, $target),
-            'OTP email queue failed',
+            'OTP email send failed',
             ['target' => $target]
         );
     }
 
     public function sendWelcomeUser(User $user): bool
     {
-        return $this->dispatch(
+        return $this->sendNow(
             $user->email,
             new WelcomeUserMail($user),
-            'Welcome user email queue failed',
+            'Welcome user email send failed',
             ['user_id' => $user->id]
         );
     }
@@ -98,6 +98,17 @@ class EmailService
         try {
             // Queue by default; when QUEUE_CONNECTION=sync this executes immediately.
             Mail::to($recipient)->queue($mailable);
+            return true;
+        } catch (\Throwable $e) {
+            Log::warning($failureMessage, array_merge($context, ['error' => $e->getMessage()]));
+            return false;
+        }
+    }
+
+    private function sendNow(string $recipient, Mailable $mailable, string $failureMessage, array $context = []): bool
+    {
+        try {
+            Mail::to($recipient)->send($mailable);
             return true;
         } catch (\Throwable $e) {
             Log::warning($failureMessage, array_merge($context, ['error' => $e->getMessage()]));

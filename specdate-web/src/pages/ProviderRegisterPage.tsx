@@ -2,6 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link } from 'react-router-dom'
+import { useAlert } from '../components/AlertProvider'
 import { getCountryOptions, getValidCountryCodes } from '../data/countryOptions'
 import {
   createProviderRegistrationSchema,
@@ -32,6 +33,7 @@ const defaultValues: ProviderRegistrationFormInput = {
 }
 
 export default function ProviderRegisterPage() {
+  const { showAlert } = useAlert()
   const countryOptions = useMemo(() => getCountryOptions(), [])
   const validCountryCodes = useMemo(() => getValidCountryCodes(), [])
   const schema = useMemo(
@@ -98,17 +100,27 @@ export default function ProviderRegisterPage() {
       const result = await response.json().catch(() => null)
 
       if (!response.ok) {
-        setSubmitError(
-          extractErrorMessage(
-            result,
-            'We could not send the verification code. Please check the email and try again.',
-          ),
+        const message = extractErrorMessage(
+          result,
+          'We could not send the verification code. Please check the email and try again.',
         )
+        setSubmitError(message)
+        showAlert({
+          tone: 'error',
+          title: 'Verification code not sent',
+          message,
+        })
         return false
       }
 
       setOtpSentTo(email)
-      setStatusMessage(`We sent a 6-digit verification code to ${email}. Enter it below to submit.`)
+      const message = `We sent a 6-digit verification code to ${email}. Enter it below to submit.`
+      setStatusMessage(message)
+      showAlert({
+        tone: 'info',
+        title: 'Check your email',
+        message,
+      })
       return true
     } finally {
       setIsSendingOtp(false)
@@ -128,6 +140,11 @@ export default function ProviderRegisterPage() {
       setError('otpCode', {
         type: 'manual',
         message: 'Enter the 6-digit code we sent to your email.',
+      })
+      showAlert({
+        tone: 'warning',
+        title: 'Verification code needed',
+        message: 'Enter the 6-digit code we sent to your email before submitting.',
       })
       return
     }
@@ -161,18 +178,28 @@ export default function ProviderRegisterPage() {
     const result = await response.json().catch(() => null)
 
     if (!response.ok) {
-      setSubmitError(
-        extractErrorMessage(
-          result,
-          'We could not submit your provider application. Please check the form and try again.',
-        ),
+      const message = extractErrorMessage(
+        result,
+        'We could not submit your provider application. Please check the form and try again.',
       )
+      setSubmitError(message)
+      showAlert({
+        tone: 'error',
+        title: 'Application not submitted',
+        message,
+      })
       return
     }
 
     setSubmittedOk(true)
     setOtpSentTo(null)
     setStatusMessage(null)
+    showAlert({
+      tone: 'success',
+      title: 'Provider application received',
+      message: 'We emailed your confirmation and sent your details to our admin team for review.',
+      durationMs: 8000,
+    })
     reset(defaultValues)
   }
 
