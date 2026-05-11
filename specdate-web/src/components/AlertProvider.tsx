@@ -29,23 +29,37 @@ type AlertContextValue = {
 
 const AlertContext = createContext<AlertContextValue | null>(null)
 
-const toneStyles: Record<AlertTone, { icon: string; className: string }> = {
+const toneStyles: Record<
+  AlertTone,
+  { accentClass: string; className: string; icon: string; iconClass: string; timerClass: string }
+> = {
   success: {
-    icon: '✓',
-    className:
-      'border-emerald-300/50 bg-emerald-500/20 text-emerald-50 shadow-emerald-950/40',
+    accentClass: 'bg-emerald-600',
+    className: 'border-emerald-300 bg-emerald-50 text-emerald-950 shadow-emerald-950/20',
+    icon: 'OK',
+    iconClass: 'bg-emerald-600 text-white',
+    timerClass: 'bg-emerald-600',
   },
   error: {
+    accentClass: 'bg-rose-600',
+    className: 'border-rose-300 bg-rose-50 text-rose-950 shadow-rose-950/20',
     icon: '!',
-    className: 'border-rose-300/50 bg-rose-500/20 text-rose-50 shadow-rose-950/40',
+    iconClass: 'bg-rose-600 text-white',
+    timerClass: 'bg-rose-600',
   },
   info: {
+    accentClass: 'bg-sky-600',
+    className: 'border-sky-300 bg-sky-50 text-sky-950 shadow-sky-950/20',
     icon: 'i',
-    className: 'border-sky-300/50 bg-sky-500/20 text-sky-50 shadow-sky-950/40',
+    iconClass: 'bg-sky-600 text-white',
+    timerClass: 'bg-sky-600',
   },
   warning: {
+    accentClass: 'bg-amber-500',
+    className: 'border-amber-300 bg-amber-50 text-amber-950 shadow-amber-950/20',
     icon: '!',
-    className: 'border-amber-300/50 bg-amber-500/20 text-amber-50 shadow-amber-950/40',
+    iconClass: 'bg-amber-500 text-amber-950',
+    timerClass: 'bg-amber-500',
   },
 }
 
@@ -92,31 +106,36 @@ export function AlertProvider({ children }: { children: ReactNode }) {
           return (
             <div
               key={alert.id}
-              className={`alert-enter pointer-events-auto overflow-hidden rounded-2xl border p-4 shadow-2xl backdrop-blur-xl ${style.className}`}
+              className={`alert-enter pointer-events-auto overflow-hidden rounded-xl border p-0 shadow-2xl ${style.className}`}
               role={alert.tone === 'error' ? 'alert' : 'status'}
             >
-              <div className="flex items-start gap-3">
-                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/20 text-sm font-black">
+              <div className={`h-1.5 ${style.accentClass}`} />
+              <div className="flex items-start gap-3 p-4">
+                <span
+                  className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-xs font-black ${style.iconClass}`}
+                >
                   {style.icon}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-bold leading-5">{alert.title}</p>
+                  <p className="text-sm font-black leading-5">{alert.title}</p>
                   {alert.message && (
-                    <p className="mt-1 text-sm leading-5 text-white/80">{alert.message}</p>
+                    <p className="mt-1 text-sm font-semibold leading-5 text-slate-800">
+                      {alert.message}
+                    </p>
                   )}
                 </div>
                 <button
                   type="button"
                   onClick={() => dismissAlert(alert.id)}
-                  className="rounded-full px-2 text-lg leading-6 text-white/65 transition hover:bg-white/15 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/60"
+                  className="rounded-full px-2 text-lg font-black leading-6 text-slate-500 transition hover:bg-slate-200 hover:text-slate-950 focus:outline-none focus:ring-2 focus:ring-slate-400"
                   aria-label="Dismiss alert"
                 >
-                  ×
+                  x
                 </button>
               </div>
-              <div className="mt-3 h-1 overflow-hidden rounded-full bg-white/15">
+              <div className="h-1 overflow-hidden bg-slate-200">
                 <div
-                  className="alert-timer h-full rounded-full bg-white/70"
+                  className={`alert-timer h-full ${style.timerClass}`}
                   style={{ animationDuration: `${alert.durationMs}ms` }}
                 />
               </div>

@@ -31,3 +31,36 @@
   animation-timing-function: linear;
   animation-fill-mode: forwards;
 }
+
+.admin-progress {
+  appearance: none;
+  background: #f1f5f9;
+}
+
+.admin-progress::-webkit-progress-bar {
+  background: #f1f5f9;
+}
+
+.admin-progress::-webkit-progress-value {
+  border-radius: 9999px;
+}
+
+.admin-progress::-moz-progress-bar {
+  border-radius: 9999px;
+}
+
+.admin-progress-pink::-webkit-progress-value {
+  background: #db2777;
+}
+
+.admin-progress-pink::-moz-progress-bar {
+  background: #db2777;
+}
+
+.admin-progress-sky::-webkit-progress-value {
+  background: #0ea5e9;
+}
+
+.admin-progress-sky::-moz-progress-bar {
+  background: #0ea5e9;
+}

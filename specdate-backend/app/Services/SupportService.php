@@ -14,8 +14,10 @@ class SupportService
     {
     }
 
-    public function listTickets(User $user)
+    public function listTickets(User $user, ?string $status = null, int $perPage = 30)
     {
+        $perPage = max(1, min($perPage, 100));
+
         $query = SupportTicket::query()
             ->with('user:id,name,username')
             ->withCount(['messages as unread_count' => function ($q) use ($user) {
@@ -31,7 +33,11 @@ class SupportService
             $query->where('user_id', $user->id);
         }
 
-        return $query->paginate(30);
+        if ($status && in_array($status, SupportTicket::STATUSES, true)) {
+            $query->where('status', $status);
+        }
+
+        return $query->paginate($perPage);
     }
 
     public function createTicket(User $user, array $data): SupportTicket

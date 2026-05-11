@@ -19,7 +19,14 @@ class SupportController extends Controller
 
     public function index(Request $request)
     {
-        return $this->sendResponse($this->supportService->listTickets($request->user()), 'Support tickets retrieved.');
+        return $this->sendResponse(
+            $this->supportService->listTickets(
+                $request->user(),
+                $request->query('status'),
+                (int) $request->integer('per_page', 30)
+            ),
+            'Support tickets retrieved.'
+        );
     }
 
     public function store(Request $request)

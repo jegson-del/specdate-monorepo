@@ -26,6 +26,10 @@ class User extends Authenticatable
         'password',
         'role', // Added
         'is_paused',
+        'banned_at',
+        'ban_reason',
+        'admin_note',
+        'banned_by',
         'terms_accepted',
         'expo_push_token',
     ];
@@ -51,6 +55,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_paused' => 'boolean',
+            'banned_at' => 'datetime',
             'terms_accepted' => 'boolean',
         ];
     }
@@ -63,6 +68,11 @@ class User extends Authenticatable
     public function providerProfile()
     {
         return $this->hasOne(ProviderProfile::class);
+    }
+
+    public function bannedBy()
+    {
+        return $this->belongsTo(User::class, 'banned_by');
     }
 
     public function balance()

@@ -1,6 +1,9 @@
 <?php
 
 use App\Http\Controllers\AccountController;
+use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AdminProviderController;
+use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\Api\CreditsController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\AuthController;
@@ -21,6 +24,7 @@ use Illuminate\Support\Facades\Route;
 Route::post('/send-otp', [AuthController::class, 'sendOtp']);
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
+Route::post('/admin/login', [AdminController::class, 'login']);
 Route::post('/provider-registrations', [ProviderController::class, 'registerInterest']);
 Route::post('/provider-password/setup', [ProviderController::class, 'setupPassword']);
 
@@ -61,7 +65,21 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/date-vouchers/{voucher}/review-dismiss', [ReviewController::class, 'dismiss']);
     Route::get('/admin/reports', [ReportController::class, 'index']);
     Route::patch('/admin/reports/{report}', [ReportController::class, 'update']);
-    Route::patch('/admin/providers/{provider}/approve', [ProviderController::class, 'approveRegistration']);
+    Route::get('/admin/me', [AdminController::class, 'me']);
+    Route::get('/admin/dashboard', [AdminController::class, 'dashboard']);
+    Route::get('/admin/users', [AdminUserController::class, 'index']);
+    Route::get('/admin/users/{user}', [AdminUserController::class, 'show']);
+    Route::patch('/admin/users/{user}/pause', [AdminUserController::class, 'pause']);
+    Route::patch('/admin/users/{user}/unpause', [AdminUserController::class, 'unpause']);
+    Route::patch('/admin/users/{user}/ban', [AdminUserController::class, 'ban']);
+    Route::patch('/admin/users/{user}/unban', [AdminUserController::class, 'unban']);
+    Route::patch('/admin/users/{user}/note', [AdminUserController::class, 'updateNote']);
+    Route::get('/admin/providers', [AdminController::class, 'providers']);
+    Route::get('/admin/providers/{provider}', [AdminProviderController::class, 'show']);
+    Route::patch('/admin/providers/{provider}/approve', [AdminProviderController::class, 'approve']);
+    Route::patch('/admin/providers/{provider}/reject', [AdminProviderController::class, 'reject']);
+    Route::patch('/admin/providers/{provider}/note', [AdminProviderController::class, 'updateNote']);
+    Route::post('/admin/providers/{provider}/resend-setup-email', [AdminProviderController::class, 'resendSetupEmail']);
     Route::get('/support/tickets', [SupportController::class, 'index']);
     Route::post('/support/tickets', [SupportController::class, 'store']);
     Route::get('/support/tickets/{ticket}', [SupportController::class, 'show']);

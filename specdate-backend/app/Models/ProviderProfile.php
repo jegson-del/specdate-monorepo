@@ -27,6 +27,10 @@ class ProviderProfile extends Model
         'id_required',
         'is_verified',
         'approved_at',
+        'rejected_at',
+        'rejection_reason',
+        'admin_note',
+        'reviewed_by',
     ];
 
     protected $casts = [
@@ -34,6 +38,7 @@ class ProviderProfile extends Model
         'id_required' => 'boolean',
         'is_verified' => 'boolean',
         'approved_at' => 'datetime',
+        'rejected_at' => 'datetime',
         'minimum_spend' => 'decimal:2',
     ];
 
@@ -55,5 +60,10 @@ class ProviderProfile extends Model
     public function providerReviews()
     {
         return $this->hasMany(ProviderReview::class);
+    }
+
+    public function reviewer()
+    {
+        return $this->belongsTo(User::class, 'reviewed_by');
     }
 }

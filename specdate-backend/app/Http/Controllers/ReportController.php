@@ -41,11 +41,12 @@ class ReportController extends Controller
         }
 
         $status = $request->input('status');
+        $perPage = max(1, min((int) $request->integer('per_page', 50), 100));
         $reports = Report::query()
             ->with(['reporter:id,name,username', 'reportedUser:id,name,username', 'reviewer:id,name,username'])
             ->when($status, fn ($q) => $q->where('status', $status))
             ->latest()
-            ->paginate(50);
+            ->paginate($perPage);
 
         return $this->sendResponse($reports, 'Reports retrieved successfully.');
     }
