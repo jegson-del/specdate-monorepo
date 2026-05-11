@@ -12,6 +12,7 @@ export type ReviewContext = {
     voucher_code: string;
     discount_percentage: number;
     total_spent?: number | null;
+    currency?: string | null;
     redeemed_at?: string | null;
     date_code?: string | null;
     spec?: {

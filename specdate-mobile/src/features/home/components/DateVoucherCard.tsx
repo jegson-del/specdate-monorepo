@@ -1,8 +1,9 @@
 import React from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Surface, Text } from 'react-native-paper';
+import { Avatar, Surface, Text } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { DateVoucherItem } from '../../../services/vouchers';
+import { toImageUri } from '../../../utils/imageUrl';
 import { withAlpha } from '../homeUtils';
 import { HomeColors } from '../types';
 
@@ -19,8 +20,31 @@ const statusLabels: Record<string, string> = {
   rejected: 'Rejected',
   redeemed: 'Redeemed',
   cancelled: 'Cancelled',
+  completed: 'Completed',
   expired: 'Expired',
 };
+
+function initials(name?: string | null) {
+  const parts = (name || 'Dater').trim().split(/\s+/).filter(Boolean);
+  return parts.slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'D';
+}
+
+function DaterAvatar({ user, color, borderColor }: { user?: DateVoucherItem['owner']; color: string; borderColor: string }) {
+  const avatarUri = toImageUri(user?.avatar);
+
+  if (avatarUri) {
+    return <Avatar.Image size={34} source={{ uri: avatarUri }} style={[styles.daterAvatar, { borderColor }]} />;
+  }
+
+  return (
+    <Avatar.Text
+      size={34}
+      label={initials(user?.name)}
+      style={[styles.daterAvatar, { backgroundColor: color, borderColor }]}
+      labelStyle={styles.avatarLabel}
+    />
+  );
+}
 
 export default function DateVoucherCard({ item, theme, homeColors, onPress }: Props) {
   const statusColor =
@@ -33,8 +57,11 @@ export default function DateVoucherCard({ item, theme, homeColors, onPress }: Pr
     <Surface style={[styles.card, { backgroundColor: theme.colors.surface }]}>
       <TouchableOpacity activeOpacity={0.86} onPress={onPress}>
         <View style={styles.topRow}>
-          <View style={[styles.iconWrap, { backgroundColor: withAlpha(theme.colors.primary, 0.1) }]}>
-            <MaterialCommunityIcons name="ticket-percent-outline" size={24} color={theme.colors.primary} />
+          <View style={styles.avatarStack}>
+            <DaterAvatar user={item.owner} color={theme.colors.primary} borderColor={theme.colors.surface} />
+            <View style={styles.avatarOverlap}>
+              <DaterAvatar user={item.winner} color="#0F766E" borderColor={theme.colors.surface} />
+            </View>
           </View>
           <View style={styles.main}>
             <Text style={[styles.title, { color: theme.colors.onSurface }]} numberOfLines={1}>
@@ -77,7 +104,10 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   topRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  iconWrap: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
+  avatarStack: { width: 54, height: 40, justifyContent: 'center' },
+  avatarOverlap: { position: 'absolute', left: 20 },
+  daterAvatar: { borderWidth: 2 },
+  avatarLabel: { fontSize: 12, fontWeight: '900', color: '#FFFFFF' },
   main: { flex: 1, minWidth: 0 },
   title: { fontSize: 16, fontWeight: '900' },
   meta: { fontSize: 12, fontWeight: '700', marginTop: 3 },

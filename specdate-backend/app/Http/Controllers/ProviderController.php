@@ -133,6 +133,7 @@ class ProviderController extends Controller
                 'discount_percentage' => 10,
                 'booking_required' => false,
                 'id_required' => false,
+                'currency' => 'USD',
             ]);
         }
 
@@ -149,10 +150,10 @@ class ProviderController extends Controller
             ->where('status', DateVoucher::STATUS_PENDING_PROVIDER)
             ->count() : 0;
         $confirmedBookings = $profile ? DateVoucher::where('provider_profile_id', $profile->id)
-            ->whereIn('status', [DateVoucher::STATUS_ACTIVE, DateVoucher::STATUS_REDEEMED])
+            ->whereIn('status', [DateVoucher::STATUS_ACTIVE, DateVoucher::STATUS_REDEEMED, DateVoucher::STATUS_COMPLETED])
             ->count() : 0;
         $upcomingBookings = $profile ? DateVoucher::where('provider_profile_id', $profile->id)
-            ->whereIn('status', [DateVoucher::STATUS_ACTIVE, DateVoucher::STATUS_REDEEMED])
+            ->whereIn('status', [DateVoucher::STATUS_ACTIVE, DateVoucher::STATUS_REDEEMED, DateVoucher::STATUS_COMPLETED])
             ->with($this->dateVoucherService->voucherRelations())
             ->latest()
             ->limit(5)
@@ -204,6 +205,7 @@ class ProviderController extends Controller
             'address' => 'nullable|string',
             'city' => 'nullable|string',
             'country' => 'nullable|string',
+            'currency' => 'nullable|string|size:3',
             'discount_percentage' => 'required|integer|min:10|max:50',
             'minimum_spend' => 'nullable|numeric|min:0|max:99999999.99',
             'booking_required' => 'nullable|boolean',
@@ -218,7 +220,7 @@ class ProviderController extends Controller
             $profile = new ProviderProfile(['user_id' => $user->id]);
         }
 
-        $profile->fill($request->only([
+        $settings = $request->only([
             'image',
             'company_name',
             'description',
@@ -227,11 +229,17 @@ class ProviderController extends Controller
             'address',
             'city',
             'country',
-            'discount_percentage',
             'minimum_spend',
             'booking_required',
             'id_required',
-        ]));
+        ]);
+        $settings['currency'] = $this->normalizeCurrency(
+            $request->input('currency'),
+            $request->input('country', $profile->country)
+        );
+        $settings['discount_percentage'] = (int) $request->input('discount_percentage');
+
+        $profile->fill($settings);
         $profile->save();
 
         if ($request->has('categories')) {
@@ -307,6 +315,7 @@ class ProviderController extends Controller
             'categories' => $categories,
             'city' => $profile->city,
             'country' => $profile->country,
+            'currency' => $profile->currency ?: $this->currencyForCountry($profile->country),
             'address' => $profile->address,
             'description' => $profile->description,
             'website' => $profile->website,
@@ -336,5 +345,51 @@ class ProviderController extends Controller
             'reviewsCount' => (int) ($profile->reviews_count ?? 0),
             'created_at' => $profile->created_at,
         ];
+    }
+
+    private function normalizeCurrency(?string $currency, ?string $country): string
+    {
+        $currency = strtoupper(trim((string) $currency));
+        if (preg_match('/^[A-Z]{3}$/', $currency)) {
+            return $currency;
+        }
+
+        return $this->currencyForCountry($country);
+    }
+
+    private function currencyForCountry(?string $country): string
+    {
+        $country = strtolower(trim((string) $country));
+
+        return [
+            'united kingdom' => 'GBP',
+            'uk' => 'GBP',
+            'great britain' => 'GBP',
+            'england' => 'GBP',
+            'scotland' => 'GBP',
+            'wales' => 'GBP',
+            'northern ireland' => 'GBP',
+            'united states' => 'USD',
+            'usa' => 'USD',
+            'us' => 'USD',
+            'canada' => 'CAD',
+            'nigeria' => 'NGN',
+            'ghana' => 'GHS',
+            'kenya' => 'KES',
+            'south africa' => 'ZAR',
+            'france' => 'EUR',
+            'germany' => 'EUR',
+            'spain' => 'EUR',
+            'italy' => 'EUR',
+            'ireland' => 'EUR',
+            'netherlands' => 'EUR',
+            'belgium' => 'EUR',
+            'portugal' => 'EUR',
+            'australia' => 'AUD',
+            'new zealand' => 'NZD',
+            'india' => 'INR',
+            'united arab emirates' => 'AED',
+            'uae' => 'AED',
+        ][$country] ?? 'USD';
     }
 }

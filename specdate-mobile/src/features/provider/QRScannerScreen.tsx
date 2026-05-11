@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '../../services/api';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { DateVoucherItem, VoucherService } from '../../services/vouchers';
+import { currencySymbol, formatMoney, normalizeCurrency } from '../../utils/currency';
 const statusCopy: Record<string, { title: string; icon: keyof typeof MaterialCommunityIcons.glyphMap; color: string; body: string }> = {
     redeemed: {
         title: 'Voucher already redeemed',
@@ -57,6 +58,7 @@ export default function QRScannerScreen({ navigation }: any) {
     const [statusModalVisible, setStatusModalVisible] = useState(false);
     const [scanResult, setScanResult] = useState<DateVoucherItem | null>(null);
     const [totalSpent, setTotalSpent] = useState('');
+    const scanCurrency = normalizeCurrency(scanResult?.currency || scanResult?.provider?.currency, scanResult?.provider?.country);
 
     if (!permission) {
         // Camera permissions are still loading
@@ -234,7 +236,7 @@ export default function QRScannerScreen({ navigation }: any) {
                                         ) : null}
                                         {scanResult.total_spent != null ? (
                                             <Text style={[styles.statusSubLine, { color: theme.colors.onSurfaceVariant }]}>
-                                                Spend recorded: NGN {Number(scanResult.total_spent).toLocaleString()}
+                                                Spend recorded: {formatMoney(scanResult.total_spent, scanCurrency, scanResult.provider?.country)}
                                             </Text>
                                         ) : null}
                                     </View>
@@ -264,7 +266,7 @@ export default function QRScannerScreen({ navigation }: any) {
                         value={totalSpent}
                         onChangeText={(value) => setTotalSpent(value.replace(/[^0-9.]/g, ''))}
                         keyboardType="numeric"
-                        left={<TextInput.Affix text="₦" />}
+                        left={<TextInput.Affix text={currencySymbol(scanCurrency, scanResult?.provider?.country)} />}
                         style={{ backgroundColor: theme.colors.surface }}
                     />
                     <View style={styles.spendActions}>

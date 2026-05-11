@@ -6,6 +6,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import QRCode from 'react-native-qrcode-svg';
 import { DateVoucherItem, VoucherService } from '../../services/vouchers';
+import { formatMoney, normalizeCurrency } from '../../utils/currency';
 
 const statusLabels: Record<string, string> = {
   pending_provider: 'Pending provider approval',
@@ -41,6 +42,7 @@ export default function DateVoucherDetailScreen({ route, navigation }: any) {
   }
   const isRedeemed = voucher.status === 'redeemed';
   const isTerminal = terminalStatuses.includes(voucher.status);
+  const voucherCurrency = normalizeCurrency(voucher.currency || voucher.provider?.currency, voucher.provider?.country);
 
   const copyCode = async () => {
     try {
@@ -115,7 +117,7 @@ export default function DateVoucherDetailScreen({ route, navigation }: any) {
           />
           <InfoRow
             label="Minimum spend"
-            value={voucher.minimum_spend ? `₦${Number(voucher.minimum_spend).toLocaleString()}` : 'No minimum spend'}
+            value={voucher.minimum_spend ? formatMoney(voucher.minimum_spend, voucherCurrency, voucher.provider?.country) : 'No minimum spend'}
             icon="cash-multiple"
             theme={theme}
           />
@@ -141,7 +143,7 @@ export default function DateVoucherDetailScreen({ route, navigation }: any) {
             ) : null}
             {voucher.total_spent != null ? (
               <Text style={[styles.closedMeta, { color: theme.colors.onSurface }]}>
-                Visit spend: NGN {Number(voucher.total_spent).toLocaleString()}
+                Visit spend: {formatMoney(voucher.total_spent, voucherCurrency, voucher.provider?.country)}
               </Text>
             ) : null}
           </View>

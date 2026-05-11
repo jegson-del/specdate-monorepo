@@ -24,6 +24,7 @@ class DateVoucher extends Model
         'qr_token',
         'discount_percentage',
         'minimum_spend',
+        'currency',
         'booking_required',
         'status',
         'provider_decision_at',

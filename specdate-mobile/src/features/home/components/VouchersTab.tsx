@@ -35,7 +35,6 @@ export default function VouchersTab({ theme, homeColors, insets, bottomNavHeight
     <View style={styles.screen}>
       <View style={styles.header}>
         <View>
-          <Text style={[styles.eyebrow, { color: theme.colors.primary }]}>Provider dates</Text>
           <Text style={[styles.title, { color: theme.colors.onSurface }]}>Date vouchers</Text>
         </View>
         <View style={[styles.countPill, { backgroundColor: withAlpha(theme.colors.primary, 0.1) }]}>
@@ -88,8 +87,7 @@ export default function VouchersTab({ theme, homeColors, insets, bottomNavHeight
 const styles = StyleSheet.create({
   screen: { flex: 1, paddingHorizontal: 16, paddingTop: 12 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  eyebrow: { fontSize: 12, fontWeight: '900', letterSpacing: 0.5, textTransform: 'uppercase' },
-  title: { fontSize: 28, fontWeight: '900', letterSpacing: 0, marginTop: 2 },
+  title: { fontSize: 28, fontWeight: '900', letterSpacing: 0 },
   countPill: {
     minWidth: 58,
     height: 36,

@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { DateVoucherItem, DateVoucherStatus, VoucherService } from '../../services/vouchers';
+import { formatMoney as formatCurrency, normalizeCurrency } from '../../utils/currency';
 
 type BookingFilter = 'confirmed' | 'pending' | 'all';
 
@@ -18,9 +19,9 @@ const statusCopy: Record<DateVoucherStatus, { label: string; tone: string; icon:
   expired: { label: 'Expired', tone: '#7C3AED', icon: 'timer-off-outline' },
 };
 
-function formatMoney(value?: number | null) {
+function formatMoney(value?: number | null, currency?: string | null, country?: string | null) {
   if (!value) return 'No minimum spend';
-  return `₦${Number(value).toLocaleString()}`;
+  return formatCurrency(value, normalizeCurrency(currency, country), country);
 }
 
 function formatDate(value?: string | null) {
@@ -340,7 +341,7 @@ function BookingDetailModal({
             <DetailRow label="Voucher code" value={booking.voucher_code} icon="qrcode" theme={theme} />
             <DetailRow label="Date code" value={booking.date?.date_code || '-'} icon="calendar-heart" theme={theme} />
             <DetailRow label="Discount" value={`${booking.discount_percentage}% off`} icon="ticket-percent-outline" theme={theme} />
-            <DetailRow label="Minimum spend" value={formatMoney(booking.minimum_spend)} icon="cash-multiple" theme={theme} />
+            <DetailRow label="Minimum spend" value={formatMoney(booking.minimum_spend, booking.currency || booking.provider?.currency, booking.provider?.country)} icon="cash-multiple" theme={theme} />
             <DetailRow label="Booking terms" value={booking.booking_required ? 'Provider confirmation required' : 'Walk-ins allowed'} icon="calendar-check-outline" theme={theme} />
             <DetailRow label="ID check" value={booking.provider?.idRequired ? 'Valid ID required at venue' : 'No ID requirement'} icon="card-account-details-outline" theme={theme} />
             <DetailRow label="Requested" value={formatDate(booking.created_at)} icon="clock-outline" theme={theme} />

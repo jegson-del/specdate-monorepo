@@ -6,6 +6,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMutation } from '@tanstack/react-query';
 import { ProviderMarketplaceItem } from '../../services/providers';
 import { DateVoucherPreview, VoucherService } from '../../services/vouchers';
+import { formatMoney, normalizeCurrency } from '../../utils/currency';
 
 export default function CreateDateVoucherScreen({ route, navigation }: any) {
   const theme = useTheme();
@@ -40,6 +41,7 @@ export default function CreateDateVoucherScreen({ route, navigation }: any) {
   const normalizedCode = dateCode.trim().toUpperCase();
   const canSubmit = normalizedCode.length >= 4;
   const terms = preview?.voucher_terms;
+  const termsCurrency = normalizeCurrency(terms?.currency || provider.currency, provider.country);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -87,7 +89,7 @@ export default function CreateDateVoucherScreen({ route, navigation }: any) {
               </Text>
             </View>
             <Text style={[styles.previewText, { color: theme.colors.onSurfaceVariant }]}>
-              {terms.minimum_spend ? `Minimum spend ₦${Number(terms.minimum_spend).toLocaleString()}. ` : 'No minimum spend. '}
+              {terms.minimum_spend ? `Minimum spend ${formatMoney(terms.minimum_spend, termsCurrency, provider.country)}. ` : 'No minimum spend. '}
               {terms.booking_required ? 'Provider approval is required before the voucher becomes active. ' : 'This voucher will become active immediately. '}
               {terms.id_required ? 'Bring a valid ID for venue verification.' : 'No ID check is required.'}
             </Text>

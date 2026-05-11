@@ -19,6 +19,7 @@ class ProviderProfile extends Model
         'address',
         'city',
         'country',
+        'currency',
         'discount_percentage',
         'minimum_spend',
         'booking_required',

@@ -27,6 +27,7 @@ class DateVoucherService
             'voucher_terms' => [
                 'discount_percentage' => (int) ($provider->discount_percentage ?? 10),
                 'minimum_spend' => $provider->minimum_spend !== null ? (float) $provider->minimum_spend : null,
+                'currency' => $provider->currency ?: $this->currencyForCountry($provider->country),
                 'booking_required' => (bool) $provider->booking_required,
                 'id_required' => (bool) $provider->id_required,
                 'initial_status' => $provider->booking_required ? DateVoucher::STATUS_PENDING_PROVIDER : DateVoucher::STATUS_ACTIVE,
@@ -58,6 +59,7 @@ class DateVoucherService
                 'qr_token' => $this->generateQrToken(),
                 'discount_percentage' => (int) ($provider->discount_percentage ?? 10),
                 'minimum_spend' => $provider->minimum_spend,
+                'currency' => $provider->currency ?: $this->currencyForCountry($provider->country),
                 'booking_required' => (bool) $provider->booking_required,
                 'status' => $provider->booking_required ? DateVoucher::STATUS_PENDING_PROVIDER : DateVoucher::STATUS_ACTIVE,
                 'expires_at' => now()->addDays(30),
@@ -232,6 +234,7 @@ class DateVoucherService
             'qr_token' => $voucher->qr_token,
             'discount_percentage' => (int) $voucher->discount_percentage,
             'minimum_spend' => $voucher->minimum_spend !== null ? (float) $voucher->minimum_spend : null,
+            'currency' => $voucher->currency ?: $voucher->providerProfile?->currency ?: $this->currencyForCountry($voucher->providerProfile?->country),
             'booking_required' => (bool) $voucher->booking_required,
             'status' => $voucher->status,
             'expires_at' => $voucher->expires_at,
@@ -317,7 +320,9 @@ class DateVoucherService
             'name' => $profile->company_name ?: $profile->user?->name ?: 'Provider',
             'category' => $profile->categories?->first()?->name ?? 'Venue',
             'city' => $profile->city,
+            'country' => $profile->country,
             'address' => $profile->address,
+            'currency' => $profile->currency ?: $this->currencyForCountry($profile->country),
             'imageUrl' => $profile->image ?: $avatar?->url ?: $gallery?->url,
             'discountPercentage' => (int) ($profile->discount_percentage ?? 10),
             'minimumSpend' => $profile->minimum_spend !== null ? (float) $profile->minimum_spend : null,
@@ -414,5 +419,41 @@ class DateVoucherService
         if ($number === 2) return 'Second';
         if ($number === 3) return 'Third';
         return "{$number}th";
+    }
+
+    private function currencyForCountry(?string $country): string
+    {
+        $country = strtolower(trim((string) $country));
+
+        return [
+            'united kingdom' => 'GBP',
+            'uk' => 'GBP',
+            'great britain' => 'GBP',
+            'england' => 'GBP',
+            'scotland' => 'GBP',
+            'wales' => 'GBP',
+            'northern ireland' => 'GBP',
+            'united states' => 'USD',
+            'usa' => 'USD',
+            'us' => 'USD',
+            'canada' => 'CAD',
+            'nigeria' => 'NGN',
+            'ghana' => 'GHS',
+            'kenya' => 'KES',
+            'south africa' => 'ZAR',
+            'france' => 'EUR',
+            'germany' => 'EUR',
+            'spain' => 'EUR',
+            'italy' => 'EUR',
+            'ireland' => 'EUR',
+            'netherlands' => 'EUR',
+            'belgium' => 'EUR',
+            'portugal' => 'EUR',
+            'australia' => 'AUD',
+            'new zealand' => 'NZD',
+            'india' => 'INR',
+            'united arab emirates' => 'AED',
+            'uae' => 'AED',
+        ][$country] ?? 'USD';
     }
 }

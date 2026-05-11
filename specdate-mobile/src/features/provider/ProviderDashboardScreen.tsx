@@ -20,6 +20,7 @@ import { Dropdown } from 'react-native-paper-dropdown';
 import { ImageViewerModal } from '../profile/components';
 import type { ReviewItem } from '../providers/components';
 import { DEFAULT_MOCK_REVIEWS } from '../providers/mockReviews';
+import { currencyOptions, currencySymbol, formatMoney, getDefaultCurrencyForCountry, normalizeCurrency } from '../../utils/currency';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const GALLERY_ITEM_SIZE = 72;
@@ -104,6 +105,7 @@ export default function ProviderDashboardScreen({ navigation }: any) {
   const [address, setAddress] = useState('');
   const [city, setCity] = useState('');
   const [country, setCountry] = useState('');
+  const [currency, setCurrency] = useState('USD');
   const [minimumSpend, setMinimumSpend] = useState('');
   const [minimumSpendEnabled, setMinimumSpendEnabled] = useState(false);
   const [bookingRequired, setBookingRequired] = useState(false);
@@ -146,6 +148,7 @@ export default function ProviderDashboardScreen({ navigation }: any) {
         setAddress(data.profile.address || '');
         setCity(data.profile.city || '');
         setCountry(data.profile.country || '');
+        setCurrency(normalizeCurrency(data.profile.currency, data.profile.country));
         setDiscountPercentage(String(data.profile.discount_percentage ?? 10));
         setMinimumSpend(data.profile.minimum_spend != null ? String(Math.round(Number(data.profile.minimum_spend))) : '');
         setMinimumSpendEnabled(data.profile.minimum_spend != null && Number(data.profile.minimum_spend) > 0);
@@ -178,6 +181,7 @@ export default function ProviderDashboardScreen({ navigation }: any) {
         address,
         city,
         country,
+        currency,
         discount_percentage: parseInt(discountPercentage, 10) || 10,
         minimum_spend: minimumSpendEnabled && minimumSpend.trim() ? Number(minimumSpend) : null,
         booking_required: bookingRequired,
@@ -288,17 +292,16 @@ export default function ProviderDashboardScreen({ navigation }: any) {
     { label: '50%', value: '50' },
   ];
 
-  const formatMinimumSpend = () => {
+  const formatMinimumSpendDisplay = () => {
     if (!minimumSpendEnabled) return 'No minimum';
     const amount = Number(minimumSpend || profile?.minimum_spend || 0);
-    if (!amount) return 'No minimum spend';
-    return `Minimum spend ₦${amount.toLocaleString()}`;
+    return amount ? `Minimum spend ${formatMoney(amount, currency, country)}` : 'No minimum spend';
   };
 
-  const formatMinimumSpendShort = () => {
+  const formatMinimumSpendShortDisplay = () => {
     if (!minimumSpendEnabled) return 'No min';
     const amount = Number(minimumSpend || profile?.minimum_spend || 0);
-    return amount ? `Min ₦${amount.toLocaleString()}` : 'No min';
+    return amount ? `Min ${formatMoney(amount, currency, country)}` : 'No min';
   };
 
   const startEditing = () => {
@@ -405,7 +408,7 @@ export default function ProviderDashboardScreen({ navigation }: any) {
             <DashboardCard
               title="Discount"
               value={`${discountPercentage}%`}
-              helper={formatMinimumSpendShort()}
+              helper={formatMinimumSpendShortDisplay()}
               icon="ticket-percent"
               color="#16A34A"
               theme={theme}
@@ -549,7 +552,10 @@ export default function ProviderDashboardScreen({ navigation }: any) {
                   mode="outlined"
                   label="Country"
                   value={country}
-                  onChangeText={setCountry}
+                  onChangeText={(value) => {
+                    setCountry(value);
+                    if (!currency) setCurrency(getDefaultCurrencyForCountry(value));
+                  }}
                   style={[styles.input, styles.inputHalf, { backgroundColor: theme.colors.surface }]}
                   dense
                 />
@@ -630,6 +636,13 @@ export default function ProviderDashboardScreen({ navigation }: any) {
           <View style={[styles.bookingTermsCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outline }]}>
             {editMode ? (
               <>
+                <Dropdown
+                  label="Pricing currency"
+                  mode="outlined"
+                  value={currency}
+                  onSelect={(value) => setCurrency(normalizeCurrency(value, country))}
+                  options={currencyOptions}
+                />
                 {minimumSpendEnabled ? (
                 <TextInput
                   mode="outlined"
@@ -637,7 +650,7 @@ export default function ProviderDashboardScreen({ navigation }: any) {
                   value={minimumSpend}
                   onChangeText={(value) => setMinimumSpend(value.replace(/[^0-9.]/g, ''))}
                   keyboardType="numeric"
-                  left={<TextInput.Affix text="₦" />}
+                  left={<TextInput.Affix text={currencySymbol(currency, country)} />}
                   style={[styles.input, { backgroundColor: theme.colors.surface }]}
                   dense
                 />
@@ -714,7 +727,7 @@ export default function ProviderDashboardScreen({ navigation }: any) {
                 <View style={styles.termsRow}>
                   <View style={styles.switchCopy}>
                     <Text style={[styles.switchTitle, { color: theme.colors.onSurface }]}>Minimum spend</Text>
-                    <Text style={[styles.switchText, { color: theme.colors.onSurfaceVariant }]}>{formatMinimumSpend()}</Text>
+                    <Text style={[styles.switchText, { color: theme.colors.onSurfaceVariant }]}>{formatMinimumSpendDisplay()}</Text>
                   </View>
                   <View style={styles.yesNoToggle}>
                     <View style={[styles.yesNoOption, minimumSpendEnabled && { backgroundColor: theme.colors.primary }]}>

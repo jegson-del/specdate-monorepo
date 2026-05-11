@@ -19,6 +19,7 @@ export type ProviderMarketplaceItem = {
   categories: ProviderCategoryItem[];
   city?: string | null;
   country?: string | null;
+  currency?: string | null;
   address?: string | null;
   description?: string | null;
   website?: string | null;

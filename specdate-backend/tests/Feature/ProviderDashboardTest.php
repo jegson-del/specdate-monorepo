@@ -20,6 +20,7 @@ class ProviderDashboardTest extends TestCase
             'company_name' => 'Table House',
             'discount_percentage' => 20,
             'minimum_spend' => 15000,
+            'currency' => 'GBP',
             'booking_required' => true,
         ]);
 
@@ -29,6 +30,7 @@ class ProviderDashboardTest extends TestCase
             ->assertOk()
             ->assertJsonPath('profile.discount_percentage', 20)
             ->assertJsonPath('profile.minimum_spend', '15000.00')
+            ->assertJsonPath('profile.currency', 'GBP')
             ->assertJsonPath('profile.booking_required', true)
             ->assertJsonPath('counts.unread_messages', 0)
             ->assertJsonPath('counts.pending_bookings', 0)
@@ -49,6 +51,8 @@ class ProviderDashboardTest extends TestCase
 
         $this->postJson('/api/provider/settings', [
             'company_name' => 'Table House',
+            'country' => 'Nigeria',
+            'currency' => 'NGN',
             'discount_percentage' => 25,
             'minimum_spend' => 12000,
             'booking_required' => true,
@@ -56,6 +60,7 @@ class ProviderDashboardTest extends TestCase
             ->assertOk()
             ->assertJsonPath('profile.discount_percentage', 25)
             ->assertJsonPath('profile.minimum_spend', '12000.00')
+            ->assertJsonPath('profile.currency', 'NGN')
             ->assertJsonPath('profile.booking_required', true);
     }
 

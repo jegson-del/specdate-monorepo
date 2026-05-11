@@ -21,6 +21,7 @@ export type DateVoucherItem = {
   qr_token: string;
   discount_percentage: number;
   minimum_spend?: number | null;
+  currency?: string | null;
   booking_required: boolean;
   status: DateVoucherStatus;
   expires_at?: string | null;
@@ -28,7 +29,7 @@ export type DateVoucherItem = {
   total_spent?: number | null;
   spend_recorded_at?: string | null;
   created_at?: string | null;
-  provider?: Pick<ProviderMarketplaceItem, 'id' | 'user_id' | 'name' | 'category' | 'city' | 'address' | 'phone' | 'imageUrl' | 'discountPercentage' | 'minimumSpend' | 'bookingRequired' | 'idRequired'> | null;
+  provider?: Pick<ProviderMarketplaceItem, 'id' | 'user_id' | 'name' | 'category' | 'city' | 'country' | 'currency' | 'address' | 'phone' | 'imageUrl' | 'discountPercentage' | 'minimumSpend' | 'bookingRequired' | 'idRequired'> | null;
   date?: {
     id: number;
     date_code: string;
@@ -52,6 +53,7 @@ export type DateVoucherPreview = {
   voucher_terms: {
     discount_percentage: number;
     minimum_spend?: number | null;
+    currency?: string | null;
     booking_required: boolean;
     id_required: boolean;
     initial_status: DateVoucherStatus;

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Button, IconButton, Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -7,10 +7,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ReviewContext, ReviewService } from '../../services/reviews';
 import RatingStars from './components/RatingStars';
 import ReviewTextInput from './components/ReviewTextInput';
+import { formatMoney as formatCurrency } from '../../utils/currency';
 
-function formatMoney(value?: number | null) {
+function formatMoney(value?: number | null, currency?: string | null) {
   if (!value) return null;
-  return `₦${Number(value).toLocaleString()}`;
+  return formatCurrency(value, currency);
 }
 
 export default function PostDateReviewScreen({ route, navigation }: any) {
@@ -83,21 +84,32 @@ export default function PostDateReviewScreen({ route, navigation }: any) {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <KeyboardAvoidingView
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    >
       <View style={[styles.header, { paddingTop: insets.top + 4 }]}>
         <IconButton icon="arrow-left" size={24} onPress={() => navigation.goBack()} iconColor={theme.colors.onSurface} />
         <Text style={[styles.title, { color: theme.colors.onSurface }]}>Review your date</Text>
         <View style={{ width: 48 }} />
       </View>
 
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 28 }]} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 140 }]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+      >
         <View style={[styles.hero, { backgroundColor: theme.colors.primary }]}>
           <MaterialCommunityIcons name="clipboard-check-outline" size={34} color="#FFFFFF" />
           <Text style={styles.heroTitle}>{isLoading ? 'Loading date' : context?.provider.name || 'Date completed'}</Text>
           <Text style={styles.heroText}>
             {context?.voucher.spec?.title || 'Voucher redeemed'}{context?.voucher.date_code ? ` · ${context.voucher.date_code}` : ''}
           </Text>
-          {formatMoney(context?.voucher.total_spent) ? <Text style={styles.heroSpend}>Spent {formatMoney(context?.voucher.total_spent)}</Text> : null}
+          {formatMoney(context?.voucher.total_spent, context?.voucher.currency) ? (
+            <Text style={styles.heroSpend}>Spent {formatMoney(context?.voucher.total_spent, context?.voucher.currency)}</Text>
+          ) : null}
         </View>
 
         <View style={[styles.card, { backgroundColor: theme.colors.surface }]}>
@@ -161,7 +173,7 @@ export default function PostDateReviewScreen({ route, navigation }: any) {
           </Button>
         </View>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

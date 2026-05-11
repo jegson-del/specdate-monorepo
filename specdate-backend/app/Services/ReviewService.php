@@ -121,6 +121,7 @@ class ReviewService
                 'voucher_code' => $voucher->voucher_code,
                 'discount_percentage' => (int) $voucher->discount_percentage,
                 'total_spent' => $voucher->total_spent !== null ? (float) $voucher->total_spent : null,
+                'currency' => $voucher->currency ?: $voucher->providerProfile?->currency,
                 'redeemed_at' => $voucher->redeemed_at,
                 'date_code' => $voucher->specDate?->date_code,
                 'spec' => $voucher->specDate?->spec,

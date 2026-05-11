@@ -20,6 +20,7 @@ import { ChatService } from '../../services/chat';
 import { ModerationService, type ReportTargetType } from '../../services/moderation';
 import { ProviderService, type ProviderMarketplaceItem } from '../../services/providers';
 import { toImageUri } from '../../utils/imageUrl';
+import { formatMoney } from '../../utils/currency';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const GALLERY_ITEM_SIZE = 72;
@@ -256,7 +257,7 @@ export default function ProviderDetailScreen({ route, navigation }: any) {
             <View style={styles.termsRow}>
               <MaterialCommunityIcons name="cash-multiple" size={22} color={theme.colors.primary} />
               <Text style={[styles.termsText, { color: theme.colors.onSurface }]}>
-                {provider.minimumSpend ? `Minimum spend ₦${Number(provider.minimumSpend).toLocaleString()}` : 'No minimum spend'}
+                {provider.minimumSpend ? `Minimum spend ${formatMoney(provider.minimumSpend, provider.currency, provider.country)}` : 'No minimum spend'}
               </Text>
             </View>
             <View style={styles.termsRow}>

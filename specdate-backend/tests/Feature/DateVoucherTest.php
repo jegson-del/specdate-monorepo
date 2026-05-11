@@ -24,6 +24,7 @@ class DateVoucherTest extends TestCase
             'company_name' => 'Table House',
             'discount_percentage' => 25,
             'minimum_spend' => 15000,
+            'currency' => 'GBP',
             'booking_required' => true,
         ]);
 
@@ -35,6 +36,7 @@ class DateVoucherTest extends TestCase
         ])->assertOk()
             ->assertJsonPath('data.provider.id', $profile->id)
             ->assertJsonPath('data.voucher_terms.discount_percentage', 25)
+            ->assertJsonPath('data.voucher_terms.currency', 'GBP')
             ->assertJsonPath('data.voucher_terms.initial_status', DateVoucher::STATUS_PENDING_PROVIDER);
 
         $voucherId = $this->postJson('/api/date-vouchers', [
@@ -46,6 +48,7 @@ class DateVoucherTest extends TestCase
             ->assertJsonPath('data.winner_user_id', $winner->id)
             ->assertJsonPath('data.status', DateVoucher::STATUS_PENDING_PROVIDER)
             ->assertJsonPath('data.discount_percentage', 25)
+            ->assertJsonPath('data.currency', 'GBP')
             ->json('data.id');
 
         $this->assertDatabaseHas('date_vouchers', [
@@ -53,6 +56,7 @@ class DateVoucherTest extends TestCase
             'spec_date_id' => $date->id,
             'provider_profile_id' => $profile->id,
             'status' => DateVoucher::STATUS_PENDING_PROVIDER,
+            'currency' => 'GBP',
         ]);
     }
 
