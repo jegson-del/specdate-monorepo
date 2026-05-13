@@ -94,7 +94,7 @@ class SpecController extends Controller
         // Owner avatar from media table (url column)
         if (!empty($data['owner'])) {
             $owner = $spec->owner;
-            $avatarMedia = $owner->relationLoaded('media') ? $owner->media->where('type', 'avatar')->sortByDesc('id')->first() : null;
+            $avatarMedia = $owner->relationLoaded('media') ? $owner->media->where('type', 'avatar')->filter(fn ($media) => $media->isShareable())->sortByDesc('id')->first() : null;
             $avatarUrl = $avatarMedia ? $avatarMedia->url : null;
             if (!isset($data['owner']['profile'])) {
                 $data['owner']['profile'] = [];
@@ -106,7 +106,7 @@ class SpecController extends Controller
             foreach ($spec->applications as $i => $app) {
                 $u = $app->user;
                 if ($u && isset($data['applications'][$i]['user'])) {
-                    $avatarMedia = $u->relationLoaded('media') ? $u->media->where('type', 'avatar')->sortByDesc('id')->first() : null;
+                    $avatarMedia = $u->relationLoaded('media') ? $u->media->where('type', 'avatar')->filter(fn ($media) => $media->isShareable())->sortByDesc('id')->first() : null;
                     $avatarUrl = $avatarMedia ? $avatarMedia->url : null;
                     if (!isset($data['applications'][$i]['user']['profile'])) {
                         $data['applications'][$i]['user']['profile'] = [];
@@ -124,7 +124,7 @@ class SpecController extends Controller
                 foreach ($round->answers as $ai => $answer) {
                     $u = $answer->user;
                     if ($u && isset($data['rounds'][$ri]['answers'][$ai]['user'])) {
-                        $avatarMedia = $u->relationLoaded('media') ? $u->media->where('type', 'avatar')->sortByDesc('id')->first() : null;
+                        $avatarMedia = $u->relationLoaded('media') ? $u->media->where('type', 'avatar')->filter(fn ($media) => $media->isShareable())->sortByDesc('id')->first() : null;
                         $avatarUrl = $avatarMedia ? $avatarMedia->url : null;
                         if (!isset($data['rounds'][$ri]['answers'][$ai]['user']['profile'])) {
                             $data['rounds'][$ri]['answers'][$ai]['user']['profile'] = [];

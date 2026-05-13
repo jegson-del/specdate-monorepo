@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\BlockedUser;
 use App\Models\ChatThread;
+use App\Models\Media;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -69,5 +70,63 @@ class ProviderChatTest extends TestCase
             ->assertJsonPath('message', 'This chat is unavailable because one of you blocked the other user.');
 
         $this->assertSame(0, ChatThread::count());
+    }
+
+    public function test_chat_rejects_unapproved_media(): void
+    {
+        $customer = User::factory()->create();
+        $provider = User::factory()->create(['role' => 'provider']);
+        $thread = ChatThread::create([
+            'type' => 'provider',
+            'owner_id' => $customer->id,
+            'winner_user_id' => $provider->id,
+            'customer_id' => $customer->id,
+            'provider_id' => $provider->id,
+        ]);
+        $media = Media::create([
+            'user_id' => $customer->id,
+            'file_path' => 'uploads/chat/pending.jpg',
+            'url' => 'https://example.com/pending.jpg',
+            'type' => 'chat_image',
+            'mime_type' => 'image/jpeg',
+            'size' => 1234,
+            'moderation_status' => 'pending',
+        ]);
+
+        Sanctum::actingAs($customer);
+
+        $this->postJson("/api/chats/{$thread->id}/messages", [
+            'media_id' => $media->id,
+        ])->assertStatus(422)
+            ->assertJsonPath('message', 'This file could not be sent. Please choose a different file.');
+    }
+
+    public function test_chat_allows_manual_pending_audio_media(): void
+    {
+        $customer = User::factory()->create();
+        $provider = User::factory()->create(['role' => 'provider']);
+        $thread = ChatThread::create([
+            'type' => 'provider',
+            'owner_id' => $customer->id,
+            'winner_user_id' => $provider->id,
+            'customer_id' => $customer->id,
+            'provider_id' => $provider->id,
+        ]);
+        $media = Media::create([
+            'user_id' => $customer->id,
+            'file_path' => 'uploads/chat/audio.m4a',
+            'url' => 'https://example.com/audio.m4a',
+            'type' => 'chat_audio',
+            'mime_type' => 'audio/mp4',
+            'size' => 1234,
+            'moderation_status' => 'manual_pending',
+        ]);
+
+        Sanctum::actingAs($customer);
+
+        $this->postJson("/api/chats/{$thread->id}/messages", [
+            'media_id' => $media->id,
+        ])->assertCreated()
+            ->assertJsonPath('data.media.id', $media->id);
     }
 }

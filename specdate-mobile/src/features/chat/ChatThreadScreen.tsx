@@ -10,6 +10,7 @@ import { ModerationService, type ReportTargetType } from '../../services/moderat
 import { useUser } from '../../hooks/useUser';
 import { toImageUri } from '../../utils/imageUrl';
 import { VideoViewerModal } from '../../components';
+import { confirmMediaShareWithAiScan } from '../../utils/confirmMediaShareWithAiScan';
 import { useRoundAudioRecorder, type RoundMediaAsset } from '../specs/components';
 import ChatMediaPickerSheet from './components/ChatMediaPickerSheet';
 import ChatSafetySheet from './components/ChatSafetySheet';
@@ -67,11 +68,16 @@ export default function ChatThreadScreen({ route, navigation }: any) {
 
   const sendMediaAsset = React.useCallback(async (asset: RoundMediaAsset) => {
     try {
+      const confirmed = await confirmMediaShareWithAiScan();
+      if (!confirmed) {
+        return;
+      }
       setMediaSending(true);
       const uploadType: MediaUploadType =
         asset.assetType === 'audio' ? 'chat_audio' : asset.assetType === 'video' ? 'chat_video' : 'chat_image';
       const uploaded = await MediaService.upload(asset.uri, uploadType, null, asset.mimeType);
-      sendMutation.mutate({ body: '', mediaId: uploaded.id });
+      const reviewed = await MediaService.waitForModeration(uploaded);
+      sendMutation.mutate({ body: '', mediaId: reviewed.id });
     } catch (e: any) {
       Alert.alert('Upload failed', e?.message || 'Could not send this media.');
     } finally {

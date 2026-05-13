@@ -14,7 +14,6 @@ const NAV_LINKS = [
   { label: 'How it works', href: '#how-it-works' },
   { label: 'Success stories', href: '#success-stories' },
   { label: 'Register as provider', href: '/register/provider' },
-  { label: 'Sign in', href: '/login' },
 ] as const
 
 const LOGO_SRC = '/dateusher_logo_white_text.png'

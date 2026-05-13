@@ -10,6 +10,7 @@ use App\Models\SpecRoundAnswer;
 use App\Models\User;
 use App\Models\UserBalance;
 use App\Services\ChatService;
+use App\Services\MediaAttachmentPolicyService;
 use App\Services\NotificationService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -19,11 +20,17 @@ class SpecService
 {
     protected $notificationService;
     protected $chatService;
+    protected $mediaAttachmentPolicy;
 
-    public function __construct(NotificationService $notificationService, ChatService $chatService)
+    public function __construct(
+        NotificationService $notificationService,
+        ChatService $chatService,
+        MediaAttachmentPolicyService $mediaAttachmentPolicy,
+    )
     {
         $this->notificationService = $notificationService;
         $this->chatService = $chatService;
+        $this->mediaAttachmentPolicy = $mediaAttachmentPolicy;
     }
 
     public function listForFeed($user, string $filter = 'LIVE', bool $excludeOwn = false)
@@ -106,7 +113,7 @@ class SpecService
         $specs->getCollection()->transform(function ($spec) {
             if ($spec->owner) {
                 // If owner is loaded, get avatar from media
-                $avatarMedia = $spec->owner->media->where('type', 'avatar')->sortByDesc('id')->first();
+                $avatarMedia = $spec->owner->media->where('type', 'avatar')->filter(fn ($media) => $media->isShareable())->sortByDesc('id')->first();
                 $url = $avatarMedia ? $avatarMedia->url : null;
                 
                 if (!$spec->owner->profile) {
@@ -429,6 +436,10 @@ class SpecService
             throw new HttpException(400, 'Cannot start a round on a closed or expired spec.');
         }
 
+        if ($mediaId) {
+            $this->assertAttachableMedia($user, $mediaId, ['round_question_image', 'round_question_video', 'round_question_audio']);
+        }
+
         // Count active participants only; the owner also has an ACCEPTED application.
         $activeCount = $this->activeParticipantCount($spec);
         if ($activeCount < 1) {
@@ -520,6 +531,10 @@ class SpecService
 
         if ($answer === '' && !$mediaId) {
             throw new HttpException(400, 'Please add an answer or attach a file.');
+        }
+
+        if ($mediaId) {
+            $this->assertAttachableMedia($user, $mediaId, ['round_answer_image', 'round_answer_video', 'round_answer_audio']);
         }
         
         if ($round->status !== 'ACTIVE') {
@@ -823,9 +838,9 @@ class SpecService
         $isOwner = (int) $date->owner_id === (int) $user->id;
         $otherUser = $isOwner ? $winner : $owner;
         $chatThread = $this->chatService->ensureThreadForDate($date);
-        $winnerAvatar = $winner?->media?->where('type', 'avatar')->sortByDesc('id')->first()?->url;
-        $ownerAvatar = $owner?->media?->where('type', 'avatar')->sortByDesc('id')->first()?->url;
-        $otherAvatar = $otherUser?->media?->where('type', 'avatar')->sortByDesc('id')->first()?->url;
+        $winnerAvatar = $winner?->media?->where('type', 'avatar')->filter(fn ($media) => $media->isShareable())->sortByDesc('id')->first()?->url;
+        $ownerAvatar = $owner?->media?->where('type', 'avatar')->filter(fn ($media) => $media->isShareable())->sortByDesc('id')->first()?->url;
+        $otherAvatar = $otherUser?->media?->where('type', 'avatar')->filter(fn ($media) => $media->isShareable())->sortByDesc('id')->first()?->url;
         $dateNumber = (int) ($date->date_number ?: 1);
 
         return [
@@ -937,6 +952,26 @@ class SpecService
         return $spec->applications()
             ->where('user_role', 'participant')
             ->where('status', 'ACCEPTED');
+    }
+
+    /**
+     * @param  list<string>  $types
+     */
+    private function assertAttachableMedia(User $user, int|string $mediaId, array $types): void
+    {
+        $media = \App\Models\Media::query()
+            ->where('id', $mediaId)
+            ->where('user_id', $user->id)
+            ->whereIn('type', $types)
+            ->whereNull('hidden_at')
+            ->first();
+
+        if (! $media) {
+            throw new HttpException(422, 'Media not found.');
+        }
+        if (! $this->mediaAttachmentPolicy->canAttach($media)) {
+            throw new HttpException(422, $this->mediaAttachmentPolicy->blockedMessage());
+        }
     }
 
     private function activeParticipantCount(Spec $spec): int
@@ -1314,7 +1349,7 @@ class SpecService
         // Inject avatar URL into each application's user profile
         return $applications->map(function ($app) {
             if ($app->user) {
-                $avatarMedia = $app->user->media->where('type', 'avatar')->sortByDesc('id')->first();
+                $avatarMedia = $app->user->media->where('type', 'avatar')->filter(fn ($media) => $media->isShareable())->sortByDesc('id')->first();
                 if ($app->user->profile) {
                     $app->user->profile->avatar = $avatarMedia ? $avatarMedia->url : null;
                 } else {

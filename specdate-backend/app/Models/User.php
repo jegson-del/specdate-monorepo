@@ -133,6 +133,7 @@ class User extends Authenticatable
         return $this->media
             ->where('type', 'profile_gallery')
             ->whereNull('hidden_at')
+            ->filter(fn ($media) => $media->isShareable())
             ->sortByDesc('id')
             ->take(6)
             ->values()
@@ -150,6 +151,7 @@ class User extends Authenticatable
         return $this->media
             ->where('type', 'avatar')
             ->whereNull('hidden_at')
+            ->filter(fn ($media) => $media->isShareable())
             ->sortByDesc('id')
             ->first()
             ?->url;

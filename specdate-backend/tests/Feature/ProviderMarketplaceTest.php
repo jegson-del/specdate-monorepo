@@ -46,6 +46,7 @@ class ProviderMarketplaceTest extends TestCase
             'type' => 'avatar',
             'mime_type' => 'image/jpeg',
             'size' => 100,
+            'moderation_status' => 'approved',
         ]);
 
         Sanctum::actingAs($dater);
@@ -80,6 +81,7 @@ class ProviderMarketplaceTest extends TestCase
             'type' => 'provider_gallery',
             'mime_type' => 'image/jpeg',
             'size' => 100,
+            'moderation_status' => 'approved',
         ]);
 
         Sanctum::actingAs($dater);

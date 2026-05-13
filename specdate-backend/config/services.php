@@ -9,8 +9,8 @@ return [
     |
     | This file is for storing the credentials for third party services such
     | as Mailgun, Postmark, AWS and more. This file provides the de facto
-    | location for this type of information, allowing packages to have
-    | a conventional file to locate the various service credentials.
+    | location for this type of information, allowing packages to have a
+    | conventional location to locate the various service credentials.
     |
     */
 
@@ -46,6 +46,23 @@ return [
         'sid' => env('TWILIO_SID'),
         'token' => env('TWILIO_TOKEN'),
         'from' => env('TWILIO_FROM'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | AWS Rekognition (image / video moderation on S3)
+    |--------------------------------------------------------------------------
+    |
+    | When disabled or when FILESYSTEM_DISK is not s3, new uploads skip Rekognition
+    | and are marked moderation_status "approved" with a skip note in labels.
+    |
+    */
+    'rekognition' => [
+        'enabled' => env('AWS_REKOGNITION_ENABLED', true),
+        'min_confidence' => (float) env('AWS_REKOGNITION_MIN_CONFIDENCE', 60),
+        'flag_min_confidence' => (float) env('AWS_REKOGNITION_FLAG_MIN_CONFIDENCE', 75),
+        'video_poll_max_attempts' => (int) env('AWS_REKOGNITION_VIDEO_POLL_MAX', 80),
+        'video_poll_delay_seconds' => (int) env('AWS_REKOGNITION_VIDEO_POLL_DELAY', 15),
     ],
 
 ];

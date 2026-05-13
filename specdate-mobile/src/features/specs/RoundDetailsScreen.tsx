@@ -13,6 +13,7 @@ import { AudioMessagePlayer, CloseRoundModal, LastManStandingModal, PrivateRound
 import type { RoundMediaAsset } from './components';
 import * as ImagePicker from 'expo-image-picker';
 import { MediaService } from '../../services/media';
+import { confirmMediaShareWithAiScan } from '../../utils/confirmMediaShareWithAiScan';
 import { ModerationService, type ReportTargetType } from '../../services/moderation';
 import ChatSafetySheet from '../chat/components/ChatSafetySheet';
 
@@ -125,7 +126,8 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                     undefined,
                     answerMedia.mimeType
                 );
-                mediaId = uploaded.id;
+                const reviewed = await MediaService.waitForModeration(uploaded);
+                mediaId = reviewed.id;
             }
             return SpecService.submitAnswer(rId, text, mediaId);
         },
@@ -365,7 +367,8 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                     null,
                     nextRoundQuestionMedia.mimeType
                 );
-                mediaId = uploaded.id;
+                const reviewed = await MediaService.waitForModeration(uploaded);
+                mediaId = reviewed.id;
             }
             return SpecService.startRound(String(specId), question, mediaId);
         },
@@ -377,7 +380,7 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
             setNextRoundQuestionMedia(null);
             navigation.goBack(); // Go back to list? Or stay?
         },
-        onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to start round.'),
+        onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || err?.message || 'Failed to start round.'),
     });
 
     const updateRoundMutation = useMutation({
@@ -693,7 +696,13 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                                 <TouchableOpacity
                                     activeOpacity={0.8}
                                     style={[styles.primaryButton, { backgroundColor: theme.colors.primary }]}
-                                    onPress={() => startRoundMutation.mutate(nextRoundQuestion)}
+                                    onPress={async () => {
+                                        if (nextRoundQuestionMedia) {
+                                            const ok = await confirmMediaShareWithAiScan();
+                                            if (!ok) return;
+                                        }
+                                        startRoundMutation.mutate(nextRoundQuestion);
+                                    }}
                                     disabled={(!nextRoundQuestion.trim() && !nextRoundQuestionMedia) || startRoundMutation.isPending}
                                 >
                                     {startRoundMutation.isPending ? (
@@ -790,7 +799,13 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                                 <TouchableOpacity
                                     activeOpacity={0.8}
                                     style={[styles.primaryButton, { backgroundColor: theme.colors.primary, marginTop: 12 }]}
-                                    onPress={() => submitAnswerMutation.mutate({ rId: roundToShow.id, text: answerText })}
+                                    onPress={async () => {
+                                        if (answerMedia) {
+                                            const ok = await confirmMediaShareWithAiScan();
+                                            if (!ok) return;
+                                        }
+                                        submitAnswerMutation.mutate({ rId: roundToShow.id, text: answerText });
+                                    }}
                                     disabled={(!answerText.trim() && !answerMedia) || submitAnswerMutation.isPending}
                                 >
                                     {submitAnswerMutation.isPending ? (

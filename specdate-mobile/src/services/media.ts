@@ -1,6 +1,14 @@
 import { Platform } from 'react-native';
 import { getAuthToken, getApiBaseUrl } from './api';
 
+export type MediaModerationStatus =
+    | 'pending'
+    | 'scanning'
+    | 'approved'
+    | 'flagged'
+    | 'failed'
+    | 'manual_pending';
+
 export interface MediaItem {
     id: number;
     user_id: number;
@@ -10,11 +18,16 @@ export interface MediaItem {
     mime_type: string;
     size: number;
     created_at: string;
+    moderation_status?: MediaModerationStatus | string;
+    moderation_labels?: Record<string, unknown> | null;
+    moderation_checked_at?: string | null;
+    moderation_error?: string | null;
 }
 
 export type MediaUploadType =
     | 'avatar'
     | 'profile_gallery'
+    | 'provider_gallery'
     | 'chat'
     | 'chat_image'
     | 'chat_video'
@@ -26,6 +39,32 @@ export type MediaUploadType =
     | 'round_question_video'
     | 'round_answer_audio'
     | 'round_question_audio';
+
+/** One row from GET /media/upload-limits */
+export interface MediaUploadLimitEntry {
+    max_kb: number;
+    max_mb: number;
+    mimes: string[] | null;
+    mimetypes: string[] | null;
+}
+
+export interface MediaUploadLimitsPayload {
+    types: Record<string, MediaUploadLimitEntry>;
+    supports_media_id: string[];
+}
+
+export class MediaModerationError extends Error {
+    constructor(
+        message: string,
+        public readonly status: 'flagged' | 'failed' | 'timeout' | string,
+    ) {
+        super(message);
+        this.name = 'MediaModerationError';
+    }
+}
+
+/** In-memory cache for GET /media/upload-limits; cleared on logout. */
+let mediaUploadLimitsCache: MediaUploadLimitsPayload | null = null;
 
 const VIDEO_EXT_MIME: Record<string, string> = {
     mp4: 'video/mp4',
@@ -122,12 +161,13 @@ export async function uploadMedia(
     const data = json?.data;
 
     if (!response.ok) {
+        const dataFileMsg = Array.isArray(data?.file) ? data.file[0] : null;
         const fileErr = json?.errors?.file;
-        const fileMsg = Array.isArray(fileErr) ? fileErr[0] : (typeof fileErr === 'string' ? fileErr : null);
+        const fileMsgFromErrors = Array.isArray(fileErr) ? fileErr[0] : (typeof fileErr === 'string' ? fileErr : null);
         const msg =
-            fileMsg ||
+            (typeof dataFileMsg === 'string' ? dataFileMsg : null) ||
+            fileMsgFromErrors ||
             json?.message ||
-            (Array.isArray(data?.file) && data.file[0]) ||
             (typeof data?.error === 'string' ? data.error : null) ||
             'Upload failed';
         throw new Error(typeof msg === 'string' ? msg : 'Upload failed');
@@ -136,6 +176,153 @@ export async function uploadMedia(
     return data;
 }
 
+/** True while automated moderation is still running (show “Reviewing”). */
+export function isMediaModerationInProgress(item: Pick<MediaItem, 'moderation_status'>): boolean {
+    const s = item.moderation_status;
+    return s === 'pending' || s === 'scanning';
+}
+
+export function isMediaAllowedToShare(item: Pick<MediaItem, 'moderation_status'>): boolean {
+    return item.moderation_status === 'approved' || item.moderation_status === 'manual_pending';
+}
+
+export function moderationFailureMessage(status?: string): string {
+    if (status === 'failed' || status === 'timeout') {
+        return 'This file could not be checked. Please choose another file.';
+    }
+
+    return 'This file could not be sent. Please choose another file.';
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export async function waitForMediaModeration(
+    media: MediaItem,
+    options?: { intervalMs?: number; timeoutMs?: number },
+): Promise<MediaItem> {
+    let latest = media;
+    const intervalMs = options?.intervalMs ?? 2500;
+    const timeoutMs = options?.timeoutMs ?? 180000;
+    const startedAt = Date.now();
+
+    while (isMediaModerationInProgress(latest)) {
+        if (Date.now() - startedAt >= timeoutMs) {
+            throw new MediaModerationError(moderationFailureMessage('timeout'), 'timeout');
+        }
+        await sleep(intervalMs);
+        latest = await fetchMediaById(latest.id);
+    }
+
+    if (isMediaAllowedToShare(latest)) {
+        return latest;
+    }
+
+    throw new MediaModerationError(
+        moderationFailureMessage(String(latest.moderation_status ?? 'failed')),
+        String(latest.moderation_status ?? 'failed'),
+    );
+}
+
+/**
+ * Fetch latest moderation fields for a media row (poll after upload until not pending/scanning).
+ */
+export async function fetchMediaById(mediaId: number): Promise<MediaItem> {
+    const headers: Record<string, string> = { Accept: 'application/json' };
+    const token = getAuthToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    const response = await fetch(`${getApiBaseUrl()}/media/${mediaId}`, { method: 'GET', headers });
+    const text = await response.text();
+    let json: any;
+    try {
+        json = text ? JSON.parse(text) : {};
+    } catch {
+        throw new Error(`Invalid JSON (${response.status})`);
+    }
+    const data = json?.data;
+    if (!response.ok) {
+        throw new Error(json?.message || `Request failed (${response.status})`);
+    }
+    return data;
+}
+
+/**
+ * Server-defined max sizes and allowed extensions/MIME groups per upload `type`.
+ * Call after login (or before opening pickers) to show accurate limits.
+ */
+export async function fetchMediaUploadLimits(): Promise<MediaUploadLimitsPayload> {
+    const headers: Record<string, string> = { Accept: 'application/json' };
+    const token = getAuthToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    const response = await fetch(`${getApiBaseUrl()}/media/upload-limits`, { method: 'GET', headers });
+    const text = await response.text();
+    let json: any;
+    try {
+        json = text ? JSON.parse(text) : {};
+    } catch {
+        throw new Error(`Invalid JSON (${response.status})`);
+    }
+    const data = json?.data;
+    if (!response.ok || !data?.types) {
+        throw new Error(json?.message || `Request failed (${response.status})`);
+    }
+    return data as MediaUploadLimitsPayload;
+}
+
+export function clearMediaUploadLimitsCache(): void {
+    mediaUploadLimitsCache = null;
+}
+
+export function getCachedMediaUploadLimits(): MediaUploadLimitsPayload | null {
+    return mediaUploadLimitsCache;
+}
+
+export async function getMediaUploadLimitsCached(options?: { force?: boolean }): Promise<MediaUploadLimitsPayload> {
+    if (mediaUploadLimitsCache && !options?.force) {
+        return mediaUploadLimitsCache;
+    }
+    const payload = await fetchMediaUploadLimits();
+    mediaUploadLimitsCache = payload;
+
+    return payload;
+}
+
+/** Fire-and-forget after login / cold start with session. Swallows errors (offline, older API). */
+export async function prefetchMediaUploadLimits(): Promise<void> {
+    try {
+        await getMediaUploadLimitsCached();
+    } catch {
+        // non-fatal
+    }
+}
+
+/** User-facing hint when limits are cached, e.g. "Up to 50 MB (mp4, mov, …)". */
+export function formatUploadLimitLine(type: MediaUploadType): string | null {
+    const row = mediaUploadLimitsCache?.types[type];
+    if (!row) {
+        return null;
+    }
+    const mimes = row.mimes ?? [];
+    const ext =
+        mimes.length > 0
+            ? ` (${mimes.slice(0, 6).join(', ')}${mimes.length > 6 ? ', …' : ''})`
+            : '';
+
+    return `Up to ${row.max_mb} MB${ext}`;
+}
+
 export const MediaService = {
     upload: uploadMedia,
+    fetchById: fetchMediaById,
+    fetchUploadLimits: fetchMediaUploadLimits,
+    getUploadLimitsCached: getMediaUploadLimitsCached,
+    prefetchUploadLimits: prefetchMediaUploadLimits,
+    clearUploadLimitsCache: clearMediaUploadLimitsCache,
+    getCachedUploadLimitsSnapshot: getCachedMediaUploadLimits,
+    formatUploadLimitLine,
+    isModerationInProgress: isMediaModerationInProgress,
+    isAllowedToShare: isMediaAllowedToShare,
+    waitForModeration: waitForMediaModeration,
+    moderationFailureMessage,
 };

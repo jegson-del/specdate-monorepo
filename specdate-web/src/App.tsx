@@ -9,6 +9,9 @@ import GetStartedPage from './pages/GetStartedPage'
 import HomePage from './pages/HomePage'
 import ProvidersBrowsePage from './pages/ProvidersBrowsePage'
 import ProviderPasswordSetupPage from './pages/ProviderPasswordSetupPage'
+import ProviderRegistrationOtpPage, {
+  ProviderRegistrationSuccessPage,
+} from './pages/ProviderRegistrationOtpPage'
 import ProviderRegisterPage from './pages/ProviderRegisterPage'
 
 export default function App() {
@@ -20,6 +23,8 @@ export default function App() {
           <Route path="/get-started" element={<GetStartedPage />} />
           <Route path="/providers" element={<ProvidersBrowsePage />} />
           <Route path="/register/provider" element={<ProviderRegisterPage />} />
+          <Route path="/register/provider/verify" element={<ProviderRegistrationOtpPage />} />
+          <Route path="/register/provider/success" element={<ProviderRegistrationSuccessPage />} />
           <Route path="/provider/setup-password" element={<ProviderPasswordSetupPage />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/admin/providers" element={<AdminProvidersPage />} />

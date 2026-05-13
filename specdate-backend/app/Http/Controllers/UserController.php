@@ -63,7 +63,7 @@ class UserController extends Controller
         // Format for public display
         $data = $users->getCollection()->map(function ($user) {
             $profile = $user->profile;
-            $avatarMedia = $user->media->where('type', 'avatar')->whereNull('hidden_at')->sortByDesc('id')->first();
+            $avatarMedia = $user->media->where('type', 'avatar')->whereNull('hidden_at')->filter(fn ($media) => $media->isShareable())->sortByDesc('id')->first();
             $avatarUrl = $avatarMedia ? $avatarMedia->url : null;
 
             return [
@@ -113,7 +113,7 @@ class UserController extends Controller
             ->count();
         $datesCount = 0; // placeholder: first-dates / meetups when we have that data
 
-        $avatarMedia = $user->media->where('type', 'avatar')->whereNull('hidden_at')->sortByDesc('id')->first();
+        $avatarMedia = $user->media->where('type', 'avatar')->whereNull('hidden_at')->filter(fn ($media) => $media->isShareable())->sortByDesc('id')->first();
         $avatarUrl = $avatarMedia ? $avatarMedia->url : null;
 
         $public = [
@@ -138,10 +138,10 @@ class UserController extends Controller
                 'is_drug_user' => $profile->is_drug_user,
                 'sexual_orientation' => $profile->sexual_orientation,
             ] : null,
-            'images' => $user->media->where('type', 'profile_gallery')->whereNull('hidden_at')->map(function ($media) {
+            'images' => $user->media->where('type', 'profile_gallery')->whereNull('hidden_at')->filter(fn ($media) => $media->isShareable())->map(function ($media) {
                 return $media->url; // Uses the getUrlAttribute accessor (ImageKit)
             })->values()->all(),
-            'profile_gallery_media' => $user->media->where('type', 'profile_gallery')->whereNull('hidden_at')->map(function ($media) {
+            'profile_gallery_media' => $user->media->where('type', 'profile_gallery')->whereNull('hidden_at')->filter(fn ($media) => $media->isShareable())->map(function ($media) {
                 return ['id' => $media->id, 'url' => $media->url];
             })->values()->all(),
             'specs_created_count' => $specsCreated,

@@ -14,6 +14,8 @@ import { Text, TextInput, Button, useTheme, ActivityIndicator } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { api } from '../../services/api';
+import { MediaService } from '../../services/media';
+import { confirmMediaShareWithAiScan } from '../../utils/confirmMediaShareWithAiScan';
 import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect } from '@react-navigation/native';
 import { Dropdown } from 'react-native-paper-dropdown';
@@ -198,26 +200,18 @@ export default function ProviderDashboardScreen({ navigation }: any) {
   };
 
   const uploadMedia = async (asset: any, type: 'avatar' | 'provider_gallery', skipRefresh = false) => {
+    const confirmed = await confirmMediaShareWithAiScan();
+    if (!confirmed) {
+      return;
+    }
     try {
       setLoading(true);
-      const uri = asset.uri;
-      const formData = new FormData();
-      formData.append('file', {
-        uri,
-        name: uri.split('/').pop() || 'image.jpg',
-        type: asset.mimeType || 'image/jpeg',
-      } as any);
-      formData.append('type', type);
-
-      await api.post('/media/upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      const uploaded = await MediaService.upload(asset.uri, type, null, asset.mimeType || 'image/jpeg');
+      await MediaService.waitForModeration(uploaded);
       if (!skipRefresh) fetchDashboard();
       if (!skipRefresh) Alert.alert('Success', 'Image uploaded.');
     } catch (error: any) {
-      const msg = error.response?.data?.message || 'Upload failed.';
+      const msg = error?.response?.data?.message || error?.message || 'Upload failed.';
       Alert.alert('Error', msg);
     } finally {
       if (!skipRefresh) setLoading(false);

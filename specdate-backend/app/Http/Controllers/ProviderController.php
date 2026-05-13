@@ -322,7 +322,7 @@ class ProviderController extends Controller
             ]);
         }
 
-        $media = $user->media()->whereIn('type', ['avatar', 'provider_gallery'])->get();
+        $media = $user->media()->whereIn('type', ['avatar', 'provider_gallery'])->get()->filter(fn ($item) => $item->isShareable());
         $avatar = $media->where('type', 'avatar')->last(); // Get latest avatar
         $gallery = $media->where('type', 'provider_gallery')->values();
 
@@ -482,8 +482,9 @@ class ProviderController extends Controller
     {
         $user = $profile->user;
         $media = $user?->media ?? collect();
-        $avatar = $media->where('type', 'avatar')->whereNull('hidden_at')->sortByDesc('id')->first();
-        $gallery = $media->where('type', 'provider_gallery')->whereNull('hidden_at')->sortByDesc('id')->values();
+        $shareableMedia = $media->whereNull('hidden_at')->filter(fn ($item) => $item->isShareable());
+        $avatar = $shareableMedia->where('type', 'avatar')->sortByDesc('id')->first();
+        $gallery = $shareableMedia->where('type', 'provider_gallery')->sortByDesc('id')->values();
         $image = $profile->image ?: $avatar?->url ?: $gallery->first()?->url;
         $categories = $profile->categories->map(fn (ProviderCategory $category) => [
             'id' => $category->id,

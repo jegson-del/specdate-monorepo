@@ -18,6 +18,13 @@ export type AppDialogConfig = {
   placeholder?: string;
   defaultValue?: string;
   cancelable?: boolean;
+  onDismiss?: () => void;
+};
+
+export type AppConfirmConfig = Omit<AppDialogConfig, 'buttons' | 'type' | 'onDismiss'> & {
+  confirmText?: string;
+  cancelText?: string;
+  type?: 'warning' | 'confirm';
 };
 
 type DialogController = {
@@ -26,12 +33,18 @@ type DialogController = {
 
 let controller: DialogController | null = null;
 
-export function appAlert(title?: string, message?: string, buttons?: AppDialogButton[], options?: { cancelable?: boolean }) {
+export function appAlert(
+  title?: string,
+  message?: string,
+  buttons?: AppDialogButton[],
+  options?: { cancelable?: boolean; onDismiss?: () => void },
+) {
   controller?.show({
     title,
     message,
     buttons,
     cancelable: options?.cancelable,
+    onDismiss: options?.onDismiss,
     type: inferType(title, buttons),
   });
 }
@@ -40,11 +53,44 @@ export function appPrompt(config: Omit<AppDialogConfig, 'type'>) {
   controller?.show({ ...config, type: 'prompt' });
 }
 
+export function appConfirm(config: AppConfirmConfig): Promise<boolean> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const settle = (value: boolean) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+
+    const dialogConfig: AppDialogConfig = {
+      ...config,
+      type: config.type ?? 'confirm',
+      cancelable: config.cancelable ?? true,
+      onDismiss: () => settle(false),
+      buttons: [
+        { text: config.cancelText ?? 'Cancel', style: 'cancel', onPress: () => settle(false) },
+        { text: config.confirmText ?? 'OK', onPress: () => settle(true) },
+      ],
+    };
+
+    if (controller) {
+      controller.show(dialogConfig);
+      return;
+    }
+
+    NativeAlert.alert(dialogConfig.title ?? '', dialogConfig.message, dialogConfig.buttons, {
+      cancelable: dialogConfig.cancelable,
+      onDismiss: dialogConfig.onDismiss,
+    });
+  });
+}
+
 export function useAppDialog() {
   return React.useMemo(
     () => ({
       alert: appAlert,
       prompt: appPrompt,
+      confirmAsync: appConfirm,
       success: (title: string, message?: string, buttons?: AppDialogButton[]) =>
         controller?.show({ title, message, buttons, type: 'success' }),
       error: (title: string, message?: string, buttons?: AppDialogButton[]) =>
@@ -117,11 +163,16 @@ export function AppDialogProvider({ children }: { children: React.ReactNode }) {
   const close = React.useCallback((button?: AppDialogButton) => {
     Animated.timing(opacity, { toValue: 0, duration: 120, useNativeDriver: true }).start(() => {
       const value = promptValue;
+      const onDismiss = config?.onDismiss;
       setConfig(null);
       setPromptValue('');
-      button?.onPress?.(value);
+      if (button) {
+        button.onPress?.(value);
+      } else {
+        onDismiss?.();
+      }
     });
-  }, [opacity, promptValue]);
+  }, [config?.onDismiss, opacity, promptValue]);
 
   const buttons = config?.buttons?.length ? config.buttons : [{ text: 'OK' }];
   const icon = getIcon(config?.type);

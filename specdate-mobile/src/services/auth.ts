@@ -1,4 +1,5 @@
 import { api, getAuthToken, setAuthToken } from './api';
+import { clearMediaUploadLimitsCache, prefetchMediaUploadLimits } from './media';
 
 export const AuthService = {
     sendOtp: async (channel: 'email' | 'mobile', target: string) => {
@@ -11,6 +12,7 @@ export const AuthService = {
         const token = resp?.data?.data?.token ?? resp?.data?.token;
         if (typeof token === 'string' && token.length > 0) {
             await setAuthToken(token);
+            void prefetchMediaUploadLimits();
         }
         return resp;
     },
@@ -20,6 +22,7 @@ export const AuthService = {
         const token = resp?.data?.data?.token ?? resp?.data?.token;
         if (typeof token === 'string' && token.length > 0) {
             await setAuthToken(token);
+            void prefetchMediaUploadLimits();
         }
         return resp;
     },
@@ -39,5 +42,6 @@ export const AuthService = {
             // Proceed to clear token even if backend call fails (e.g. offline)
         }
         await setAuthToken(null);
+        clearMediaUploadLimitsCache();
     },
 };

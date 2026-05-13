@@ -93,7 +93,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/specs/{id}/like', [SpecController::class, 'toggleLike']);
     Route::post('/specs/{id}/match', [SpecController::class, 'createDate']);
     Route::post('/specs/{id}/extend-search', [SpecController::class, 'extendSearch']);
+    Route::get('/media/upload-limits', [MediaController::class, 'uploadLimits']);
     Route::post('/media/upload', [MediaController::class, 'upload']);
+    Route::get('/media/{media}', [MediaController::class, 'show']);
     Route::get('/user/requests', [SpecController::class, 'pendingRequests']);
     Route::apiResource('specs', SpecController::class);
 

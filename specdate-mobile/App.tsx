@@ -9,6 +9,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { theme } from './src/theme';
 import { api, bootstrapAuthToken, getAuthToken, setAuthToken } from './src/services/api';
 import { registerExpoPushToken } from './src/utils/registerExpoPushToken';
+import { clearMediaUploadLimitsCache, prefetchMediaUploadLimits } from './src/services/media';
 import LandingScreen from './src/features/auth/LandingScreen';
 import RegisterScreen from './src/features/auth/RegisterScreen';
 import OtpVerificationScreen from './src/features/auth/OtpVerificationScreen';
@@ -69,11 +70,13 @@ export default function App() {
             const isComplete = user.profile_complete === true;
             const isProvider = user.role === 'provider';
             if (mounted) setInitialRoute(isProvider ? 'ProviderDashboard' : (isComplete ? 'Home' : 'Profile'));
+            void prefetchMediaUploadLimits();
           } catch (err: any) {
             const status = err?.response?.status;
             // If token is invalid/expired, clear it and fall back to Landing.
             if (status === 401) {
               await setAuthToken(null);
+              clearMediaUploadLimitsCache();
               if (mounted) setInitialRoute('Landing');
             }
           }

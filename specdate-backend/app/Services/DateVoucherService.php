@@ -311,8 +311,9 @@ class DateVoucherService
         }
 
         $media = $profile->user?->media ?? collect();
-        $avatar = $media->where('type', 'avatar')->whereNull('hidden_at')->sortByDesc('id')->first();
-        $gallery = $media->where('type', 'provider_gallery')->whereNull('hidden_at')->sortByDesc('id')->first();
+        $shareableMedia = $media->whereNull('hidden_at')->filter(fn ($item) => $item->isShareable());
+        $avatar = $shareableMedia->where('type', 'avatar')->sortByDesc('id')->first();
+        $gallery = $shareableMedia->where('type', 'provider_gallery')->sortByDesc('id')->first();
 
         return [
             'id' => $profile->id,
@@ -355,7 +356,7 @@ class DateVoucherService
             return null;
         }
 
-        $avatar = $user->media?->where('type', 'avatar')->whereNull('hidden_at')->sortByDesc('id')->first()?->url;
+        $avatar = $user->media?->where('type', 'avatar')->whereNull('hidden_at')->filter(fn ($media) => $media->isShareable())->sortByDesc('id')->first()?->url;
 
         return [
             'id' => $user->id,

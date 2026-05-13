@@ -13,9 +13,11 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class ChatService
 {
-    public function __construct(private NotificationService $notificationService, private BlockService $blockService)
-    {
-    }
+    public function __construct(
+        private NotificationService $notificationService,
+        private BlockService $blockService,
+        private MediaAttachmentPolicyService $mediaAttachmentPolicy,
+    ) {}
 
     public function ensureThreadForDate(SpecDate $date): ChatThread
     {
@@ -168,6 +170,9 @@ class ChatService
             if (!$media) {
                 throw new HttpException(422, 'Chat media not found.');
             }
+            if (! $this->mediaAttachmentPolicy->canAttach($media)) {
+                throw new HttpException(422, $this->mediaAttachmentPolicy->blockedMessage());
+            }
         }
 
         $message = DB::transaction(function () use ($thread, $user, $body, $mediaId) {
@@ -262,7 +267,7 @@ class ChatService
         $owner = $thread->owner;
         $winner = $thread->winner;
         $other = (int) $thread->owner_id === (int) $user->id ? $winner : $owner;
-        $otherAvatar = $other?->media?->where('type', 'avatar')->sortByDesc('id')->first()?->url;
+        $otherAvatar = $other?->media?->where('type', 'avatar')->filter(fn ($media) => $media->isShareable())->sortByDesc('id')->first()?->url;
 
         return [
             'id' => $thread->id,
@@ -294,14 +299,18 @@ class ChatService
     public function messagePayload(ChatMessage $message): array
     {
         $sender = $message->sender;
-        $senderAvatar = $sender?->media?->where('type', 'avatar')->sortByDesc('id')->first()?->url;
+        $senderAvatar = $sender?->media?->where('type', 'avatar')->filter(fn ($media) => $media->isShareable())->sortByDesc('id')->first()?->url;
 
         return [
             'id' => $message->id,
             'chat_thread_id' => $message->chat_thread_id,
             'sender_id' => $message->sender_id,
             'body' => $message->body,
-            'media' => $message->media && !$message->media->hidden_at ? $message->media : null,
+            'media' => $message->media
+                && ! $message->media->hidden_at
+                && $this->mediaAttachmentPolicy->canAttach($message->media)
+                    ? $message->media
+                    : null,
             'read_at' => $message->read_at,
             'created_at' => $message->created_at,
             'sender' => $sender ? [

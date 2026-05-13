@@ -10,6 +10,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SpecService } from '../../services/specs';
 import { MediaService } from '../../services/media';
+import { confirmMediaShareWithAiScan } from '../../utils/confirmMediaShareWithAiScan';
 import { ModerationService, type ReportTargetType } from '../../services/moderation';
 import { useUser } from '../../hooks/useUser';
 import { toImageUri } from '../../utils/imageUrl';
@@ -376,7 +377,8 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                     null,
                     roundQuestionMedia.mimeType
                 );
-                mediaId = uploaded.id;
+                const reviewed = await MediaService.waitForModeration(uploaded);
+                mediaId = reviewed.id;
             }
 
             return SpecService.startRound(String(specId), question, mediaId);
@@ -387,10 +389,16 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
             setNewRoundQuestion('');
             setRoundQuestionMedia(null);
         },
-        onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to start round.'),
+        onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || err?.message || 'Failed to start round.'),
     });
 
-    const handleStartRoundPress = () => {
+    const handleStartRoundPress = async () => {
+        if (roundQuestionMedia) {
+            const ok = await confirmMediaShareWithAiScan();
+            if (!ok) {
+                return;
+            }
+        }
         const maxParticipants = Number((spec as any)?.max_participants ?? 0);
         const startsBelowCapacity =
             isFirstRound &&
@@ -404,7 +412,12 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                 'Your spec has not reached the max number of participants you required. If you begin the quest, new participants cannot join this spec. Do you wish to start or cancel?',
                 [
                     { text: 'Cancel', style: 'cancel' },
-                    { text: 'Start quest', onPress: () => startRoundMutation.mutate(newRoundQuestion) },
+                    {
+                        text: 'Start quest',
+                        onPress: () => {
+                            startRoundMutation.mutate(newRoundQuestion);
+                        },
+                    },
                 ],
             );
             return;

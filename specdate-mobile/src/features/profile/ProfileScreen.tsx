@@ -16,6 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ProfileImageGrid, ImageViewerModal } from './components';
 import { MediaService } from '../../services/media';
+import { confirmMediaShareWithAiScan } from '../../utils/confirmMediaShareWithAiScan';
 import { toImageUri, imageUriWithCacheBust } from '../../utils/imageUrl';
 import { MultiSelectModal } from '../specs/components/MultiSelectModal';
 
@@ -238,9 +239,14 @@ export default function ProfileScreen({ navigation }: any) {
     };
 
     const uploadImageAndRefresh = async (uri: string, type: 'avatar' | 'profile_gallery', mediaId?: number, replaceSlotIndex?: number) => {
+        const confirmed = await confirmMediaShareWithAiScan();
+        if (!confirmed) {
+            return;
+        }
         setImgLoading(true);
         try {
-            const media = await MediaService.upload(uri, type, mediaId);
+            const uploaded = await MediaService.upload(uri, type, mediaId);
+            const media = await MediaService.waitForModeration(uploaded);
             const uploadedUrl = media?.url && (media.url as string).startsWith('http') ? media.url : null;
             // Optimistic update: show the new image immediately using the URL returned from upload
             if (uploadedUrl) {

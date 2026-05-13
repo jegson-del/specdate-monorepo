@@ -7,6 +7,8 @@ use Illuminate\Support\Facades\Storage;
 
 class Media extends Model
 {
+    public const SHAREABLE_MODERATION_STATUSES = ['approved', 'manual_pending'];
+
     protected $fillable = [
         'user_id',
         'file_path',
@@ -16,17 +18,30 @@ class Media extends Model
         'size',
         'hidden_at',
         'hidden_reason',
+        'moderation_status',
+        'moderation_labels',
+        'rekognition_job_id',
+        'moderation_checked_at',
+        'moderation_error',
     ];
 
     protected $casts = [
         'hidden_at' => 'datetime',
+        'moderation_labels' => 'array',
+        'moderation_checked_at' => 'datetime',
     ];
+
+    public function isShareable(): bool
+    {
+        return $this->hidden_at === null
+            && in_array($this->moderation_status, self::SHAREABLE_MODERATION_STATUSES, true);
+    }
 
     /**
      * Get the public URL for this file.
      * Prefers stored url (set at upload). Falls back to S3 URL from file_path for older rows.
      *
-     * @param array $transformations Reserved for future use (e.g. ImageKit resizing).
+     * @param  array  $transformations  Reserved for future use (e.g. ImageKit resizing).
      */
     public function getUrl(array $transformations = []): string
     {
@@ -36,6 +51,7 @@ class Media extends Model
         }
         /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
         $disk = Storage::disk('s3');
+
         return $disk->url($this->file_path);
     }
 
@@ -51,6 +67,7 @@ class Media extends Model
         }
         /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
         $disk = Storage::disk('s3');
+
         return $disk->url($this->file_path);
     }
 }

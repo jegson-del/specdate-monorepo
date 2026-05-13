@@ -46,10 +46,10 @@ class AdminProviderService
 
         $setupEmailSent = $this->sendSetupEmail($user);
 
-        return [
-            'provider' => $this->providerPayload($profile->fresh(['user', 'categories', 'reviewer'])),
-            'setup_email_sent' => $setupEmailSent,
-        ];
+        return array_merge(
+            $this->providerPayload($profile->fresh(['user', 'categories', 'reviewer'])),
+            ['setup_email_sent' => $setupEmailSent],
+        );
     }
 
     public function reject(User $admin, int $providerId, array $data): array

@@ -1,9 +1,14 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAlert } from '../components/AlertProvider'
 import { getCountryOptions, getValidCountryCodes } from '../data/countryOptions'
+import {
+  PROVIDER_REGISTRATION_STORAGE_KEY,
+  sendProviderEmailOtp,
+  type ProviderRegistrationPayload,
+} from '../lib/providerRegistration'
 import {
   createProviderRegistrationSchema,
   SERVICE_TYPE_VALUES,
@@ -18,7 +23,6 @@ function asParsedOutput(data: ProviderRegistrationFormInput): ProviderRegistrati
 const inputClass =
   'mt-2 w-full rounded-xl border border-white/15 bg-black/40 px-4 py-3 text-white placeholder:text-white/35 focus:border-pink-500/60 focus:outline-none focus:ring-2 focus:ring-pink-500/40'
 const inputErrorClass = ' border-red-400/70 focus:border-red-400 focus:ring-red-500/40'
-const otpCodePattern = /^\d{6}$/
 
 const defaultValues: ProviderRegistrationFormInput = {
   businessName: '',
@@ -34,23 +38,19 @@ const defaultValues: ProviderRegistrationFormInput = {
 
 export default function ProviderRegisterPage() {
   const { showAlert } = useAlert()
+  const navigate = useNavigate()
   const countryOptions = useMemo(() => getCountryOptions(), [])
   const validCountryCodes = useMemo(() => getValidCountryCodes(), [])
   const schema = useMemo(
     () => createProviderRegistrationSchema(validCountryCodes),
     [validCountryCodes],
   )
-  const [submittedOk, setSubmittedOk] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const [statusMessage, setStatusMessage] = useState<string | null>(null)
-  const [otpSentTo, setOtpSentTo] = useState<string | null>(null)
   const [isSendingOtp, setIsSendingOtp] = useState(false)
 
   const {
     register,
     handleSubmit,
-    reset,
-    setError,
     formState: { errors, isSubmitting },
   } = useForm<ProviderRegistrationFormInput>({
     resolver: zodResolver(schema),
@@ -58,99 +58,11 @@ export default function ProviderRegisterPage() {
     mode: 'onTouched',
   })
 
-  const apiBase = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
-
-  const extractErrorMessage = (result: unknown, fallback: string) => {
-    if (!result || typeof result !== 'object') return fallback
-
-    const response = result as {
-      message?: string
-      errors?: Record<string, string[]>
-      data?: { errors?: Record<string, string[]> }
-    }
-
-    return (
-      response.message ||
-      response.errors?.otp_code?.[0] ||
-      response.errors?.email?.[0] ||
-      response.errors?.phone?.[0] ||
-      response.data?.errors?.otp_code?.[0] ||
-      fallback
-    )
-  }
-
-  const sendEmailOtp = async (email: string) => {
-    setSubmitError(null)
-    setStatusMessage(null)
-    setSubmittedOk(false)
-    setIsSendingOtp(true)
-
-    try {
-      const response = await fetch(`${apiBase}/api/send-otp`, {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          channel: 'email',
-          target: email,
-        }),
-      })
-      const result = await response.json().catch(() => null)
-
-      if (!response.ok) {
-        const message = extractErrorMessage(
-          result,
-          'We could not send the verification code. Please check the email and try again.',
-        )
-        setSubmitError(message)
-        showAlert({
-          tone: 'error',
-          title: 'Verification code not sent',
-          message,
-        })
-        return false
-      }
-
-      setOtpSentTo(email)
-      const message = `We sent a 6-digit verification code to ${email}. Enter it below to submit.`
-      setStatusMessage(message)
-      showAlert({
-        tone: 'info',
-        title: 'Check your email',
-        message,
-      })
-      return true
-    } finally {
-      setIsSendingOtp(false)
-    }
-  }
-
   const onValid = async (data: ProviderRegistrationFormInput) => {
     const parsed = asParsedOutput(data)
     const normalizedEmail = parsed.email.toLowerCase()
-
-    if (otpSentTo !== normalizedEmail) {
-      await sendEmailOtp(normalizedEmail)
-      return
-    }
-
-    if (!otpCodePattern.test(parsed.otpCode ?? '')) {
-      setError('otpCode', {
-        type: 'manual',
-        message: 'Enter the 6-digit code we sent to your email.',
-      })
-      showAlert({
-        tone: 'warning',
-        title: 'Verification code needed',
-        message: 'Enter the 6-digit code we sent to your email before submitting.',
-      })
-      return
-    }
-
     const country = countryOptions.find((option) => option.code === parsed.country)
-    const payload = {
+    const payload: ProviderRegistrationPayload = {
       business_name: parsed.businessName,
       service_type: parsed.serviceType,
       email: normalizedEmail,
@@ -160,47 +72,31 @@ export default function ProviderRegisterPage() {
       country_name: country?.name ?? parsed.country,
       phone: parsed.phone,
       notes: parsed.notes ?? '',
-      otp_code: parsed.otpCode,
     }
 
     setSubmitError(null)
-    setStatusMessage(null)
-    setSubmittedOk(false)
+    setIsSendingOtp(true)
 
-    const response = await fetch(`${apiBase}/api/provider-registrations`, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    })
-    const result = await response.json().catch(() => null)
-
-    if (!response.ok) {
-      const message = extractErrorMessage(
-        result,
-        'We could not submit your provider application. Please check the form and try again.',
-      )
+    try {
+      await sendProviderEmailOtp(normalizedEmail)
+      sessionStorage.setItem(PROVIDER_REGISTRATION_STORAGE_KEY, JSON.stringify(payload))
+      showAlert({
+        tone: 'info',
+        title: 'Check your email',
+        message: `We sent a 6-digit verification code to ${normalizedEmail}.`,
+      })
+      navigate('/register/provider/verify', { state: { payload } })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'We could not send the verification code.'
       setSubmitError(message)
       showAlert({
         tone: 'error',
-        title: 'Application not submitted',
+        title: 'Verification code not sent',
         message,
       })
-      return
+    } finally {
+      setIsSendingOtp(false)
     }
-
-    setSubmittedOk(true)
-    setOtpSentTo(null)
-    setStatusMessage(null)
-    showAlert({
-      tone: 'success',
-      title: 'Provider application received',
-      message: 'We emailed your confirmation and sent your details to our admin team for review.',
-      durationMs: 8000,
-    })
-    reset(defaultValues)
   }
 
   return (
@@ -226,31 +122,12 @@ export default function ProviderRegisterPage() {
           international phone number with country code.
         </p>
 
-        {submittedOk && (
-          <p
-            className="mt-6 rounded-xl border border-green-500/40 bg-green-500/10 px-4 py-3 text-sm text-green-200"
-            role="status"
-          >
-            Thanks. Your provider application has been received. We have emailed you a confirmation
-            and sent the details to our admin team for review.
-          </p>
-        )}
-
         {submitError && (
           <p
             className="mt-6 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200"
             role="alert"
           >
             {submitError}
-          </p>
-        )}
-
-        {statusMessage && (
-          <p
-            className="mt-6 rounded-xl border border-pink-400/40 bg-pink-500/10 px-4 py-3 text-sm text-pink-100"
-            role="status"
-          >
-            {statusMessage}
           </p>
         )}
 
@@ -438,55 +315,12 @@ export default function ProviderRegisterPage() {
             )}
           </div>
 
-          {otpSentTo && (
-            <div className="rounded-2xl border border-white/12 bg-black/35 p-4 shadow-2xl shadow-pink-950/20">
-              <label htmlFor="otp-code" className="block text-sm font-medium text-white/80">
-                Email verification code <span className="text-pink-400">*</span>
-              </label>
-              <input
-                id="otp-code"
-                autoComplete="one-time-code"
-                inputMode="numeric"
-                maxLength={6}
-                placeholder="123456"
-                className={`${inputClass}${errors.otpCode ? inputErrorClass : ''}`}
-                aria-invalid={Boolean(errors.otpCode)}
-                aria-describedby={errors.otpCode ? 'err-otpCode' : 'hint-otpCode'}
-                {...register('otpCode')}
-              />
-              <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p id="hint-otpCode" className="text-xs text-white/45">
-                  The code expires in 10 minutes. Check spam if it is not in your inbox.
-                </p>
-                <button
-                  type="button"
-                  disabled={isSendingOtp || isSubmitting}
-                  onClick={handleSubmit((data) => sendEmailOtp(asParsedOutput(data).email.toLowerCase()))}
-                  className="self-start rounded-full border border-white/15 px-4 py-2 text-xs font-semibold text-white/80 transition hover:border-pink-400/60 hover:text-pink-200 focus:outline-none focus:ring-2 focus:ring-pink-500 disabled:cursor-not-allowed disabled:opacity-60 sm:self-auto"
-                >
-                  {isSendingOtp ? 'Sending...' : 'Resend code'}
-                </button>
-              </div>
-              {errors.otpCode && (
-                <p id="err-otpCode" className="mt-1.5 text-sm text-red-300" role="alert">
-                  {errors.otpCode.message}
-                </p>
-              )}
-            </div>
-          )}
-
           <button
             type="submit"
             disabled={isSubmitting || isSendingOtp}
             className="w-full rounded-full bg-pink-600 py-3.5 text-base font-semibold text-white shadow-lg transition hover:bg-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 focus:ring-offset-gray-900 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isSubmitting || isSendingOtp
-              ? otpSentTo
-                ? 'Submitting...'
-                : 'Sending code...'
-              : otpSentTo
-                ? 'Submit verified application'
-                : 'Send verification code'}
+            {isSubmitting || isSendingOtp ? 'Sending code...' : 'Continue to verification'}
           </button>
           <p className="text-center text-xs text-white/45">
             We review every provider before they appear in the marketplace.

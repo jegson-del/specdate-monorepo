@@ -14,13 +14,13 @@ class MeController extends Controller
 
         $data = $user->toArray();
 
-        $avatarMedia = $user->media->where('type', 'avatar')->whereNull('hidden_at')->sortByDesc('id')->first();
+        $avatarMedia = $user->media->where('type', 'avatar')->whereNull('hidden_at')->filter(fn ($media) => $media->isShareable())->sortByDesc('id')->first();
         if (isset($data['profile']) && is_array($data['profile'])) {
             $data['profile']['avatar'] = $avatarMedia ? $avatarMedia->url : null;
             $data['profile']['avatar_media_id'] = $avatarMedia?->id;
         }
 
-        $gallery = $user->media->where('type', 'profile_gallery')->whereNull('hidden_at')->sortByDesc('id')->take(6)->values();
+        $gallery = $user->media->where('type', 'profile_gallery')->whereNull('hidden_at')->filter(fn ($media) => $media->isShareable())->sortByDesc('id')->take(6)->values();
         $data['profile_gallery_media'] = $gallery
             ->map(fn ($media) => ['id' => $media->id, 'url' => $media->url])
             ->all();
