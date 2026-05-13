@@ -14,7 +14,8 @@ const navItems: NavItem[] = [
   { label: 'Overview', to: '/admin', enabled: true },
   { label: 'Users', to: '/admin/users', enabled: true },
   { label: 'Provider applications', to: '/admin/providers', enabled: true, badgeKey: 'providers_pending' },
-  { label: 'Moderation', to: '/admin/moderation', enabled: true, badgeKey: 'reports_open' },
+  { label: 'Upload moderation', to: '/admin/media-moderation', enabled: true, badgeKey: 'media_needs_review' },
+  { label: 'Reports', to: '/admin/moderation', enabled: true, badgeKey: 'reports_open' },
   { label: 'Support', to: '/admin/support', enabled: true, badgeKey: 'support_needs_admin' },
 ] as const
 
@@ -73,7 +74,7 @@ export function AdminShell({
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <TopbarCounter label="Providers" value={stats.providers_pending ?? 0} />
-                <TopbarCounter label="Reports" value={stats.reports_open ?? 0} />
+                <TopbarCounter label="Moderation" value={moderationAttentionCount(stats)} />
                 <TopbarCounter label="Support" value={stats.support_needs_admin ?? 0} />
                 <button
                   type="button"
@@ -84,7 +85,7 @@ export function AdminShell({
                   <AttentionBadge
                     value={
                       (stats.providers_pending ?? 0) +
-                      (stats.reports_open ?? 0) +
+                      moderationAttentionCount(stats) +
                       (stats.support_needs_admin ?? 0)
                     }
                   />
@@ -107,6 +108,10 @@ export function AdminShell({
       </div>
     </main>
   )
+}
+
+function moderationAttentionCount(stats: Record<string, number>) {
+  return (stats.reports_open ?? 0) + (stats.media_needs_review ?? 0)
 }
 
 function AttentionBadge({ value }: { value?: number }) {

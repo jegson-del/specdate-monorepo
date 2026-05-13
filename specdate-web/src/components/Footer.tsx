@@ -54,6 +54,19 @@ const defaultSocialLinks: SocialLink[] = [
   },
 ]
 
+const legalLinks = [
+  { label: 'Terms', href: '/terms' },
+  { label: 'Privacy', href: '/privacy' },
+  { label: 'Cookie Policy', href: '/cookie-policy' },
+  { label: 'Trust and Safety', href: '/trustandsafety' },
+  { label: 'Safe Dating Advice', href: '/safe-dating-advice' },
+  { label: 'Privacy Request', href: '/privacy-request' },
+  {
+    label: 'Consumer Health Data Privacy Policy',
+    href: '/consumer-health-data-privacy-policy',
+  },
+] as const
+
 export interface FooterProps {
   socialLinks?: SocialLink[]
   /** Optional store URLs (defaults to # until you set real links). */
@@ -94,6 +107,20 @@ export function Footer({
                 aria-label={label}
               >
                 {icon}
+              </a>
+            ))}
+          </nav>
+          <nav
+            aria-label="Legal and safety links"
+            className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2"
+          >
+            {legalLinks.map(({ label, href }) => (
+              <a
+                key={href}
+                href={href}
+                className="text-sm font-medium text-white/55 transition hover:text-pink-300 focus:outline-none focus:ring-2 focus:ring-pink-500 rounded"
+              >
+                {label}
               </a>
             ))}
           </nav>

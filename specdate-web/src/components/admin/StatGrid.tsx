@@ -4,6 +4,8 @@ const statLabels: Record<string, string> = {
   providers_total: 'Providers',
   providers_pending: 'Pending providers',
   providers_approved: 'Approved providers',
+  media_needs_review: 'Upload moderation',
+  media_stale_scans: 'Stale scans',
   reports_open: 'Open reports',
   support_needs_admin: 'Support queue',
   vouchers_total: 'Date vouchers',

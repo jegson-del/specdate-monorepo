@@ -1,4 +1,8 @@
-import { AdminLogin, AdminShell, ModerationReportsPanel } from '../components/admin'
+import {
+  AdminLogin,
+  AdminShell,
+  ModerationReportsPanel,
+} from '../components/admin'
 import { useAdminDashboard } from '../hooks/useAdminDashboard'
 
 export default function AdminModerationPage() {

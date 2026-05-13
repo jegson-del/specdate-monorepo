@@ -45,6 +45,64 @@ export type AdminReportStatus = 'all' | 'open' | 'reviewing' | 'resolved' | 'dis
 
 export type AdminReportAction = 'none' | 'hide_content' | 'suspend_user' | 'delete_media'
 
+export type AdminMediaModerationStatus =
+  | 'needs_review'
+  | 'reported'
+  | 'stale'
+  | 'pending'
+  | 'scanning'
+  | 'manual_pending'
+  | 'flagged'
+  | 'failed'
+  | 'approved'
+  | 'hidden'
+
+export type AdminMediaModerationItem = {
+  id: number
+  user: {
+    id: number
+    name: string
+    username: string
+    email: string
+  } | null
+  url: string
+  file_path: string
+  type: string
+  mime_type: string | null
+  size: number | null
+  hidden_at: string | null
+  hidden_reason: string | null
+  moderation_status: string
+  moderation_labels: unknown
+  rekognition_job_id: string | null
+  moderation_checked_at: string | null
+  moderation_error: string | null
+  reports_count: number
+  open_reports_count: number
+  reports: Array<{
+    id: number
+    reason: string
+    details: string | null
+    status: string
+    created_at: string
+    reporter: {
+      id: number
+      name: string
+      username: string
+    } | null
+  }>
+  created_at: string
+}
+
+export type AdminPagination = {
+  current_page: number
+  from: number | null
+  last_page: number
+  per_page: number
+  to: number | null
+  total: number
+}
+
 export type AdminReport = {
   id: number
   target_type: string

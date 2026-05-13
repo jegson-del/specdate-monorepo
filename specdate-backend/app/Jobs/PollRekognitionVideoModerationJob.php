@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Media;
+use App\Services\AdminNotificationService;
 use App\Services\MediaModerationService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -25,7 +26,7 @@ class PollRekognitionVideoModerationJob implements ShouldQueue
         public int $attempt = 0,
     ) {}
 
-    public function handle(MediaModerationService $moderation): void
+    public function handle(MediaModerationService $moderation, AdminNotificationService $adminNotifications): void
     {
         $maxAttempts = (int) config('services.rekognition.video_poll_max_attempts', 80);
         if ($this->attempt >= $maxAttempts) {
@@ -36,6 +37,12 @@ class PollRekognitionVideoModerationJob implements ShouldQueue
                     'moderation_error' => 'Video moderation polling exceeded max attempts.',
                     'moderation_checked_at' => now(),
                 ]);
+                $adminNotifications->notifyMediaModerationCase(
+                    $media->fresh(),
+                    'rekognition_stale_failed',
+                    'Upload scan timed out',
+                    'A video upload scan exceeded the polling limit and needs admin review.'
+                );
             }
 
             return;
@@ -65,6 +72,12 @@ class PollRekognitionVideoModerationJob implements ShouldQueue
                     'moderation_checked_at' => now(),
                     'rekognition_job_id' => null,
                 ]);
+                $adminNotifications->notifyMediaModerationCase(
+                    $media->fresh(),
+                    'rekognition_failed',
+                    'Upload moderation failed',
+                    'A video upload could not be scanned and needs admin review.'
+                );
 
                 return;
             }
@@ -76,6 +89,12 @@ class PollRekognitionVideoModerationJob implements ShouldQueue
                     'moderation_checked_at' => now(),
                     'rekognition_job_id' => null,
                 ]);
+                $adminNotifications->notifyMediaModerationCase(
+                    $media->fresh(),
+                    'rekognition_failed',
+                    'Upload moderation failed',
+                    'A video upload returned an unexpected scan state and needs admin review.'
+                );
 
                 return;
             }
@@ -92,6 +111,14 @@ class PollRekognitionVideoModerationJob implements ShouldQueue
                 'rekognition_job_id' => null,
                 'moderation_error' => null,
             ]);
+            if ($final['flagged']) {
+                $adminNotifications->notifyMediaModerationCase(
+                    $media->fresh(),
+                    'rekognition_flagged',
+                    'Upload flagged by Rekognition',
+                    'A video upload needs admin review before it can be shown.'
+                );
+            }
         } catch (\Throwable $e) {
             Log::error('PollRekognitionVideoModerationJob failed', [
                 'media_id' => $this->mediaId,
@@ -103,6 +130,12 @@ class PollRekognitionVideoModerationJob implements ShouldQueue
                 'moderation_error' => $e->getMessage(),
                 'moderation_checked_at' => now(),
             ]);
+            $adminNotifications->notifyMediaModerationCase(
+                $media->fresh(),
+                'rekognition_failed',
+                'Upload moderation failed',
+                'A video upload could not be scanned and needs admin review.'
+            );
         }
     }
 }

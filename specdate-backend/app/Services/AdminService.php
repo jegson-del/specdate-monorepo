@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\DateVoucher;
+use App\Models\Media;
 use App\Models\ProviderProfile;
 use App\Models\Report;
 use App\Models\SupportTicket;
@@ -54,6 +55,8 @@ class AdminService
 
         $providerStatus = $this->providerStatusCounts();
         $voucherStatuses = $this->voucherStatusCounts();
+        $reportsOpen = Report::whereIn('status', ['open', 'reviewing'])->count();
+        $mediaNeedsReview = $this->mediaNeedsReviewCount();
 
         return [
             'stats' => [
@@ -64,7 +67,10 @@ class AdminService
                 'providers_approved' => $providerStatus['approved'],
                 'providers_rejected' => $providerStatus['rejected'],
                 'admins_total' => User::where('role', 'admin')->count(),
-                'reports_open' => Report::whereIn('status', ['open', 'reviewing'])->count(),
+                'reports_open' => $reportsOpen,
+                'media_needs_review' => $mediaNeedsReview,
+                'media_stale_scans' => $this->staleScanCount(),
+                'moderation_needs_review' => $reportsOpen + $mediaNeedsReview,
                 'support_needs_admin' => SupportTicket::whereIn('status', ['open', 'pending_admin'])->count(),
                 'vouchers_total' => DateVoucher::count(),
                 'vouchers_redeemed' => $voucherStatuses['redeemed'],
@@ -138,6 +144,29 @@ class AdminService
             'cancelled' => (int) ($statuses[DateVoucher::STATUS_CANCELLED] ?? 0),
             'expired' => (int) ($statuses[DateVoucher::STATUS_EXPIRED] ?? 0),
         ];
+    }
+
+    private function mediaNeedsReviewCount(): int
+    {
+        $reportedMediaIds = Report::query()
+            ->where('target_type', 'media')
+            ->whereIn('status', ['open', 'reviewing'])
+            ->select('target_id');
+
+        return Media::query()
+            ->where(function ($query) use ($reportedMediaIds) {
+                $query->whereIn('moderation_status', ['pending', 'scanning', 'manual_pending', 'flagged', 'failed'])
+                    ->orWhereIn('id', $reportedMediaIds);
+            })
+            ->count();
+    }
+
+    private function staleScanCount(): int
+    {
+        return Media::query()
+            ->whereIn('moderation_status', ['pending', 'scanning'])
+            ->where('created_at', '<=', now()->subMinutes(15))
+            ->count();
     }
 
     private function recentProviders(): array

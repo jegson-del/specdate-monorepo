@@ -1,6 +1,9 @@
 import type {
   AdminReport,
   AdminReportAction,
+  AdminMediaModerationItem,
+  AdminMediaModerationStatus,
+  AdminPagination,
   AdminReportStatus,
   AdminSupportTicket,
   AdminSupportTicketDetail,
@@ -22,6 +25,12 @@ type ApiEnvelope<T> = {
 
 type Paginated<T> = {
   data: T[]
+  current_page?: number
+  from?: number | null
+  last_page?: number
+  per_page?: number
+  to?: number | null
+  total?: number
 }
 
 export const adminTokenKey = 'dateusher_admin_token'
@@ -199,6 +208,51 @@ export async function getAdminReports(token: string, status: AdminReportStatus, 
   }
 
   return result.data.data
+}
+
+export async function getAdminMediaModerationQueue(
+  token: string,
+  status: AdminMediaModerationStatus,
+  page = 1,
+  perPage = 25,
+) {
+  const query = new URLSearchParams({ page: String(page), per_page: String(perPage) })
+  query.set('status', status)
+
+  const response = await fetch(`${getApiBase()}/api/admin/media-moderation?${query.toString()}`, {
+    headers: adminHeaders(token),
+  })
+  const result = (await parseJson(response)) as ApiEnvelope<Paginated<AdminMediaModerationItem>> | null
+
+  if (!response.ok || !result) {
+    throw new Error(pickApiError(result, 'Media moderation queue could not be loaded.'))
+  }
+
+  return {
+    items: result.data.data,
+    pagination: {
+      current_page: result.data.current_page ?? page,
+      from: result.data.from ?? null,
+      last_page: result.data.last_page ?? 1,
+      per_page: result.data.per_page ?? perPage,
+      to: result.data.to ?? null,
+      total: result.data.total ?? result.data.data.length,
+    } satisfies AdminPagination,
+  }
+}
+
+export async function approveAdminMedia(token: string, mediaId: number) {
+  const response = await fetch(`${getApiBase()}/api/admin/media-moderation/${mediaId}/approve`, {
+    method: 'PATCH',
+    headers: adminHeaders(token),
+  })
+  const result = (await parseJson(response)) as { message?: string } | null
+
+  if (!response.ok) {
+    throw new Error(pickApiError(result, 'Media could not be approved.'))
+  }
+
+  return result?.message || 'Media approved.'
 }
 
 export async function updateAdminReport(

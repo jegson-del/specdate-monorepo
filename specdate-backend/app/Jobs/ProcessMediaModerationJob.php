@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Media;
+use App\Services\AdminNotificationService;
 use App\Services\MediaModerationService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -22,7 +23,7 @@ class ProcessMediaModerationJob implements ShouldQueue
 
     public function __construct(public int $mediaId) {}
 
-    public function handle(MediaModerationService $moderation): void
+    public function handle(MediaModerationService $moderation, AdminNotificationService $adminNotifications): void
     {
         $media = Media::query()->find($this->mediaId);
         if ($media === null) {
@@ -61,6 +62,14 @@ class ProcessMediaModerationJob implements ShouldQueue
                     'moderation_checked_at' => now(),
                     'rekognition_job_id' => null,
                 ]);
+                if ($result['flagged']) {
+                    $adminNotifications->notifyMediaModerationCase(
+                        $media->fresh(),
+                        'rekognition_flagged',
+                        'Upload flagged by Rekognition',
+                        'A media upload needs admin review before it can be shown.'
+                    );
+                }
 
                 return;
             }
@@ -81,6 +90,12 @@ class ProcessMediaModerationJob implements ShouldQueue
                 'moderation_error' => $e->getMessage(),
                 'moderation_checked_at' => now(),
             ]);
+            $adminNotifications->notifyMediaModerationCase(
+                $media->fresh(),
+                'rekognition_failed',
+                'Upload moderation failed',
+                'A media upload could not be scanned and needs admin review.'
+            );
         }
     }
 }

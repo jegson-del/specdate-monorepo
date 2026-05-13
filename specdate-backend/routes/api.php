@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AdminMediaModerationController;
 use App\Http\Controllers\AdminProviderController;
 use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\Api\CreditsController;
@@ -65,6 +66,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/date-vouchers/{voucher}/review-dismiss', [ReviewController::class, 'dismiss']);
     Route::get('/admin/reports', [ReportController::class, 'index']);
     Route::patch('/admin/reports/{report}', [ReportController::class, 'update']);
+    Route::get('/admin/media-moderation', [AdminMediaModerationController::class, 'index']);
+    Route::patch('/admin/media-moderation/{media}/approve', [AdminMediaModerationController::class, 'approve']);
     Route::get('/admin/me', [AdminController::class, 'me']);
     Route::get('/admin/dashboard', [AdminController::class, 'dashboard']);
     Route::get('/admin/users', [AdminUserController::class, 'index']);
