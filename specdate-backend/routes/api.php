@@ -3,8 +3,10 @@
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AdminMediaModerationController;
+use App\Http\Controllers\AdminModerationCaseController;
 use App\Http\Controllers\AdminModerationStrikeController;
 use App\Http\Controllers\AdminProviderController;
+use App\Http\Controllers\AdminRiskController;
 use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\Api\CreditsController;
 use App\Http\Controllers\Api\NotificationController;
@@ -72,6 +74,8 @@ Route::middleware(['auth:sanctum', 'device.fingerprint'])->group(function () {
     Route::patch('/admin/reports/{report}', [ReportController::class, 'update']);
     Route::get('/admin/media-moderation', [AdminMediaModerationController::class, 'index']);
     Route::patch('/admin/media-moderation/{media}/approve', [AdminMediaModerationController::class, 'approve']);
+    Route::get('/admin/moderation/cases', [AdminModerationCaseController::class, 'index']);
+    Route::get('/admin/moderation/cases/{case}', [AdminModerationCaseController::class, 'show']);
     Route::post('/admin/moderation/cases/{case}/warning', [AdminModerationStrikeController::class, 'warning']);
     Route::post('/admin/moderation/cases/{case}/strike', [AdminModerationStrikeController::class, 'issue']);
     Route::post('/admin/moderation/cases/{case}/suspend', [AdminModerationStrikeController::class, 'suspend']);
@@ -81,6 +85,9 @@ Route::middleware(['auth:sanctum', 'device.fingerprint'])->group(function () {
     Route::patch('/admin/moderation/appeals/{appeal}', [ModerationAppealController::class, 'adminUpdate']);
     Route::get('/admin/me', [AdminController::class, 'me']);
     Route::get('/admin/dashboard', [AdminController::class, 'dashboard']);
+    Route::get('/admin/risk/users', [AdminRiskController::class, 'users']);
+    Route::get('/admin/risk/ip-events', [AdminRiskController::class, 'ipEvents']);
+    Route::get('/admin/users/{user}/risk', [AdminRiskController::class, 'user']);
     Route::get('/admin/users', [AdminUserController::class, 'index']);
     Route::get('/admin/users/{user}', [AdminUserController::class, 'show']);
     Route::patch('/admin/users/{user}/pause', [AdminUserController::class, 'pause']);

@@ -11,6 +11,8 @@ import {
   getAdminMediaModerationQueue,
   getAdminMe,
   getAdminModerationAppeals,
+  getAdminModerationCase,
+  getAdminModerationCases,
   getAdminReports,
   getAdminSupportTicket,
   getAdminSupportTickets,
@@ -27,6 +29,9 @@ import {
 import type {
   AdminMediaModerationStatus,
   AdminModerationAppealStatus,
+  AdminModerationCaseSeverity,
+  AdminModerationCaseSource,
+  AdminModerationCaseStatus,
   AdminReportAction,
   AdminReportStatus,
   AdminSupportTicketStatus,
@@ -37,11 +42,13 @@ type AdminDashboardOptions = {
   loadDashboard?: boolean
   loadMediaModeration?: boolean
   loadModerationAppeals?: boolean
+  loadModerationCases?: boolean
   loadProviders?: boolean
   loadReports?: boolean
   loadSupport?: boolean
   mediaPerPage?: number
   moderationAppealPerPage?: number
+  moderationCasePerPage?: number
   providerPerPage?: number
   reportPerPage?: number
   supportPerPage?: number
@@ -56,28 +63,38 @@ type ReportUpdatePayload = {
 const adminQueryKeys = {
   dashboard: ['admin', 'dashboard'] as const,
   me: ['admin', 'me'] as const,
-  providers: (status: ProviderApplicationStatus, perPage: number) =>
-    ['admin', 'providers', status, perPage] as const,
+  providers: (status: ProviderApplicationStatus, page: number, perPage: number) =>
+    ['admin', 'providers', status, page, perPage] as const,
   reports: (status: AdminReportStatus, page: number, perPage: number) =>
     ['admin', 'reports', status, page, perPage] as const,
   mediaModeration: (status: AdminMediaModerationStatus, page: number, perPage: number) =>
     ['admin', 'media-moderation', status, page, perPage] as const,
   moderationAppeals: (status: AdminModerationAppealStatus, page: number, perPage: number) =>
     ['admin', 'moderation-appeals', status, page, perPage] as const,
+  moderationCases: (
+    status: AdminModerationCaseStatus,
+    source: AdminModerationCaseSource,
+    severity: AdminModerationCaseSeverity,
+    query: string,
+    page: number,
+    perPage: number,
+  ) => ['admin', 'moderation-cases', status, source, severity, query, page, perPage] as const,
   root: ['admin'] as const,
-  support: (status: AdminSupportTicketStatus, perPage: number) =>
-    ['admin', 'support', status, perPage] as const,
+  support: (status: AdminSupportTicketStatus, page: number, perPage: number) =>
+    ['admin', 'support', status, page, perPage] as const,
 }
 
 export function useAdminDashboard({
   loadDashboard = true,
   loadMediaModeration = false,
   loadModerationAppeals = false,
+  loadModerationCases = false,
   loadProviders = true,
   loadReports = true,
   loadSupport = true,
   mediaPerPage = 25,
   moderationAppealPerPage = 25,
+  moderationCasePerPage = 25,
   providerPerPage = 10,
   reportPerPage = 10,
   supportPerPage = 10,
@@ -88,9 +105,20 @@ export function useAdminDashboard({
   const [mediaStatus, setMediaStatus] = useState<AdminMediaModerationStatus>('needs_review')
   const [moderationAppealStatus, setModerationAppealStatus] =
     useState<AdminModerationAppealStatus>('open')
+  const [moderationCaseSeverity, setModerationCaseSeverity] =
+    useState<AdminModerationCaseSeverity>('all')
+  const [moderationCaseSource, setModerationCaseSource] =
+    useState<AdminModerationCaseSource>('all')
+  const [moderationCaseStatus, setModerationCaseStatus] =
+    useState<AdminModerationCaseStatus>('open')
+  const [moderationCaseQuery, setModerationCaseQuery] = useState('')
   const [mediaPage, setMediaPage] = useState(1)
   const [moderationAppealPage, setModerationAppealPage] = useState(1)
+  const [moderationCasePage, setModerationCasePage] = useState(1)
+  const [selectedModerationCaseId, setSelectedModerationCaseId] = useState<number | null>(null)
+  const [providerPage, setProviderPage] = useState(1)
   const [reportPage, setReportPage] = useState(1)
+  const [supportPage, setSupportPage] = useState(1)
   const [reportStatus, setReportStatus] = useState<AdminReportStatus>('open')
   const [providerStatus, setProviderStatus] = useState<ProviderApplicationStatus>('pending')
   const [supportStatus, setSupportStatus] = useState<AdminSupportTicketStatus>('pending_admin')
@@ -124,8 +152,8 @@ export function useAdminDashboard({
 
   const providersQuery = useQuery({
     enabled: isAuthenticated && loadProviders,
-    queryKey: adminQueryKeys.providers(providerStatus, providerPerPage),
-    queryFn: () => getProviderApplications(token, providerStatus, providerPerPage),
+    queryKey: adminQueryKeys.providers(providerStatus, providerPage, providerPerPage),
+    queryFn: () => getProviderApplications(token, providerStatus, providerPage, providerPerPage),
     refetchInterval: 20_000,
     staleTime: 10_000,
   })
@@ -171,10 +199,43 @@ export function useAdminDashboard({
     staleTime: 10_000,
   })
 
+  const moderationCasesQuery = useQuery({
+    enabled: isAuthenticated && loadModerationCases,
+    queryKey: adminQueryKeys.moderationCases(
+      moderationCaseStatus,
+      moderationCaseSource,
+      moderationCaseSeverity,
+      moderationCaseQuery,
+      moderationCasePage,
+      moderationCasePerPage,
+    ),
+    queryFn: () =>
+      getAdminModerationCases(
+        token,
+        {
+          q: moderationCaseQuery,
+          severity: moderationCaseSeverity,
+          source: moderationCaseSource,
+          status: moderationCaseStatus,
+        },
+        moderationCasePage,
+        moderationCasePerPage,
+      ),
+    refetchInterval: 20_000,
+    staleTime: 10_000,
+  })
+
+  const moderationCaseDetailQuery = useQuery({
+    enabled: isAuthenticated && Boolean(selectedModerationCaseId),
+    queryKey: ['admin', 'moderation-case', selectedModerationCaseId],
+    queryFn: () => getAdminModerationCase(token, selectedModerationCaseId as number),
+    staleTime: 10_000,
+  })
+
   const supportQuery = useQuery({
     enabled: isAuthenticated && loadSupport,
-    queryKey: adminQueryKeys.support(supportStatus, supportPerPage),
-    queryFn: () => getAdminSupportTickets(token, supportStatus, supportPerPage),
+    queryKey: adminQueryKeys.support(supportStatus, supportPage, supportPerPage),
+    queryFn: () => getAdminSupportTickets(token, supportStatus, supportPage, supportPerPage),
     refetchInterval: 10_000,
     staleTime: 5_000,
   })
@@ -192,6 +253,7 @@ export function useAdminDashboard({
       dashboardQuery.error,
       mediaModerationQuery.error,
       moderationAppealsQuery.error,
+      moderationCasesQuery.error,
       providersQuery.error,
       reportsQuery.error,
       supportQuery.error,
@@ -210,6 +272,7 @@ export function useAdminDashboard({
     dashboardQuery.error,
     mediaModerationQuery.error,
     moderationAppealsQuery.error,
+    moderationCasesQuery.error,
     meQuery.error,
     providersQuery.error,
     reportsQuery.error,
@@ -238,6 +301,7 @@ export function useAdminDashboard({
     queryClient.invalidateQueries({ queryKey: adminQueryKeys.dashboard })
     queryClient.invalidateQueries({ queryKey: ['admin', 'media-moderation'] })
     queryClient.invalidateQueries({ queryKey: ['admin', 'moderation-appeals'] })
+    queryClient.invalidateQueries({ queryKey: ['admin', 'moderation-cases'] })
     queryClient.invalidateQueries({ queryKey: ['admin', 'providers'] })
     queryClient.invalidateQueries({ queryKey: ['admin', 'reports'] })
     queryClient.invalidateQueries({ queryKey: ['admin', 'support'] })
@@ -497,9 +561,39 @@ export function useAdminDashboard({
     setModerationAppealPage(1)
   }
 
+  const changeModerationCaseStatus = (status: AdminModerationCaseStatus) => {
+    setModerationCaseStatus(status)
+    setModerationCasePage(1)
+  }
+
+  const changeModerationCaseSource = (source: AdminModerationCaseSource) => {
+    setModerationCaseSource(source)
+    setModerationCasePage(1)
+  }
+
+  const changeModerationCaseSeverity = (severity: AdminModerationCaseSeverity) => {
+    setModerationCaseSeverity(severity)
+    setModerationCasePage(1)
+  }
+
+  const changeModerationCaseQuery = (query: string) => {
+    setModerationCaseQuery(query)
+    setModerationCasePage(1)
+  }
+
+  const changeProviderStatus = (status: ProviderApplicationStatus) => {
+    setProviderStatus(status)
+    setProviderPage(1)
+  }
+
   const changeReportStatus = (status: AdminReportStatus) => {
     setReportStatus(status)
     setReportPage(1)
+  }
+
+  const changeSupportStatus = (status: AdminSupportTicketStatus) => {
+    setSupportStatus(status)
+    setSupportPage(1)
   }
 
   return {
@@ -514,6 +608,8 @@ export function useAdminDashboard({
       dashboardQuery.isFetching ||
       mediaModerationQuery.isFetching ||
       moderationAppealsQuery.isFetching ||
+      moderationCasesQuery.isFetching ||
+      moderationCaseDetailQuery.isFetching ||
       providersQuery.isFetching ||
       reportsQuery.isFetching ||
       supportQuery.isFetching,
@@ -526,11 +622,22 @@ export function useAdminDashboard({
     moderationAppealPagination: moderationAppealsQuery.data?.pagination ?? null,
     moderationAppealPage,
     moderationAppealStatus,
+    moderationCases: moderationCasesQuery.data?.items ?? [],
+    moderationCasePagination: moderationCasesQuery.data?.pagination ?? null,
+    moderationCasePage,
+    moderationCaseQuery,
+    moderationCaseSeverity,
+    moderationCaseSource,
+    moderationCaseStatus,
+    selectedModerationCase: moderationCaseDetailQuery.data ?? null,
+    selectedModerationCaseId,
     mediaPagination: mediaModerationQuery.data?.pagination ?? null,
     mediaPage,
     mediaStatus,
+    providerPagination: providersQuery.data?.pagination ?? null,
+    providerPage,
     providerStatus,
-    providers: providersQuery.data ?? [],
+    providers: providersQuery.data?.items ?? [],
     rejectProvider: (providerId: number, reason: string, adminNote?: string) =>
       rejectProviderMutation.mutate({ adminNote, providerId, reason }),
     reports: reportsQuery.data?.items ?? [],
@@ -545,18 +652,28 @@ export function useAdminDashboard({
     selectedProvider: providerDetailQuery.data ?? null,
     selectedProviderId,
     setSelectedProviderId,
-    setProviderStatus,
+    setProviderPage,
+    setProviderStatus: changeProviderStatus,
     setMediaPage,
     setMediaStatus: changeMediaStatus,
     setModerationAppealPage,
     setModerationAppealStatus: changeModerationAppealStatus,
+    setModerationCasePage,
+    setModerationCaseQuery: changeModerationCaseQuery,
+    setModerationCaseSeverity: changeModerationCaseSeverity,
+    setModerationCaseSource: changeModerationCaseSource,
+    setModerationCaseStatus: changeModerationCaseStatus,
     setReportPage,
     setReportStatus: changeReportStatus,
-    setSupportStatus,
+    setSelectedModerationCaseId,
+    setSupportPage,
+    setSupportStatus: changeSupportStatus,
     sendSupportReply: (ticketId: number, body: string) =>
       sendSupportReplyMutation.mutate({ body, ticketId }),
     supportStatus,
-    supportTickets: supportQuery.data ?? [],
+    supportPagination: supportQuery.data?.pagination ?? null,
+    supportPage,
+    supportTickets: supportQuery.data?.items ?? [],
     openSupportTicket,
     updateReport: (reportId: number, payload: ReportUpdatePayload) =>
       updateReportMutation.mutate({ payload, reportId }),

@@ -1,19 +1,23 @@
 import { useState } from 'react'
 import type {
+  AdminPagination,
   AdminSupportTicket,
   AdminSupportTicketDetail,
   AdminSupportTicketStatus,
 } from '../../types/admin'
+import { AdminPaginationBar, AdminPaginationSummary } from './AdminPaginationBar'
 
 type SupportTicketsPanelProps = {
   isUpdating: boolean
   onOpenTicket: (ticketId: number) => void
+  onPageChange: (page: number) => void
   onReply: (ticketId: number, body: string) => void
   onStatusChange: (status: AdminSupportTicketStatus) => void
   onUpdateStatus: (
     ticketId: number,
     status: Exclude<AdminSupportTicketStatus, 'all'>,
   ) => void
+  pagination: AdminPagination | null
   selectedTicket: AdminSupportTicketDetail | null
   selectedTicketId: number | null
   status: AdminSupportTicketStatus
@@ -33,9 +37,11 @@ const statusOptions: AdminSupportTicketStatus[] = [
 export function SupportTicketsPanel({
   isUpdating,
   onOpenTicket,
+  onPageChange,
   onReply,
   onStatusChange,
   onUpdateStatus,
+  pagination,
   selectedTicket,
   selectedTicketId,
   status,
@@ -51,17 +57,20 @@ export function SupportTicketsPanel({
             Open tickets to read the full thread, reply with context, and move conversations forward.
           </p>
         </div>
-        <select
-          value={status}
-          onChange={(event) => onStatusChange(event.target.value as AdminSupportTicketStatus)}
-          className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm font-bold"
-        >
-          {statusOptions.map((option) => (
-            <option key={option} value={option}>
-              {option.replace('_', ' ').replace(/^\w/, (letter) => letter.toUpperCase())}
-            </option>
-          ))}
-        </select>
+        <div className="flex flex-wrap items-center gap-3">
+          <AdminPaginationSummary pagination={pagination} />
+          <select
+            value={status}
+            onChange={(event) => onStatusChange(event.target.value as AdminSupportTicketStatus)}
+            className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm font-bold"
+          >
+            {statusOptions.map((option) => (
+              <option key={option} value={option}>
+                {option.replace('_', ' ').replace(/^\w/, (letter) => letter.toUpperCase())}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="grid xl:grid-cols-[minmax(0,1fr)_420px]">
@@ -88,6 +97,7 @@ export function SupportTicketsPanel({
           selectedTicket={selectedTicket}
         />
       </div>
+      <AdminPaginationBar onPageChange={onPageChange} pagination={pagination} />
     </section>
   )
 }

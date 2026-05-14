@@ -109,6 +109,11 @@ class User extends Authenticatable
         return $this->hasMany(DeviceFingerprint::class);
     }
 
+    public function ipRiskEvents()
+    {
+        return $this->hasMany(IpRiskEvent::class);
+    }
+
     public function balance()
     {
         return $this->hasOne(UserBalance::class);

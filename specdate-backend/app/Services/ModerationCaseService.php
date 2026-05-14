@@ -7,10 +7,106 @@ use App\Models\ModerationAction;
 use App\Models\ModerationCase;
 use App\Models\Report;
 use App\Models\User;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Arr;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class ModerationCaseService
 {
+    public function adminIndex(User $admin, array $filters = [], int $perPage = 25): LengthAwarePaginator
+    {
+        $this->ensureAdmin($admin);
+
+        $perPage = max(1, min($perPage, 100));
+        $search = trim((string) ($filters['q'] ?? ''));
+
+        $cases = ModerationCase::query()
+            ->with(['subjectUser:id,name,username,email,role,moderation_status,strike_count,is_paused,banned_at', 'openedByUser:id,name,username,email', 'assignedAdmin:id,name,username,email'])
+            ->withCount(['actions', 'appeals', 'strikes'])
+            ->when(($filters['status'] ?? null), fn ($query, string $status) => $query->where('status', $status))
+            ->when(($filters['source'] ?? null), fn ($query, string $source) => $query->where('source', $source))
+            ->when(($filters['severity'] ?? null), fn ($query, string $severity) => $query->where('severity', $severity))
+            ->when(($filters['target_type'] ?? null), fn ($query, string $targetType) => $query->where('target_type', $targetType))
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($nested) use ($search) {
+                    $nested->where('summary', 'like', "%{$search}%")
+                        ->orWhere('target_type', 'like', "%{$search}%")
+                        ->orWhereHas('subjectUser', fn ($user) => $user
+                            ->where('name', 'like', "%{$search}%")
+                            ->orWhere('username', 'like', "%{$search}%")
+                            ->orWhere('email', 'like', "%{$search}%"));
+                });
+            })
+            ->latest('opened_at')
+            ->paginate($perPage);
+
+        $cases->getCollection()->transform(fn (ModerationCase $case) => $this->caseSummaryPayload($case));
+
+        return $cases;
+    }
+
+    public function adminShow(User $admin, ModerationCase $case): array
+    {
+        $this->ensureAdmin($admin);
+
+        $case->load([
+            'subjectUser:id,name,username,email,role,moderation_status,strike_count,is_paused,banned_at',
+            'openedByUser:id,name,username,email',
+            'assignedAdmin:id,name,username,email',
+            'actions.user:id,name,username,email',
+            'actions.admin:id,name,username,email',
+            'strikes.issuedByUser:id,name,username,email',
+            'strikes.revokedByUser:id,name,username,email',
+            'appeals.user:id,name,username,email,moderation_status,strike_count',
+            'appeals.reviewedByUser:id,name,username,email',
+        ]);
+
+        return array_merge($this->caseSummaryPayload($case), [
+            'evidence' => $case->evidence,
+            'reports' => $this->caseReports($case),
+            'actions' => $case->actions
+                ->sortByDesc('id')
+                ->values()
+                ->map(fn (ModerationAction $action) => $this->actionPayload($action))
+                ->all(),
+            'strikes' => $case->strikes
+                ->sortByDesc('id')
+                ->values()
+                ->map(fn ($strike) => [
+                    'id' => $strike->id,
+                    'user_id' => $strike->user_id,
+                    'strike_number' => $strike->strike_number,
+                    'category' => $strike->category,
+                    'severity' => $strike->severity,
+                    'reason' => $strike->reason,
+                    'active' => (bool) $strike->active,
+                    'expires_at' => $strike->expires_at,
+                    'revoked_at' => $strike->revoked_at,
+                    'revocation_reason' => $strike->revocation_reason,
+                    'created_at' => $strike->created_at,
+                    'issued_by_user' => $this->userLite($strike->issuedByUser),
+                    'revoked_by_user' => $this->userLite($strike->revokedByUser),
+                ])
+                ->all(),
+            'appeals' => $case->appeals
+                ->sortByDesc('submitted_at')
+                ->values()
+                ->map(fn ($appeal) => [
+                    'id' => $appeal->id,
+                    'user_id' => $appeal->user_id,
+                    'action_id' => $appeal->action_id,
+                    'status' => $appeal->status,
+                    'appeal_text' => $appeal->appeal_text,
+                    'decision_note' => $appeal->decision_note,
+                    'submitted_at' => $appeal->submitted_at,
+                    'reviewed_at' => $appeal->reviewed_at,
+                    'user' => $this->userLite($appeal->user),
+                    'reviewed_by_user' => $this->userLite($appeal->reviewedByUser),
+                ])
+                ->all(),
+        ]);
+    }
+
     public function createFromReport(Report $report): ModerationCase
     {
         $case = $this->findOpenCase(
@@ -270,5 +366,117 @@ class ModerationCaseService
             'suspend_user' => ModerationAction::ACTION_TEMPORARY_SUSPENSION,
             default => ModerationAction::ACTION_NO_ACTION,
         };
+    }
+
+    private function caseSummaryPayload(ModerationCase $case): array
+    {
+        return [
+            'id' => $case->id,
+            'subject_user_id' => $case->subject_user_id,
+            'opened_by_user_id' => $case->opened_by_user_id,
+            'assigned_admin_id' => $case->assigned_admin_id,
+            'source' => $case->source,
+            'target_type' => $case->target_type,
+            'target_id' => $case->target_id,
+            'severity' => $case->severity,
+            'status' => $case->status,
+            'summary' => $case->summary,
+            'opened_at' => $case->opened_at,
+            'closed_at' => $case->closed_at,
+            'created_at' => $case->created_at,
+            'subject_user' => $this->userLite($case->subjectUser),
+            'opened_by_user' => $this->userLite($case->openedByUser),
+            'assigned_admin' => $this->userLite($case->assignedAdmin),
+            'reports_count' => count($this->reportIdsForCase($case)),
+            'actions_count' => (int) ($case->actions_count ?? $case->actions()->count()),
+            'appeals_count' => (int) ($case->appeals_count ?? $case->appeals()->count()),
+            'strikes_count' => (int) ($case->strikes_count ?? $case->strikes()->count()),
+        ];
+    }
+
+    private function actionPayload(ModerationAction $action): array
+    {
+        return [
+            'id' => $action->id,
+            'user_id' => $action->user_id,
+            'target_type' => $action->target_type,
+            'target_id' => $action->target_id,
+            'admin_id' => $action->admin_id,
+            'action' => $action->action,
+            'reason' => $action->reason,
+            'metadata' => $action->metadata,
+            'created_at' => $action->created_at,
+            'user' => $this->userLite($action->user),
+            'admin' => $this->userLite($action->admin),
+        ];
+    }
+
+    private function caseReports(ModerationCase $case): array
+    {
+        $reportIds = $this->reportIdsForCase($case);
+        if ($reportIds === []) {
+            return [];
+        }
+
+        return Report::query()
+            ->with(['reporter:id,name,username,email', 'reportedUser:id,name,username,email', 'reviewer:id,name,username,email'])
+            ->whereIn('id', $reportIds)
+            ->latest()
+            ->get()
+            ->map(fn (Report $report) => [
+                'id' => $report->id,
+                'target_type' => $report->target_type,
+                'target_id' => $report->target_id,
+                'reason' => $report->reason,
+                'details' => $report->details,
+                'status' => $report->status,
+                'action' => $report->action,
+                'action_note' => $report->action_note,
+                'created_at' => $report->created_at,
+                'reviewed_at' => $report->reviewed_at,
+                'reporter' => $this->userLite($report->reporter),
+                'reported_user' => $this->userLite($report->reportedUser),
+                'reviewer' => $this->userLite($report->reviewer),
+            ])
+            ->all();
+    }
+
+    private function reportIdsForCase(ModerationCase $case): array
+    {
+        $evidence = $case->evidence ?? [];
+
+        return collect($evidence['report_ids'] ?? [])
+            ->push($evidence['latest_report_id'] ?? null)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function userLite(?User $user): ?array
+    {
+        if (! $user) {
+            return null;
+        }
+
+        return [
+            'id' => $user->id,
+            'name' => $user->name,
+            'username' => $user->username,
+            'email' => $user->email,
+            'role' => $user->role,
+            'moderation_status' => $user->moderation_status,
+            'strike_count' => $user->strike_count,
+            'is_paused' => $user->is_paused,
+            'banned_at' => $user->banned_at,
+        ];
+    }
+
+    private function ensureAdmin(?User $user): void
+    {
+        if (! $user || $user->role !== 'admin') {
+            throw new HttpException(403, 'Admin access required.');
+        }
     }
 }

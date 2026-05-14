@@ -47,7 +47,7 @@ class AdminMediaModerationTest extends TestCase
             'moderation_labels' => ['skipped' => true],
         ]);
 
-        Report::create([
+        $report = Report::create([
             'reporter_id' => $reporter->id,
             'reported_user_id' => $owner->id,
             'target_type' => 'media',
@@ -56,12 +56,37 @@ class AdminMediaModerationTest extends TestCase
             'status' => 'open',
         ]);
 
+        $flaggedCase = ModerationCase::create([
+            'subject_user_id' => $owner->id,
+            'source' => ModerationCase::SOURCE_AI_MEDIA,
+            'target_type' => 'media',
+            'target_id' => $flagged->id,
+            'severity' => ModerationCase::SEVERITY_HIGH,
+            'status' => ModerationCase::STATUS_OPEN,
+            'summary' => 'Flagged media',
+            'opened_at' => now(),
+        ]);
+        $reportedCase = ModerationCase::create([
+            'subject_user_id' => $owner->id,
+            'opened_by_user_id' => $reporter->id,
+            'source' => ModerationCase::SOURCE_REPORT,
+            'target_type' => 'media',
+            'target_id' => $reported->id,
+            'severity' => ModerationCase::SEVERITY_HIGH,
+            'status' => ModerationCase::STATUS_OPEN,
+            'summary' => 'Reported media',
+            'evidence' => ['report_ids' => [$report->id], 'latest_report_id' => $report->id],
+            'opened_at' => now(),
+        ]);
+
         Sanctum::actingAs($admin);
 
         $this->getJson('/api/admin/media-moderation?status=needs_review')
             ->assertOk()
             ->assertJsonFragment(['id' => $reported->id])
             ->assertJsonFragment(['id' => $flagged->id])
+            ->assertJsonFragment(['case_id' => $flaggedCase->id])
+            ->assertJsonFragment(['case_id' => $reportedCase->id])
             ->assertJsonFragment(['open_reports_count' => 1]);
     }
 

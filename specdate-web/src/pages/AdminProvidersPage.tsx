@@ -28,10 +28,12 @@ export default function AdminProvidersPage() {
         isLoading={adminDashboard.isLoading}
         onApprove={adminDashboard.approveProvider}
         onOpenProvider={adminDashboard.setSelectedProviderId}
+        onPageChange={adminDashboard.setProviderPage}
         onReject={adminDashboard.rejectProvider}
         onResendSetupEmail={adminDashboard.resendProviderSetupEmail}
         onSaveNote={adminDashboard.saveProviderNote}
         onStatusChange={adminDashboard.setProviderStatus}
+        pagination={adminDashboard.providerPagination}
         providers={adminDashboard.providers}
         selectedProvider={adminDashboard.selectedProvider}
         selectedProviderId={adminDashboard.selectedProviderId}

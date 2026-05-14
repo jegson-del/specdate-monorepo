@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import type {
   AdminPagination,
   AdminReport,
@@ -155,6 +156,14 @@ function ModerationReportRow({
               })
             }
           />
+          {report.case_id && (
+            <Link
+              to={`/admin/moderation/cases?case=${report.case_id}`}
+              className="inline-flex h-8 items-center rounded-lg border border-slate-300 px-3 text-xs font-black text-slate-700 transition hover:border-pink-300 hover:text-pink-700"
+            >
+              Open case
+            </Link>
+          )}
         </div>
       </td>
     </tr>

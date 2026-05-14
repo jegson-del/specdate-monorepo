@@ -1,14 +1,17 @@
 import { useEffect, useState } from 'react'
-import type { ProviderApplication, ProviderApplicationStatus } from '../../types/admin'
+import type { AdminPagination, ProviderApplication, ProviderApplicationStatus } from '../../types/admin'
+import { AdminPaginationBar, AdminPaginationSummary } from './AdminPaginationBar'
 
 type ProviderApplicationsTableProps = {
   isLoading: boolean
   onApprove: (providerId: number) => void
   onOpenProvider: (providerId: number) => void
+  onPageChange: (page: number) => void
   onReject: (providerId: number, reason: string, adminNote?: string) => void
   onResendSetupEmail: (providerId: number) => void
   onSaveNote: (providerId: number, note: string) => void
   onStatusChange: (status: ProviderApplicationStatus) => void
+  pagination: AdminPagination | null
   providers: ProviderApplication[]
   selectedProvider: ProviderApplication | null
   selectedProviderId: number | null
@@ -20,10 +23,12 @@ export function ProviderApplicationsTable({
   isLoading,
   onApprove,
   onOpenProvider,
+  onPageChange,
   onReject,
   onResendSetupEmail,
   onSaveNote,
   onStatusChange,
+  pagination,
   providers,
   selectedProvider,
   selectedProviderId,
@@ -39,16 +44,19 @@ export function ProviderApplicationsTable({
             Review provider details, approve, reject, save internal notes, or resend setup email.
           </p>
         </div>
-        <select
-          value={status}
-          onChange={(event) => onStatusChange(event.target.value as ProviderApplicationStatus)}
-          className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm font-bold"
-        >
-          <option value="pending">Pending</option>
-          <option value="approved">Approved</option>
-          <option value="rejected">Rejected</option>
-          <option value="all">All</option>
-        </select>
+        <div className="flex flex-wrap items-center gap-3">
+          <AdminPaginationSummary pagination={pagination} />
+          <select
+            value={status}
+            onChange={(event) => onStatusChange(event.target.value as ProviderApplicationStatus)}
+            className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm font-bold"
+          >
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+            <option value="all">All</option>
+          </select>
+        </div>
       </div>
 
       <div className="grid xl:grid-cols-[minmax(0,1fr)_420px]">
@@ -95,6 +103,7 @@ export function ProviderApplicationsTable({
           provider={selectedProvider}
         />
       </div>
+      <AdminPaginationBar onPageChange={onPageChange} pagination={pagination} />
     </section>
   )
 }

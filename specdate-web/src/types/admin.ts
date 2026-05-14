@@ -59,6 +59,7 @@ export type AdminMediaModerationStatus =
 
 export type AdminMediaModerationItem = {
   id: number
+  case_id: number | null
   user: {
     id: number
     name: string
@@ -103,8 +104,168 @@ export type AdminPagination = {
   total: number
 }
 
+export type AdminRiskUser = {
+  id: number
+  name: string
+  username: string | null
+  email: string
+  mobile: string | null
+  role: string
+  moderation_status: string | null
+  user_risk_score: number
+  strike_count: number
+  device_count: number
+  ip_risk_events_count: number
+  moderation_strikes_count: number
+  reporter_risk_score: number
+  false_report_count: number
+  valid_report_count: number
+  last_false_report_at: string | null
+  last_valid_report_at: string | null
+  created_at: string
+}
+
+export type AdminIpRiskEventType =
+  | 'all'
+  | 'report_rate_limit'
+  | 'appeal_rate_limit'
+  | 'false_report_pattern'
+
+export type AdminRiskSeverity = 'all' | 'low' | 'medium' | 'high'
+
+export type AdminIpRiskEvent = {
+  id: number
+  user_id: number | null
+  ip_address: string
+  event_type: Exclude<AdminIpRiskEventType, 'all'>
+  severity: Exclude<AdminRiskSeverity, 'all'>
+  score: number
+  method: string | null
+  path: string | null
+  user_agent: string | null
+  metadata: unknown
+  occurred_at: string
+  user: {
+    id: number
+    name: string
+    username: string | null
+    email: string
+    role: string
+    risk_score: number
+    strike_count: number
+  } | null
+}
+
+export type AdminUserRiskDetail = AdminRiskUser & {
+  recent_ip_events: AdminIpRiskEvent[]
+  recent_devices: Array<{
+    id: number
+    platform: string | null
+    app_version: string | null
+    device_model: string | null
+    ip_address: string | null
+    first_seen_at: string | null
+    last_seen_at: string | null
+    last_authenticated_at: string | null
+  }>
+}
+
+export type AdminModerationCaseStatus =
+  | 'all'
+  | 'open'
+  | 'under_review'
+  | 'actioned'
+  | 'dismissed'
+  | 'appealed'
+  | 'closed'
+
+export type AdminModerationCaseSource = 'all' | 'report' | 'ai_media' | 'admin' | 'system'
+
+export type AdminModerationCaseSeverity = 'all' | 'low' | 'medium' | 'high' | 'critical'
+
+export type AdminModerationCaseUser = {
+  id: number
+  name: string
+  username: string | null
+  email: string
+  role: string
+  moderation_status?: string | null
+  strike_count?: number | null
+  is_paused?: boolean | null
+  banned_at?: string | null
+} | null
+
+export type AdminModerationCase = {
+  id: number
+  subject_user_id: number | null
+  opened_by_user_id: number | null
+  assigned_admin_id: number | null
+  source: Exclude<AdminModerationCaseSource, 'all'>
+  target_type: string | null
+  target_id: number | null
+  severity: Exclude<AdminModerationCaseSeverity, 'all'>
+  status: Exclude<AdminModerationCaseStatus, 'all'>
+  summary: string | null
+  opened_at: string | null
+  closed_at: string | null
+  created_at: string
+  subject_user: AdminModerationCaseUser
+  opened_by_user: AdminModerationCaseUser
+  assigned_admin: AdminModerationCaseUser
+  reports_count: number
+  actions_count: number
+  appeals_count: number
+  strikes_count: number
+}
+
+export type AdminModerationCaseDetail = AdminModerationCase & {
+  evidence: unknown
+  reports: AdminReport[]
+  actions: Array<{
+    id: number
+    user_id: number | null
+    target_type: string | null
+    target_id: number | null
+    admin_id: number | null
+    action: string
+    reason: string | null
+    metadata: unknown
+    created_at: string
+    user: AdminModerationCaseUser
+    admin: AdminModerationCaseUser
+  }>
+  strikes: Array<{
+    id: number
+    user_id: number
+    strike_number: number
+    category: string
+    severity: string
+    reason: string
+    active: boolean
+    expires_at: string | null
+    revoked_at: string | null
+    revocation_reason: string | null
+    created_at: string
+    issued_by_user: AdminModerationCaseUser
+    revoked_by_user: AdminModerationCaseUser
+  }>
+  appeals: Array<{
+    id: number
+    user_id: number
+    action_id: number | null
+    status: Exclude<AdminModerationAppealStatus, 'all'>
+    appeal_text: string
+    decision_note: string | null
+    submitted_at: string | null
+    reviewed_at: string | null
+    user: AdminModerationCaseUser
+    reviewed_by_user: AdminModerationCaseUser
+  }>
+}
+
 export type AdminReport = {
   id: number
+  case_id: number | null
   target_type: string
   target_id: number
   reason: string
@@ -235,7 +396,7 @@ export type AdminSupportTicketDetail = {
   }
 }
 
-export type AdminUserStatus = 'all' | 'active' | 'paused' | 'banned'
+export type AdminUserStatus = 'all' | 'active' | 'paused' | 'suspended' | 'banned'
 
 export type AdminUserRole = 'all' | 'user' | 'provider' | 'admin'
 
@@ -263,4 +424,20 @@ export type AdminManagedUser = {
     name: string
     email: string
   } | null
+  risk_score?: number
+  strike_count?: number
+  moderation_status?: string
+  suspended_until?: string | null
+  last_violation_at?: string | null
+  risk_summary?: {
+    user_risk_score: number
+    strike_count: number
+    device_count: number
+    ip_risk_events_count: number
+    false_report_count: number
+    valid_report_count: number
+    reporter_risk_score: number
+    last_false_report_at: string | null
+    last_valid_report_at: string | null
+  }
 }

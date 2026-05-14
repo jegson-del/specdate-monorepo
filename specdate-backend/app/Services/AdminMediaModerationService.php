@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Media;
+use App\Models\ModerationCase;
 use App\Models\Report;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -49,9 +50,14 @@ class AdminMediaModerationService
             ->paginate($perPage);
 
         $reportsByMediaId = $this->recentReportsFor($media->getCollection()->pluck('id'));
+        $caseIdsByMediaId = $this->caseIdsForMedia($media->getCollection()->pluck('id'));
 
         $media->getCollection()->transform(
-            fn (Media $item) => $this->payload($item, $reportsByMediaId->get($item->id, collect()))
+            fn (Media $item) => $this->payload(
+                $item,
+                $reportsByMediaId->get($item->id, collect()),
+                $caseIdsByMediaId->get($item->id)
+            )
         );
 
         return $media;
@@ -81,7 +87,8 @@ class AdminMediaModerationService
 
         return $this->payload(
             $media->fresh(['user:id,name,username,email']),
-            $this->recentReportsFor(collect([$media->id]))->get($media->id, collect())
+            $this->recentReportsFor(collect([$media->id]))->get($media->id, collect()),
+            $this->caseIdsForMedia(collect([$media->id]))->get($media->id)
         );
     }
 
@@ -112,12 +119,34 @@ class AdminMediaModerationService
     }
 
     /**
+     * @param  Collection<int, int>  $mediaIds
+     * @return Collection<int, int>
+     */
+    private function caseIdsForMedia(Collection $mediaIds): Collection
+    {
+        if ($mediaIds->isEmpty()) {
+            return collect();
+        }
+
+        return ModerationCase::query()
+            ->where('target_type', 'media')
+            ->whereIn('target_id', $mediaIds->values())
+            ->whereIn('source', [ModerationCase::SOURCE_AI_MEDIA, ModerationCase::SOURCE_REPORT])
+            ->orderByRaw("CASE WHEN source = ? THEN 0 ELSE 1 END", [ModerationCase::SOURCE_AI_MEDIA])
+            ->latest('opened_at')
+            ->get(['id', 'target_id'])
+            ->unique('target_id')
+            ->mapWithKeys(fn (ModerationCase $case) => [(int) $case->target_id => $case->id]);
+    }
+
+    /**
      * @param  Collection<int, Report>  $reports
      */
-    private function payload(Media $media, Collection $reports): array
+    private function payload(Media $media, Collection $reports, ?int $caseId = null): array
     {
         return [
             'id' => $media->id,
+            'case_id' => $caseId,
             'user' => $media->user ? [
                 'id' => $media->user->id,
                 'name' => $media->user->name,

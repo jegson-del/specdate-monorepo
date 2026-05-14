@@ -53,10 +53,12 @@ export default function AdminPage() {
         isLoading={adminDashboard.isLoading}
         onApprove={adminDashboard.approveProvider}
         onOpenProvider={adminDashboard.setSelectedProviderId}
+        onPageChange={adminDashboard.setProviderPage}
         onReject={adminDashboard.rejectProvider}
         onResendSetupEmail={adminDashboard.resendProviderSetupEmail}
         onSaveNote={adminDashboard.saveProviderNote}
         onStatusChange={adminDashboard.setProviderStatus}
+        pagination={adminDashboard.providerPagination}
         providers={adminDashboard.providers}
         selectedProvider={adminDashboard.selectedProvider}
         selectedProviderId={adminDashboard.selectedProviderId}
@@ -75,9 +77,11 @@ export default function AdminPage() {
       <SupportTicketsPanel
         isUpdating={adminDashboard.isLoading}
         onOpenTicket={adminDashboard.openSupportTicket}
+        onPageChange={adminDashboard.setSupportPage}
         onReply={adminDashboard.sendSupportReply}
         onStatusChange={adminDashboard.setSupportStatus}
         onUpdateStatus={adminDashboard.updateSupportStatus}
+        pagination={adminDashboard.supportPagination}
         selectedTicket={adminDashboard.selectedSupportTicket}
         selectedTicketId={adminDashboard.selectedSupportTicketId}
         status={adminDashboard.supportStatus}

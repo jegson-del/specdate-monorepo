@@ -15,8 +15,10 @@ const navItems: NavItem[] = [
   { label: 'Users', to: '/admin/users', enabled: true },
   { label: 'Provider applications', to: '/admin/providers', enabled: true, badgeKey: 'providers_pending' },
   { label: 'Upload moderation', to: '/admin/media-moderation', enabled: true, badgeKey: 'media_needs_review' },
+  { label: 'Cases', to: '/admin/moderation/cases', enabled: true, badgeKey: 'moderation_needs_review' },
   { label: 'Reports', to: '/admin/moderation', enabled: true, badgeKey: 'reports_open' },
   { label: 'Appeals', to: '/admin/moderation/appeals', enabled: true },
+  { label: 'Risk', to: '/admin/risk', enabled: true },
   { label: 'Support', to: '/admin/support', enabled: true, badgeKey: 'support_needs_admin' },
 ] as const
 

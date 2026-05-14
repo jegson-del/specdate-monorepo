@@ -3,10 +3,19 @@ import type {
   AdminReportAction,
   AdminMediaModerationItem,
   AdminMediaModerationStatus,
+  AdminIpRiskEvent,
+  AdminIpRiskEventType,
   AdminModerationAppeal,
   AdminModerationAppealStatus,
+  AdminModerationCase,
+  AdminModerationCaseDetail,
+  AdminModerationCaseSeverity,
+  AdminModerationCaseSource,
+  AdminModerationCaseStatus,
   AdminPagination,
   AdminReportStatus,
+  AdminRiskSeverity,
+  AdminRiskUser,
   AdminSupportTicket,
   AdminSupportTicketDetail,
   AdminSupportTicketStatus,
@@ -14,6 +23,7 @@ import type {
   AdminManagedUser,
   AdminUserRole,
   AdminUserStatus,
+  AdminUserRiskDetail,
   DashboardData,
   ProviderApplication,
   ProviderApplicationStatus,
@@ -101,9 +111,10 @@ export async function getAdminDashboard(token: string) {
 export async function getAdminUsers(
   token: string,
   filters: { q?: string; role: AdminUserRole; status: AdminUserStatus },
+  page = 1,
   perPage = 25,
 ) {
-  const query = new URLSearchParams({ per_page: String(perPage) })
+  const query = new URLSearchParams({ page: String(page), per_page: String(perPage) })
   if (filters.q) {
     query.set('q', filters.q)
   }
@@ -123,7 +134,75 @@ export async function getAdminUsers(
     throw new Error(pickApiError(result, 'Users could not be loaded.'))
   }
 
-  return result.data.data
+  return paginatedResult(result.data, page, perPage)
+}
+
+export async function getAdminRiskUsers(token: string, q = '', page = 1, perPage = 25) {
+  const query = new URLSearchParams({ page: String(page), per_page: String(perPage) })
+  if (q) {
+    query.set('q', q)
+  }
+
+  const response = await fetch(`${getApiBase()}/api/admin/risk/users?${query.toString()}`, {
+    headers: adminHeaders(token),
+  })
+  const result = (await parseJson(response)) as ApiEnvelope<Paginated<AdminRiskUser>> | null
+
+  if (!response.ok || !result) {
+    throw new Error(pickApiError(result, 'Risk users could not be loaded.'))
+  }
+
+  return paginatedResult(result.data, page, perPage)
+}
+
+export async function getAdminIpRiskEvents(
+  token: string,
+  filters: {
+    eventType: AdminIpRiskEventType
+    ip?: string
+    severity: AdminRiskSeverity
+    userId?: string
+  },
+  page = 1,
+  perPage = 25,
+) {
+  const query = new URLSearchParams({ page: String(page), per_page: String(perPage) })
+  if (filters.eventType !== 'all') {
+    query.set('event_type', filters.eventType)
+  }
+  if (filters.severity !== 'all') {
+    query.set('severity', filters.severity)
+  }
+  if (filters.ip) {
+    query.set('ip', filters.ip)
+  }
+  if (filters.userId) {
+    query.set('user_id', filters.userId)
+  }
+
+  const response = await fetch(`${getApiBase()}/api/admin/risk/ip-events?${query.toString()}`, {
+    headers: adminHeaders(token),
+  })
+  const result = (await parseJson(response)) as ApiEnvelope<Paginated<AdminIpRiskEvent>> | null
+
+  if (!response.ok || !result) {
+    throw new Error(pickApiError(result, 'IP risk events could not be loaded.'))
+  }
+
+  return paginatedResult(result.data, page, perPage)
+}
+
+export async function getAdminUserRisk(token: string, userId: number) {
+  const response = await fetch(`${getApiBase()}/api/admin/users/${userId}/risk`, {
+    headers: adminHeaders(token),
+  })
+  const result = (await parseJson(response)) as ApiEnvelope<AdminUserRiskDetail> | null
+
+  if (!response.ok || !result) {
+    throw new Error(pickApiError(result, 'User risk detail could not be loaded.'))
+  }
+
+  return result.data
 }
 
 export async function getAdminUser(token: string, userId: number) {
@@ -162,9 +241,10 @@ export async function unbanAdminUser(token: string, userId: number) {
 export async function getProviderApplications(
   token: string,
   status: ProviderApplicationStatus,
+  page = 1,
   perPage = 10,
 ) {
-  const query = new URLSearchParams({ per_page: String(perPage) })
+  const query = new URLSearchParams({ page: String(page), per_page: String(perPage) })
   if (status !== 'all') {
     query.set('status', status)
   }
@@ -178,7 +258,7 @@ export async function getProviderApplications(
     throw new Error(pickApiError(result, 'Provider applications could not be loaded.'))
   }
 
-  return result.data.data
+  return paginatedResult(result.data, page, perPage)
 }
 
 export async function getProviderApplication(token: string, providerId: number) {
@@ -315,6 +395,56 @@ export async function getAdminModerationAppeals(
   return paginatedResult(result.data, page, perPage)
 }
 
+export async function getAdminModerationCases(
+  token: string,
+  filters: {
+    q?: string
+    severity: AdminModerationCaseSeverity
+    source: AdminModerationCaseSource
+    status: AdminModerationCaseStatus
+  },
+  page = 1,
+  perPage = 25,
+) {
+  const query = new URLSearchParams({ page: String(page), per_page: String(perPage) })
+  if (filters.q) {
+    query.set('q', filters.q)
+  }
+  if (filters.status !== 'all') {
+    query.set('status', filters.status)
+  }
+  if (filters.source !== 'all') {
+    query.set('source', filters.source)
+  }
+  if (filters.severity !== 'all') {
+    query.set('severity', filters.severity)
+  }
+
+  const response = await fetch(`${getApiBase()}/api/admin/moderation/cases?${query.toString()}`, {
+    headers: adminHeaders(token),
+  })
+  const result = (await parseJson(response)) as ApiEnvelope<Paginated<AdminModerationCase>> | null
+
+  if (!response.ok || !result) {
+    throw new Error(pickApiError(result, 'Moderation cases could not be loaded.'))
+  }
+
+  return paginatedResult(result.data, page, perPage)
+}
+
+export async function getAdminModerationCase(token: string, caseId: number) {
+  const response = await fetch(`${getApiBase()}/api/admin/moderation/cases/${caseId}`, {
+    headers: adminHeaders(token),
+  })
+  const result = (await parseJson(response)) as ApiEnvelope<AdminModerationCaseDetail> | null
+
+  if (!response.ok || !result) {
+    throw new Error(pickApiError(result, 'Moderation case could not be loaded.'))
+  }
+
+  return result.data
+}
+
 export async function decideAdminModerationAppeal(
   token: string,
   appealId: number,
@@ -340,9 +470,10 @@ export async function decideAdminModerationAppeal(
 export async function getAdminSupportTickets(
   token: string,
   status: AdminSupportTicketStatus,
+  page = 1,
   perPage = 10,
 ) {
-  const query = new URLSearchParams({ per_page: String(perPage) })
+  const query = new URLSearchParams({ page: String(page), per_page: String(perPage) })
   if (status !== 'all') {
     query.set('status', status)
   }
@@ -356,7 +487,7 @@ export async function getAdminSupportTickets(
     throw new Error(pickApiError(result, 'Support tickets could not be loaded.'))
   }
 
-  return result.data.data
+  return paginatedResult(result.data, page, perPage)
 }
 
 export async function getAdminSupportTicket(token: string, ticketId: number) {

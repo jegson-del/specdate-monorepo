@@ -29,12 +29,14 @@ export default function AdminUsersPage() {
       <UsersManagementPanel
         actionUserId={adminUsers.actionUserId}
         isLoading={adminUsers.isLoading}
+        onPageChange={adminUsers.setPage}
         onQueryChange={adminUsers.setQuery}
         onRoleChange={adminUsers.setRole}
         onSaveNote={adminUsers.saveNote}
         onSelectUser={adminUsers.setSelectedUserId}
         onStatusChange={adminUsers.setStatus}
         onUpdateUserStatus={adminUsers.updateUserStatus}
+        pagination={adminUsers.pagination}
         query={adminUsers.query}
         role={adminUsers.role}
         selectedUser={adminUsers.selectedUser}

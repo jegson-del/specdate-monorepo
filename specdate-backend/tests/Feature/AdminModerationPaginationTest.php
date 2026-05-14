@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\ModerationAppeal;
+use App\Models\ModerationCase;
 use App\Models\Report;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -20,7 +21,7 @@ class AdminModerationPaginationTest extends TestCase
         $reported = User::factory()->create();
 
         foreach (range(1, 5) as $index) {
-            Report::create([
+            $report = Report::create([
                 'reporter_id' => $reporter->id,
                 'reported_user_id' => $reported->id,
                 'target_type' => 'user',
@@ -29,6 +30,19 @@ class AdminModerationPaginationTest extends TestCase
                 'status' => 'open',
                 'created_at' => now()->addMinutes($index),
                 'updated_at' => now()->addMinutes($index),
+            ]);
+
+            ModerationCase::create([
+                'subject_user_id' => $reported->id,
+                'opened_by_user_id' => $reporter->id,
+                'source' => ModerationCase::SOURCE_REPORT,
+                'target_type' => 'user',
+                'target_id' => $reported->id,
+                'severity' => ModerationCase::SEVERITY_MEDIUM,
+                'status' => ModerationCase::STATUS_OPEN,
+                'summary' => "Case {$index}",
+                'evidence' => ['report_ids' => [$report->id], 'latest_report_id' => $report->id],
+                'opened_at' => now()->addMinutes($index),
             ]);
         }
 
@@ -40,6 +54,7 @@ class AdminModerationPaginationTest extends TestCase
             ->assertJsonPath('data.per_page', 2)
             ->assertJsonPath('data.total', 5)
             ->assertJsonPath('data.data.0.reason', 'Report 3')
+            ->assertJsonPath('data.data.0.case_id', fn ($caseId) => is_int($caseId))
             ->assertJsonPath('data.data.1.reason', 'Report 2');
     }
 

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import type {
   AdminMediaModerationItem,
   AdminMediaModerationStatus,
@@ -186,6 +187,14 @@ function MediaModerationRow({
                 >
                   {isApproving ? 'Approving...' : 'Approve'}
                 </button>
+                {item.case_id && (
+                  <Link
+                    to={`/admin/moderation/cases?case=${item.case_id}`}
+                    className="inline-flex h-9 items-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-pink-300 hover:text-pink-700"
+                  >
+                    Open case
+                  </Link>
+                )}
               </div>
 
               <div className="grid gap-4 xl:grid-cols-2">

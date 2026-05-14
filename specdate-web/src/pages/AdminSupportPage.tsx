@@ -27,9 +27,11 @@ export default function AdminSupportPage() {
       <SupportTicketsPanel
         isUpdating={adminDashboard.isLoading}
         onOpenTicket={adminDashboard.openSupportTicket}
+        onPageChange={adminDashboard.setSupportPage}
         onReply={adminDashboard.sendSupportReply}
         onStatusChange={adminDashboard.setSupportStatus}
         onUpdateStatus={adminDashboard.updateSupportStatus}
+        pagination={adminDashboard.supportPagination}
         selectedTicket={adminDashboard.selectedSupportTicket}
         selectedTicketId={adminDashboard.selectedSupportTicketId}
         status={adminDashboard.supportStatus}

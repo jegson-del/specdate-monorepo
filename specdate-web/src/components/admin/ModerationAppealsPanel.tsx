@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import type {
   AdminModerationAppeal,
   AdminModerationAppealStatus,
@@ -107,6 +108,7 @@ function ModerationAppealRow({
   const [decisionNote, setDecisionNote] = useState('')
   const isUpdating = updatingAppealId === appeal.id
   const canDecide = appeal.status === 'open' || appeal.status === 'under_review'
+  const caseLinkId = appeal.case_id ?? appeal.action?.case_id ?? null
   const note = decisionNote.trim()
 
   return (
@@ -126,7 +128,7 @@ function ModerationAppealRow({
         <p className="font-bold">{displayUser(appeal)}</p>
         <p className="mt-1 text-slate-500">{appeal.user?.email || 'No email'}</p>
         <p className="mt-2 text-xs font-bold text-slate-500">
-          {labelize(appeal.user?.moderation_status || 'unknown')} · {appeal.user?.strike_count ?? 0} strikes
+          {labelize(appeal.user?.moderation_status || 'unknown')} - {appeal.user?.strike_count ?? 0} strikes
         </p>
       </td>
       <td className="px-5 py-4">
@@ -135,7 +137,7 @@ function ModerationAppealRow({
           {appeal.action?.reason || appeal.case?.summary || 'No reason supplied'}
         </p>
         <p className="mt-2 text-xs font-bold text-slate-400">
-          Case #{appeal.case_id ?? 'N/A'} · Action #{appeal.action_id ?? 'N/A'}
+          Case #{appeal.case_id ?? 'N/A'} - Action #{appeal.action_id ?? 'N/A'}
         </p>
       </td>
       <td className="px-5 py-4">
@@ -165,12 +167,30 @@ function ModerationAppealRow({
                 onClick={() => onDecideAppeal(appeal.id, 'denied', note)}
                 tone="danger"
               />
+              {caseLinkId && (
+                <Link
+                  to={`/admin/moderation/cases?case=${caseLinkId}`}
+                  className="inline-flex h-8 items-center rounded-lg border border-slate-300 px-3 text-xs font-black text-slate-700 transition hover:border-pink-300 hover:text-pink-700"
+                >
+                  Open case
+                </Link>
+              )}
             </div>
           </div>
         ) : (
-          <p className="text-sm font-bold text-slate-500">
-            Reviewed {formatDate(appeal.reviewed_at)}
-          </p>
+          <div className="space-y-2">
+            <p className="text-sm font-bold text-slate-500">
+              Reviewed {formatDate(appeal.reviewed_at)}
+            </p>
+            {caseLinkId && (
+              <Link
+                to={`/admin/moderation/cases?case=${caseLinkId}`}
+                className="inline-flex h-8 items-center rounded-lg border border-slate-300 px-3 text-xs font-black text-slate-700 transition hover:border-pink-300 hover:text-pink-700"
+              >
+                Open case
+              </Link>
+            )}
+          </div>
         )}
       </td>
     </tr>

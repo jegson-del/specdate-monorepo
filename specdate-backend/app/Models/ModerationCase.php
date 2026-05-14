@@ -70,4 +70,9 @@ class ModerationCase extends Model
     {
         return $this->hasMany(ModerationStrike::class, 'case_id');
     }
+
+    public function appeals(): HasMany
+    {
+        return $this->hasMany(ModerationAppeal::class, 'case_id');
+    }
 }

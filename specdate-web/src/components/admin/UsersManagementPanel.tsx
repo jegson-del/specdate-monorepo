@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
-import type { AdminManagedUser, AdminUserRole, AdminUserStatus } from '../../types/admin'
+import type { AdminManagedUser, AdminPagination, AdminUserRole, AdminUserStatus } from '../../types/admin'
+import { AdminPaginationBar, AdminPaginationSummary } from './AdminPaginationBar'
 
 type UsersManagementPanelProps = {
   actionUserId: number | null
   isLoading: boolean
+  onPageChange: (page: number) => void
   onQueryChange: (query: string) => void
   onRoleChange: (role: AdminUserRole) => void
   onSaveNote: (userId: number, note: string) => void
@@ -14,6 +16,7 @@ type UsersManagementPanelProps = {
     action: 'ban' | 'pause' | 'unban' | 'unpause',
     reason?: string,
   ) => void
+  pagination: AdminPagination | null
   query: string
   role: AdminUserRole
   selectedUser: AdminManagedUser | null
@@ -25,12 +28,14 @@ type UsersManagementPanelProps = {
 export function UsersManagementPanel({
   actionUserId,
   isLoading,
+  onPageChange,
   onQueryChange,
   onRoleChange,
   onSaveNote,
   onSelectUser,
   onStatusChange,
   onUpdateUserStatus,
+  pagination,
   query,
   role,
   selectedUser,
@@ -45,6 +50,9 @@ export function UsersManagementPanel({
         <p className="mt-1 text-sm text-slate-500">
           Search users, inspect account state, pause accounts, ban severe cases, and save internal notes.
         </p>
+        <div className="mt-3">
+          <AdminPaginationSummary pagination={pagination} />
+        </div>
         <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_180px_180px]">
           <input
             value={query}
@@ -71,6 +79,7 @@ export function UsersManagementPanel({
             <option value="all">All status</option>
             <option value="active">Active</option>
             <option value="paused">Paused</option>
+            <option value="suspended">Suspended</option>
             <option value="banned">Banned</option>
           </select>
         </div>
@@ -116,6 +125,7 @@ export function UsersManagementPanel({
           user={selectedUser}
         />
       </div>
+      <AdminPaginationBar onPageChange={onPageChange} pagination={pagination} />
     </section>
   )
 }
@@ -208,6 +218,19 @@ function UserDetailPanel({
         <DetailLine label="Email" value={user.email} />
         <DetailLine label="Mobile" value={user.mobile} />
         <DetailLine label="Provider" value={user.provider_profile?.company_name} />
+        {user.risk_summary && (
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Risk summary</p>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <RiskMetric label="User score" value={user.risk_summary.user_risk_score} />
+              <RiskMetric label="Reporter" value={user.risk_summary.reporter_risk_score} />
+              <RiskMetric label="Devices" value={user.risk_summary.device_count} />
+              <RiskMetric label="IP events" value={user.risk_summary.ip_risk_events_count} />
+              <RiskMetric label="False reports" value={user.risk_summary.false_report_count} />
+              <RiskMetric label="Strikes" value={user.risk_summary.strike_count} />
+            </div>
+          </div>
+        )}
         <DetailLine label="Ban reason" value={user.ban_reason} />
         <DetailLine label="Banned by" value={user.banned_by?.email} />
       </div>
@@ -314,6 +337,7 @@ function UserStatusBadge({ status }: { status: AdminManagedUser['status'] }) {
     active: 'bg-emerald-100 text-emerald-700',
     banned: 'bg-rose-100 text-rose-700',
     paused: 'bg-amber-100 text-amber-800',
+    suspended: 'bg-orange-100 text-orange-800',
   }
 
   return <span className={`rounded-full px-3 py-1 text-xs font-black ${styles[status]}`}>{status}</span>
@@ -324,6 +348,15 @@ function DetailLine({ label, value }: { label: string; value?: string | null }) 
     <div>
       <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">{label}</p>
       <p className="mt-1 whitespace-pre-wrap font-semibold text-slate-800">{value || 'Not supplied'}</p>
+    </div>
+  )
+}
+
+function RiskMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg bg-white p-2">
+      <p className="text-[11px] font-black uppercase tracking-[0.1em] text-slate-500">{label}</p>
+      <p className="mt-1 text-base font-black text-slate-950">{value}</p>
     </div>
   )
 }

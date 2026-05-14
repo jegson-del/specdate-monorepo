@@ -22,6 +22,7 @@ class AdminUserService
             ->when($role && in_array($role, ['user', 'provider', 'admin'], true), fn ($q) => $q->where('role', $role))
             ->when($status === 'active', fn ($q) => $q->where('is_paused', false)->whereNull('banned_at'))
             ->when($status === 'paused', fn ($q) => $q->where('is_paused', true)->whereNull('banned_at'))
+            ->when($status === 'suspended', fn ($q) => $q->whereNotNull('suspended_until')->where('suspended_until', '>', now())->whereNull('banned_at'))
             ->when($status === 'banned', fn ($q) => $q->whereNotNull('banned_at'))
             ->when($search !== '', function ($q) use ($search) {
                 $q->where(function ($nested) use ($search) {
@@ -128,11 +129,18 @@ class AdminUserService
     private function userQuery()
     {
         return User::query()
-            ->with(['providerProfile:id,user_id,company_name,is_verified,rejected_at', 'bannedBy:id,name,email']);
+            ->with([
+                'providerProfile:id,user_id,company_name,is_verified,rejected_at',
+                'bannedBy:id,name,email',
+                'reporterRiskScore',
+            ])
+            ->withCount(['deviceFingerprints', 'ipRiskEvents']);
     }
 
     private function userPayload(User $user): array
     {
+        $reporterRisk = $user->reporterRiskScore;
+
         return [
             'id' => $user->id,
             'name' => $user->name,
@@ -164,6 +172,17 @@ class AdminUserService
                 'name' => $user->bannedBy->name,
                 'email' => $user->bannedBy->email,
             ] : null,
+            'risk_summary' => [
+                'user_risk_score' => (int) ($user->risk_score ?? 0),
+                'strike_count' => (int) ($user->strike_count ?? 0),
+                'device_count' => (int) ($user->device_fingerprints_count ?? $user->deviceFingerprints()->count()),
+                'ip_risk_events_count' => (int) ($user->ip_risk_events_count ?? $user->ipRiskEvents()->count()),
+                'false_report_count' => (int) ($reporterRisk?->false_report_count ?? 0),
+                'valid_report_count' => (int) ($reporterRisk?->valid_report_count ?? 0),
+                'reporter_risk_score' => (int) ($reporterRisk?->risk_score ?? 0),
+                'last_false_report_at' => $reporterRisk?->last_false_report_at,
+                'last_valid_report_at' => $reporterRisk?->last_valid_report_at,
+            ],
         ];
     }
 

@@ -20,12 +20,13 @@ export function useAdminUsers() {
   const [query, setQuery] = useState('')
   const [role, setRole] = useState<AdminUserRole>('all')
   const [status, setStatus] = useState<AdminUserStatus>('all')
+  const [page, setPage] = useState(1)
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null)
 
   const usersQuery = useQuery({
     enabled: Boolean(token),
-    queryKey: ['admin', 'users', query, role, status],
-    queryFn: () => getAdminUsers(token, { q: query, role, status }, 25),
+    queryKey: ['admin', 'users', query, role, status, page],
+    queryFn: () => getAdminUsers(token, { q: query, role, status }, page, 25),
     refetchInterval: 30_000,
     staleTime: 10_000,
   })
@@ -41,6 +42,21 @@ export function useAdminUsers() {
     queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
     queryClient.invalidateQueries({ queryKey: ['admin', 'user'] })
     queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] })
+  }
+
+  const changeQuery = (value: string) => {
+    setQuery(value)
+    setPage(1)
+  }
+
+  const changeRole = (value: AdminUserRole) => {
+    setRole(value)
+    setPage(1)
+  }
+
+  const changeStatus = (value: AdminUserStatus) => {
+    setStatus(value)
+    setPage(1)
   }
 
   const actionMutation = useMutation({
@@ -91,21 +107,24 @@ export function useAdminUsers() {
     actionUserId: actionMutation.variables?.userId ?? noteMutation.variables?.userId ?? null,
     isAuthenticated: Boolean(token),
     isLoading: usersQuery.isFetching || userDetailQuery.isFetching,
+    page,
+    pagination: usersQuery.data?.pagination ?? null,
     query,
     role,
     saveNote: (userId: number, note: string) => noteMutation.mutate({ note, userId }),
     selectedUser: userDetailQuery.data ?? null,
     selectedUserId,
-    setQuery,
-    setRole,
+    setPage,
+    setQuery: changeQuery,
+    setRole: changeRole,
     setSelectedUserId,
-    setStatus,
+    setStatus: changeStatus,
     status,
     updateUserStatus: (
       userId: number,
       action: 'ban' | 'pause' | 'unban' | 'unpause',
       reason?: string,
     ) => actionMutation.mutate({ action, reason, userId }),
-    users: usersQuery.data ?? [],
+    users: usersQuery.data?.items ?? [],
   }
 }

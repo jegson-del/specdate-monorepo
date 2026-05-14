@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\ChatMessage;
 use App\Models\DatePartnerReview;
 use App\Models\Media;
+use App\Models\ModerationCase;
 use App\Models\ProviderProfile;
 use App\Models\ProviderReview;
 use App\Models\Report;
@@ -62,11 +63,21 @@ class ReportService
             throw new HttpException(403, 'Admin access required.');
         }
 
-        return Report::query()
+        $reports = Report::query()
             ->with(['reporter:id,name,username', 'reportedUser:id,name,username', 'reviewer:id,name,username'])
             ->when($status, fn ($query) => $query->where('status', $status))
             ->latest()
             ->paginate($perPage);
+
+        $caseIdsByTarget = $this->caseIdsForReportTargets($reports->getCollection());
+        $reports->getCollection()->each(function (Report $report) use ($caseIdsByTarget) {
+            $report->setAttribute(
+                'case_id',
+                $caseIdsByTarget->get($this->targetKey($report->target_type, (int) $report->target_id))
+            );
+        });
+
+        return $reports;
     }
 
     public function review(User $admin, Report $report, array $data): Report
@@ -152,5 +163,34 @@ class ReportService
                 User::where('id', $report->reported_user_id)->update(['is_paused' => true]);
             }
         }
+    }
+
+    private function caseIdsForReportTargets($reports)
+    {
+        if ($reports->isEmpty()) {
+            return collect();
+        }
+
+        return ModerationCase::query()
+            ->where('source', ModerationCase::SOURCE_REPORT)
+            ->where(function ($query) use ($reports) {
+                $reports
+                    ->map(fn (Report $report) => [$report->target_type, (int) $report->target_id])
+                    ->unique(fn (array $target) => $target[0].':'.$target[1])
+                    ->each(fn (array $target) => $query->orWhere(function ($nested) use ($target) {
+                        $nested->where('target_type', $target[0])->where('target_id', $target[1]);
+                    }));
+            })
+            ->latest('opened_at')
+            ->get(['id', 'target_type', 'target_id'])
+            ->unique(fn (ModerationCase $case) => $this->targetKey($case->target_type, (int) $case->target_id))
+            ->mapWithKeys(fn (ModerationCase $case) => [
+                $this->targetKey($case->target_type, (int) $case->target_id) => $case->id,
+            ]);
+    }
+
+    private function targetKey(string $targetType, int $targetId): string
+    {
+        return $targetType.':'.$targetId;
     }
 }

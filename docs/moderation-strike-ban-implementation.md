@@ -42,13 +42,10 @@ Already implemented:
 
 Not yet implemented:
 
-- Strike ledger.
-- Strike-to-enforcement automation.
-- Appeal records and admin appeal review.
-- Formal moderation case model that unifies reports, AI flags, and admin actions.
-- Risk score, device/IP abuse scoring, phone blacklist, device fingerprinting.
-- User-facing suspension/ban reason screen.
-- Notifications for strike/suspension/appeal outcomes.
+- Full admin moderation case list/detail workspace.
+- Advanced risk dashboards for reporter, IP, phone, and device signals.
+- Text moderation and spam/risk detection.
+- Provider-specific enforcement status beyond user-level enforcement.
 
 ## Target Architecture
 
@@ -458,12 +455,13 @@ Already implemented:
 - Media share confirmation before upload.
 - Post-upload moderation polling.
 - Long video moderation timeout hardening.
+- Account status screen with appeal form and status routing.
+- In-app moderation notification routing for appeal outcomes.
 
 Needed:
 
-- Account status screen or banner for `warned`, `suspended`, `under_review`, `permanently_banned`.
-- Appeal form.
-- Push/in-app notifications for warning, strike, suspension, ban, appeal result.
+- Push notification tap routing for moderation outcomes at the OS notification layer.
+- Warning/strike/suspension/ban copy polish after policy wording is finalized.
 
 ## Admin Web Requirements
 
@@ -565,6 +563,13 @@ Mobile routing:
   - Added latest-first appeal list with status filter.
   - Added grant/deny controls with required decision note.
   - Admin notification links now land on a real appeals route.
+- Admin moderation case workspace complete:
+  - Added paginated `GET /api/admin/moderation/cases`.
+  - Added `GET /api/admin/moderation/cases/{case}` detail with evidence, reports, actions, strikes, and appeals.
+  - Added `/admin/moderation/cases` web page with status/source/severity/search filters.
+  - Admin sidebar now links to Cases separately from Reports, Upload Moderation, and Appeals.
+  - Reports, upload moderation rows, and appeals now link directly to related case detail with `?case={id}`.
+  - Added backend tests for latest-first pagination and case evidence detail.
 
 ### Phase 5: Risk and Anti-Abuse
 
@@ -594,8 +599,14 @@ Mobile routing:
   - Actioned resolved reports count as valid without penalty.
   - Repeated dismissed reports create `false_report_pattern` IP risk events.
 - Admin moderation pagination complete:
-  - Upload moderation, reports, and appeals all use latest-first paginated data.
-  - Admin Reports and Appeals pages show current result ranges and previous/next paging controls.
+  - Upload moderation, moderation cases, reports, appeals, provider applications, users, and support all use latest-first paginated data.
+  - Admin list pages show current result ranges and previous/next paging controls.
+- Admin risk visibility complete:
+  - Added `GET /api/admin/risk/users`.
+  - Added `GET /api/admin/risk/ip-events`.
+  - Added `GET /api/admin/users/{user}/risk`.
+  - Added `/admin/risk` with paginated risk users and IP risk events.
+  - Admin user detail now shows a compact risk summary with scores, devices, IP events, false reports, and strikes.
 
 ## Test Plan
 
