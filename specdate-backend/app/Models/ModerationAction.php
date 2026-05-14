@@ -17,6 +17,10 @@ class ModerationAction extends Model
     public const ACTION_STRIKE_REVOKED = 'strike_revoked';
     public const ACTION_APPEAL_GRANTED = 'appeal_granted';
     public const ACTION_APPEAL_DENIED = 'appeal_denied';
+    public const ACTION_CASE_UNDER_REVIEW = 'case_under_review';
+    public const ACTION_CASE_ACTIONED = 'case_actioned';
+    public const ACTION_CASE_DISMISSED = 'case_dismissed';
+    public const ACTION_CASE_CLOSED = 'case_closed';
 
     protected $fillable = [
         'case_id',

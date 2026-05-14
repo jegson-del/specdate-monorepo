@@ -67,4 +67,26 @@ class AdminModerationCaseController extends Controller
             return $this->sendError($e->getMessage(), [], $e->getStatusCode());
         }
     }
+
+    public function update(Request $request, ModerationCase $case): JsonResponse
+    {
+        $data = $request->validate([
+            'status' => ['required', 'string', Rule::in([
+                ModerationCase::STATUS_UNDER_REVIEW,
+                ModerationCase::STATUS_ACTIONED,
+                ModerationCase::STATUS_DISMISSED,
+                ModerationCase::STATUS_CLOSED,
+            ])],
+            'note' => 'nullable|string|max:2000',
+        ]);
+
+        try {
+            return $this->sendResponse(
+                $this->cases->updateStatus($request->user(), $case, $data['status'], $data['note'] ?? null),
+                'Moderation case updated successfully.'
+            );
+        } catch (HttpException $e) {
+            return $this->sendError($e->getMessage(), [], $e->getStatusCode());
+        }
+    }
 }

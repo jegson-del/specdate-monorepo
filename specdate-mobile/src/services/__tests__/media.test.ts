@@ -164,7 +164,7 @@ describe('media service', () => {
         expect(mockFetch).not.toHaveBeenCalled();
     });
 
-    it('waitForMediaModeration rejects flagged media with neutral copy', async () => {
+    it('waitForMediaModeration rejects flagged media with safety review copy', async () => {
         await expect(waitForMediaModeration({
             id: 9,
             user_id: 2,
@@ -175,7 +175,7 @@ describe('media service', () => {
             size: 100,
             created_at: '2026-01-01T00:00:00.000000Z',
             moderation_status: 'flagged',
-        })).rejects.toThrow('This file could not be sent. Please choose another file.');
+        })).rejects.toThrow('This file could not be shared after safety review. Please choose a different file.');
     });
 
     it('waitForMediaModeration can return latest pending media on timeout', async () => {

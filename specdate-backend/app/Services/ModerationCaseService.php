@@ -9,10 +9,15 @@ use App\Models\Report;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class ModerationCaseService
 {
+    public function __construct(private ReporterRiskService $reporterRiskService)
+    {
+    }
+
     public function adminIndex(User $admin, array $filters = [], int $perPage = 25): LengthAwarePaginator
     {
         $this->ensureAdmin($admin);
@@ -105,6 +110,54 @@ class ModerationCaseService
                 ])
                 ->all(),
         ]);
+    }
+
+    public function updateStatus(User $admin, ModerationCase $case, string $status, ?string $note = null): array
+    {
+        $this->ensureAdmin($admin);
+
+        $note = trim((string) $note);
+        $terminalStatuses = [
+            ModerationCase::STATUS_ACTIONED,
+            ModerationCase::STATUS_DISMISSED,
+            ModerationCase::STATUS_CLOSED,
+        ];
+
+        if (! in_array($status, [
+            ModerationCase::STATUS_UNDER_REVIEW,
+            ModerationCase::STATUS_ACTIONED,
+            ModerationCase::STATUS_DISMISSED,
+            ModerationCase::STATUS_CLOSED,
+        ], true)) {
+            throw new HttpException(422, 'Invalid moderation case status.');
+        }
+
+        if (in_array($status, $terminalStatuses, true) && $note === '') {
+            throw new HttpException(422, 'A decision note is required to close or resolve a case.');
+        }
+
+        DB::transaction(function () use ($admin, $case, $note, $status, $terminalStatuses) {
+            $case->update([
+                'assigned_admin_id' => $admin->id,
+                'status' => $status,
+                'closed_at' => in_array($status, $terminalStatuses, true) ? now() : null,
+            ]);
+
+            $this->syncLinkedReportsForCaseStatus($case->fresh(), $admin, $status, $note);
+
+            $this->recordAction(
+                $case,
+                $case->subject_user_id,
+                $case->target_type,
+                (int) $case->target_id,
+                $admin->id,
+                $this->actionForCaseStatus($status),
+                $note !== '' ? $note : null,
+                ['case_status' => $status]
+            );
+        });
+
+        return $this->adminShow($admin, $case->fresh());
     }
 
     public function createFromReport(Report $report): ModerationCase
@@ -366,6 +419,50 @@ class ModerationCaseService
             'suspend_user' => ModerationAction::ACTION_TEMPORARY_SUSPENSION,
             default => ModerationAction::ACTION_NO_ACTION,
         };
+    }
+
+    private function actionForCaseStatus(string $status): string
+    {
+        return match ($status) {
+            ModerationCase::STATUS_UNDER_REVIEW => ModerationAction::ACTION_CASE_UNDER_REVIEW,
+            ModerationCase::STATUS_ACTIONED => ModerationAction::ACTION_CASE_ACTIONED,
+            ModerationCase::STATUS_DISMISSED => ModerationAction::ACTION_CASE_DISMISSED,
+            ModerationCase::STATUS_CLOSED => ModerationAction::ACTION_CASE_CLOSED,
+            default => ModerationAction::ACTION_NO_ACTION,
+        };
+    }
+
+    private function syncLinkedReportsForCaseStatus(
+        ModerationCase $case,
+        User $admin,
+        string $caseStatus,
+        string $note
+    ): void {
+        $reportIds = $this->reportIdsForCase($case);
+        if ($reportIds === []) {
+            return;
+        }
+
+        $reportStatus = match ($caseStatus) {
+            ModerationCase::STATUS_UNDER_REVIEW => 'reviewing',
+            ModerationCase::STATUS_DISMISSED => 'dismissed',
+            default => 'resolved',
+        };
+
+        Report::query()
+            ->whereIn('id', $reportIds)
+            ->update([
+                'status' => $reportStatus,
+                'action' => $caseStatus === ModerationCase::STATUS_UNDER_REVIEW ? null : 'none',
+                'action_note' => $note !== '' ? $note : null,
+                'reviewed_by' => $admin->id,
+                'reviewed_at' => now(),
+            ]);
+
+        Report::query()
+            ->whereIn('id', $reportIds)
+            ->get()
+            ->each(fn (Report $report) => $this->reporterRiskService->applyReviewOutcome($report));
     }
 
     private function caseSummaryPayload(ModerationCase $case): array

@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
 import { ChatMessage, ChatService } from '../../services/chat';
-import { MediaService, moderationFailureMessage, type MediaUploadType } from '../../services/media';
+import { MediaModerationError, MediaService, moderationFailureMessage, type MediaUploadType } from '../../services/media';
 import { ModerationService, type ReportTargetType } from '../../services/moderation';
 import { useUser } from '../../hooks/useUser';
 import { toImageUri } from '../../utils/imageUrl';
@@ -54,6 +54,8 @@ export default function ChatThreadScreen({ route, navigation }: any) {
       shouldAutoScrollRef.current = true;
       queryClient.setQueryData(['chat-thread', String(threadId)], (current: any) => {
         if (!current?.data) return current;
+        const exists = current.data.messages?.some((message: ChatMessage) => Number(message.id) === Number(res.data.id));
+        if (exists) return current;
         return {
           ...current,
           data: {
@@ -68,6 +70,7 @@ export default function ChatThreadScreen({ route, navigation }: any) {
   });
 
   const sendMediaAsset = React.useCallback(async (asset: RoundMediaAsset) => {
+    let keepProgressOpen = false;
     try {
       const confirmed = await confirmMediaShareWithAiScan();
       if (!confirmed) {
@@ -89,7 +92,14 @@ export default function ChatThreadScreen({ route, navigation }: any) {
         returnLatestOnTimeout: asset.assetType === 'video',
       });
       if (!MediaService.isAllowedToShare(reviewed)) {
-        Alert.alert('Video reviewing', moderationFailureMessage('reviewing'));
+        keepProgressOpen = true;
+        setMediaProgress({
+          title: 'Still reviewing',
+          message: moderationFailureMessage('reviewing'),
+          status: 'reviewing',
+          dismissLabel: 'OK',
+          onDismiss: () => setMediaProgress(null),
+        });
         return;
       }
       setMediaProgress({
@@ -98,9 +108,22 @@ export default function ChatThreadScreen({ route, navigation }: any) {
       });
       await sendMutation.mutateAsync({ body: '', mediaId: reviewed.id });
     } catch (e: any) {
-      Alert.alert('Upload failed', e?.message || 'Could not send this media.');
+      if (e instanceof MediaModerationError || ['flagged', 'failed', 'timeout'].includes(String(e?.status ?? ''))) {
+        keepProgressOpen = true;
+        setMediaProgress({
+          title: 'Media not sent',
+          message: e?.message || 'This file could not be sent. Please choose another file.',
+          status: 'error',
+          dismissLabel: 'OK',
+          onDismiss: () => setMediaProgress(null),
+        });
+      } else {
+        Alert.alert('Upload failed', e?.message || 'Could not send this media.');
+      }
     } finally {
-      setMediaProgress(null);
+      if (!keepProgressOpen) {
+        setMediaProgress(null);
+      }
       setMediaSending(false);
     }
   }, [sendMutation]);

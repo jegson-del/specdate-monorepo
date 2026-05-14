@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import type {
   AdminModerationCase,
   AdminModerationCaseDetail,
@@ -17,6 +17,13 @@ type ModerationCasesPanelProps = {
   onSeverityChange: (severity: AdminModerationCaseSeverity) => void
   onSourceChange: (source: AdminModerationCaseSource) => void
   onStatusChange: (status: AdminModerationCaseStatus) => void
+  onUpdateCaseStatus: (
+    caseId: number,
+    payload: {
+      note?: string
+      status: Exclude<AdminModerationCaseStatus, 'all' | 'open' | 'appealed'>
+    },
+  ) => void
   pagination: AdminPagination | null
   query: string
   selectedCase: AdminModerationCaseDetail | null
@@ -24,6 +31,7 @@ type ModerationCasesPanelProps = {
   severity: AdminModerationCaseSeverity
   source: AdminModerationCaseSource
   status: AdminModerationCaseStatus
+  updatingCaseId: number | null
 }
 
 const statusOptions: AdminModerationCaseStatus[] = [
@@ -46,6 +54,7 @@ export function ModerationCasesPanel({
   onSeverityChange,
   onSourceChange,
   onStatusChange,
+  onUpdateCaseStatus,
   pagination,
   query,
   selectedCase,
@@ -53,6 +62,7 @@ export function ModerationCasesPanel({
   severity,
   source,
   status,
+  updatingCaseId,
 }: ModerationCasesPanelProps) {
   return (
     <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -115,7 +125,11 @@ export function ModerationCasesPanel({
             </tbody>
           </table>
         </div>
-        <CaseDetailPanel selectedCase={selectedCase} />
+        <CaseDetailPanel
+          selectedCase={selectedCase}
+          onUpdateCaseStatus={onUpdateCaseStatus}
+          updatingCaseId={updatingCaseId}
+        />
       </div>
 
       <AdminPaginationBar onPageChange={onPageChange} pagination={pagination} />
@@ -176,7 +190,27 @@ function CaseRow({
   )
 }
 
-function CaseDetailPanel({ selectedCase }: { selectedCase: AdminModerationCaseDetail | null }) {
+function CaseDetailPanel({
+  onUpdateCaseStatus,
+  selectedCase,
+  updatingCaseId,
+}: {
+  onUpdateCaseStatus: (
+    caseId: number,
+    payload: {
+      note?: string
+      status: Exclude<AdminModerationCaseStatus, 'all' | 'open' | 'appealed'>
+    },
+  ) => void
+  selectedCase: AdminModerationCaseDetail | null
+  updatingCaseId: number | null
+}) {
+  const [decisionNote, setDecisionNote] = useState('')
+
+  useEffect(() => {
+    setDecisionNote('')
+  }, [selectedCase?.id])
+
   if (!selectedCase) {
     return (
       <aside className="border-t border-slate-200 bg-slate-50 p-5 xl:border-l xl:border-t-0">
@@ -186,6 +220,17 @@ function CaseDetailPanel({ selectedCase }: { selectedCase: AdminModerationCaseDe
         </p>
       </aside>
     )
+  }
+
+  const isUpdating = updatingCaseId === selectedCase.id
+  const hasDecisionNote = decisionNote.trim().length > 0
+  const submitDecision = (
+    status: Exclude<AdminModerationCaseStatus, 'all' | 'open' | 'appealed'>,
+  ) => {
+    onUpdateCaseStatus(selectedCase.id, {
+      status,
+      note: decisionNote.trim() || undefined,
+    })
   }
 
   return (
@@ -204,6 +249,42 @@ function CaseDetailPanel({ selectedCase }: { selectedCase: AdminModerationCaseDe
         <p className="text-slate-500">{selectedCase.subject_user?.email || 'No email'}</p>
         <p className="text-slate-500">
           {selectedCase.subject_user?.moderation_status || 'unknown'} - {selectedCase.subject_user?.strike_count ?? 0} strikes
+        </p>
+      </DetailBlock>
+
+      <DetailBlock title="Case decision">
+        <textarea
+          value={decisionNote}
+          onChange={(event) => setDecisionNote(event.target.value)}
+          className="min-h-24 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold outline-none transition focus:border-pink-500 focus:ring-4 focus:ring-pink-100"
+          placeholder="Add an admin note before resolving, dismissing, or closing..."
+        />
+        <div className="grid grid-cols-2 gap-2">
+          <CaseDecisionButton
+            disabled={isUpdating}
+            label="Mark reviewing"
+            onClick={() => submitDecision('under_review')}
+          />
+          <CaseDecisionButton
+            disabled={isUpdating || !hasDecisionNote}
+            label="Resolve"
+            onClick={() => submitDecision('actioned')}
+            tone="success"
+          />
+          <CaseDecisionButton
+            disabled={isUpdating || !hasDecisionNote}
+            label="Dismiss"
+            onClick={() => submitDecision('dismissed')}
+            tone="warning"
+          />
+          <CaseDecisionButton
+            disabled={isUpdating || !hasDecisionNote}
+            label="Close"
+            onClick={() => submitDecision('closed')}
+          />
+        </div>
+        <p className="text-xs leading-5 text-slate-500">
+          Dismiss, resolve, and close require a note. Linked reports are updated with the same decision.
         </p>
       </DetailBlock>
 
@@ -255,6 +336,35 @@ function CaseDetailPanel({ selectedCase }: { selectedCase: AdminModerationCaseDe
         </pre>
       </DetailBlock>
     </aside>
+  )
+}
+
+function CaseDecisionButton({
+  disabled = false,
+  label,
+  onClick,
+  tone = 'neutral',
+}: {
+  disabled?: boolean
+  label: string
+  onClick: () => void
+  tone?: 'neutral' | 'success' | 'warning'
+}) {
+  const styles = {
+    neutral: 'bg-slate-950 text-white hover:bg-pink-600 disabled:bg-slate-300',
+    success: 'bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-slate-300',
+    warning: 'bg-amber-500 text-slate-950 hover:bg-amber-600 disabled:bg-slate-300 disabled:text-white',
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`h-9 rounded-lg px-3 text-xs font-black transition disabled:cursor-not-allowed ${styles[tone]}`}
+    >
+      {label}
+    </button>
   )
 }
 

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\ChatThread;
+use App\Models\Notification as AppNotification;
 use App\Models\Spec;
 use App\Models\SpecApplication;
 use App\Models\User;
@@ -36,6 +37,14 @@ class EmojiContentTest extends TestCase
             'sender_id' => $sender->id,
             'body' => $body,
         ]);
+
+        $notification = AppNotification::query()
+            ->where('user_id', $receiver->id)
+            ->where('type', 'chat_message')
+            ->firstOrFail();
+
+        $this->assertSame($body, $notification->data['message_preview']);
+        $this->assertStringContainsString('😊🔥', $notification->data['message']);
     }
 
     public function test_provider_chat_message_preserves_emoji_content(): void

@@ -14,7 +14,7 @@ import { Text, TextInput, Button, useTheme, ActivityIndicator } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { api } from '../../services/api';
-import { MediaService } from '../../services/media';
+import { MediaModerationError, MediaService } from '../../services/media';
 import { confirmMediaShareWithAiScan } from '../../utils/confirmMediaShareWithAiScan';
 import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect } from '@react-navigation/native';
@@ -219,6 +219,7 @@ export default function ProviderDashboardScreen({ navigation }: any) {
       return;
     }
     const label = itemLabel ?? (type === 'avatar' ? 'cover photo' : 'gallery photo');
+    let keepProgressOpen = false;
     try {
       setLoading(true);
       setMediaUploadProgress({
@@ -235,9 +236,22 @@ export default function ProviderDashboardScreen({ navigation }: any) {
       if (!skipRefresh) Alert.alert('Success', 'Image uploaded.');
     } catch (error: any) {
       const msg = error?.response?.data?.message || error?.message || 'Upload failed.';
-      Alert.alert('Error', msg);
+      if (error instanceof MediaModerationError || ['flagged', 'failed', 'timeout'].includes(String(error?.status ?? ''))) {
+        keepProgressOpen = true;
+        setMediaUploadProgress({
+          title: 'Image not saved',
+          message: msg,
+          status: 'error',
+          dismissLabel: 'OK',
+          onDismiss: () => setMediaUploadProgress(null),
+        });
+      } else {
+        Alert.alert('Error', msg);
+      }
     } finally {
-      setMediaUploadProgress(null);
+      if (!keepProgressOpen) {
+        setMediaUploadProgress(null);
+      }
       if (!skipRefresh) setLoading(false);
     }
   };

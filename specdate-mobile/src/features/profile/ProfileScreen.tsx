@@ -15,7 +15,7 @@ import { IDEAL_DATE_OPTIONS, OCCUPATION_OPTIONS, QUALIFICATION_OPTIONS, RELIGION
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ProfileImageGrid, ImageViewerModal } from './components';
-import { MediaService } from '../../services/media';
+import { MediaModerationError, MediaService } from '../../services/media';
 import { confirmMediaShareWithAiScan } from '../../utils/confirmMediaShareWithAiScan';
 import { toImageUri, imageUriWithCacheBust } from '../../utils/imageUrl';
 import { MultiSelectModal } from '../specs/components/MultiSelectModal';
@@ -247,6 +247,7 @@ export default function ProfileScreen({ navigation }: any) {
         }
         setImgLoading(true);
         const label = type === 'avatar' ? 'avatar' : 'profile photo';
+        let keepProgressOpen = false;
         try {
             setUploadProgress({
                 title: 'Uploading media',
@@ -305,9 +306,22 @@ export default function ProfileScreen({ navigation }: any) {
             Alert.alert('Success', 'Image uploaded successfully.');
         } catch (e: any) {
             const msg = e?.message || e?.response?.data?.message || 'Upload failed. Try again.';
-            Alert.alert('Upload Failed', msg);
+            if (e instanceof MediaModerationError || ['flagged', 'failed', 'timeout'].includes(String(e?.status ?? ''))) {
+                keepProgressOpen = true;
+                setUploadProgress({
+                    title: 'Image not saved',
+                    message: msg,
+                    status: 'error',
+                    dismissLabel: 'OK',
+                    onDismiss: () => setUploadProgress(null),
+                });
+            } else {
+                Alert.alert('Upload Failed', msg);
+            }
         } finally {
-            setUploadProgress(null);
+            if (!keepProgressOpen) {
+                setUploadProgress(null);
+            }
             setImgLoading(false);
         }
     };

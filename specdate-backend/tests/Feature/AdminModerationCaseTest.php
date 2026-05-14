@@ -113,4 +113,108 @@ class AdminModerationCaseTest extends TestCase
             ->assertJsonPath('data.strikes.0.category', ModerationStrike::CATEGORY_HARASSMENT)
             ->assertJsonPath('data.appeals.0.status', ModerationAppeal::STATUS_OPEN);
     }
+
+    public function test_admin_can_escalate_case_to_under_review_and_sync_linked_reports(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        [$case, $report] = $this->createReportBackedCase();
+
+        Sanctum::actingAs($admin);
+
+        $this->patchJson("/api/admin/moderation/cases/{$case->id}", [
+            'status' => ModerationCase::STATUS_UNDER_REVIEW,
+            'note' => 'Needs senior review.',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.status', ModerationCase::STATUS_UNDER_REVIEW)
+            ->assertJsonPath('data.closed_at', null)
+            ->assertJsonPath('data.actions.0.action', ModerationAction::ACTION_CASE_UNDER_REVIEW);
+
+        $this->assertDatabaseHas('moderation_cases', [
+            'id' => $case->id,
+            'status' => ModerationCase::STATUS_UNDER_REVIEW,
+            'assigned_admin_id' => $admin->id,
+            'closed_at' => null,
+        ]);
+        $this->assertDatabaseHas('reports', [
+            'id' => $report->id,
+            'status' => 'reviewing',
+            'reviewed_by' => $admin->id,
+        ]);
+    }
+
+    public function test_admin_can_dismiss_case_and_close_linked_reports(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        [$case, $report] = $this->createReportBackedCase();
+
+        Sanctum::actingAs($admin);
+
+        $this->patchJson("/api/admin/moderation/cases/{$case->id}", [
+            'status' => ModerationCase::STATUS_DISMISSED,
+            'note' => 'No violation after review.',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.status', ModerationCase::STATUS_DISMISSED)
+            ->assertJsonPath('data.actions.0.action', ModerationAction::ACTION_CASE_DISMISSED);
+
+        $this->assertDatabaseHas('moderation_cases', [
+            'id' => $case->id,
+            'status' => ModerationCase::STATUS_DISMISSED,
+            'assigned_admin_id' => $admin->id,
+        ]);
+        $this->assertNotNull($case->fresh()->closed_at);
+        $this->assertDatabaseHas('reports', [
+            'id' => $report->id,
+            'status' => 'dismissed',
+            'action' => 'none',
+            'action_note' => 'No violation after review.',
+            'reviewed_by' => $admin->id,
+        ]);
+    }
+
+    public function test_admin_must_add_note_when_closing_case(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        [$case] = $this->createReportBackedCase();
+
+        Sanctum::actingAs($admin);
+
+        $this->patchJson("/api/admin/moderation/cases/{$case->id}", [
+            'status' => ModerationCase::STATUS_CLOSED,
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'A decision note is required to close or resolve a case.');
+    }
+
+    private function createReportBackedCase(): array
+    {
+        $reporter = User::factory()->create();
+        $subject = User::factory()->create();
+
+        $report = Report::create([
+            'reporter_id' => $reporter->id,
+            'reported_user_id' => $subject->id,
+            'target_type' => 'user',
+            'target_id' => $subject->id,
+            'reason' => 'Harassment or abuse',
+            'details' => 'Repeated abuse.',
+            'status' => 'open',
+        ]);
+
+        $case = ModerationCase::create([
+            'subject_user_id' => $subject->id,
+            'opened_by_user_id' => $reporter->id,
+            'source' => ModerationCase::SOURCE_REPORT,
+            'target_type' => 'user',
+            'target_id' => $subject->id,
+            'severity' => ModerationCase::SEVERITY_HIGH,
+            'status' => ModerationCase::STATUS_OPEN,
+            'summary' => 'User report: Harassment or abuse',
+            'evidence' => ['report_ids' => [$report->id], 'latest_report_id' => $report->id],
+            'opened_at' => now(),
+        ]);
+
+        return [$case, $report];
+    }
 }

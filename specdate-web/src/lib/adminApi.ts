@@ -445,6 +445,31 @@ export async function getAdminModerationCase(token: string, caseId: number) {
   return result.data
 }
 
+export async function updateAdminModerationCase(
+  token: string,
+  caseId: number,
+  payload: {
+    note?: string
+    status: Exclude<AdminModerationCaseStatus, 'all' | 'open' | 'appealed'>
+  },
+) {
+  const response = await fetch(`${getApiBase()}/api/admin/moderation/cases/${caseId}`, {
+    method: 'PATCH',
+    headers: {
+      ...adminHeaders(token),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  })
+  const result = (await parseJson(response)) as ApiEnvelope<AdminModerationCaseDetail> | null
+
+  if (!response.ok || !result) {
+    throw new Error(pickApiError(result, 'Moderation case could not be updated.'))
+  }
+
+  return result.data
+}
+
 export async function decideAdminModerationAppeal(
   token: string,
   appealId: number,

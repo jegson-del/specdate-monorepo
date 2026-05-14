@@ -23,6 +23,7 @@ import {
   resendProviderSetupEmail,
   saveProviderAdminNote,
   sendAdminSupportMessage,
+  updateAdminModerationCase,
   updateAdminReport,
   updateAdminSupportTicketStatus,
 } from '../lib/adminApi'
@@ -58,6 +59,11 @@ type ReportUpdatePayload = {
   action?: AdminReportAction
   action_note?: string
   status?: Exclude<AdminReportStatus, 'all'>
+}
+
+type CaseUpdatePayload = {
+  note?: string
+  status: Exclude<AdminModerationCaseStatus, 'all' | 'open' | 'appealed'>
 }
 
 const adminQueryKeys = {
@@ -439,6 +445,33 @@ export function useAdminDashboard({
     },
   })
 
+  const updateModerationCaseMutation = useMutation({
+    mutationFn: ({
+      caseId,
+      payload,
+    }: {
+      caseId: number
+      payload: CaseUpdatePayload
+    }) => updateAdminModerationCase(token, caseId, payload),
+    onError: (error) => {
+      showAlert({
+        tone: 'error',
+        title: 'Case update failed',
+        message: error instanceof Error ? error.message : 'Moderation case could not be updated.',
+      })
+    },
+    onSuccess: (updatedCase) => {
+      queryClient.setQueryData(['admin', 'moderation-case', updatedCase.id], updatedCase)
+      showAlert({
+        tone: 'success',
+        title: 'Case updated',
+        message: 'Moderation case decision saved.',
+      })
+      invalidateAdminWork()
+      queryClient.invalidateQueries({ queryKey: ['admin', 'moderation-case'] })
+    },
+  })
+
   const decideAppealMutation = useMutation({
     mutationFn: ({
       appealId,
@@ -677,6 +710,11 @@ export function useAdminDashboard({
     openSupportTicket,
     updateReport: (reportId: number, payload: ReportUpdatePayload) =>
       updateReportMutation.mutate({ payload, reportId }),
+    updateModerationCase: (caseId: number, payload: CaseUpdatePayload) =>
+      updateModerationCaseMutation.mutate({ caseId, payload }),
+    updatingModerationCaseId: updateModerationCaseMutation.isPending
+      ? updateModerationCaseMutation.variables?.caseId ?? null
+      : null,
     decideAppeal: (appealId: number, status: 'granted' | 'denied', decisionNote: string) =>
       decideAppealMutation.mutate({ appealId, decisionNote, status }),
     updatingAppealId: decideAppealMutation.isPending

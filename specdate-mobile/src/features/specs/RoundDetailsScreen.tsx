@@ -6,6 +6,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect } from '@react-navigation/native';
 import { SpecService } from '../../services/specs';
+import { MediaModerationError } from '../../services/media';
 import { useUser } from '../../hooks/useUser';
 import { insertEmojiAtSelection, type TextSelection } from '../../utils/emojiText';
 import { MediaPickerSheet, UploadProgressModal, VideoViewerModal, type UploadProgressState } from '../../components';
@@ -137,12 +138,20 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
             Alert.alert('Success', 'Answer submitted!');
         },
         onError: (err: any) => {
+            if (isMediaReviewError(err)) {
+                showMediaReviewResult(err, 'Answer media not sent');
+                return;
+            }
             const msg = err?.response?.data?.message ?? err?.message;
             const fileErrors = err?.response?.data?.errors?.file;
             const detail = Array.isArray(fileErrors) ? fileErrors[0] : (typeof fileErrors === 'string' ? fileErrors : null);
             Alert.alert('Error', detail || msg || 'Failed to submit answer.');
         },
-        onSettled: () => setUploadProgress(null),
+        onSettled: (_data, err) => {
+            if (!isMediaReviewError(err)) {
+                setUploadProgress(null);
+            }
+        },
     });
 
     const closeRoundMutation = useMutation({
@@ -383,8 +392,18 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
             setNextRoundQuestionMedia(null);
             navigation.goBack(); // Go back to list? Or stay?
         },
-        onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || err?.message || 'Failed to start round.'),
-        onSettled: () => setUploadProgress(null),
+        onError: (err: any) => {
+            if (isMediaReviewError(err)) {
+                showMediaReviewResult(err, 'Round media not sent');
+                return;
+            }
+            Alert.alert('Error', err?.response?.data?.message || err?.message || 'Failed to start round.');
+        },
+        onSettled: (_data, err) => {
+            if (!isMediaReviewError(err)) {
+                setUploadProgress(null);
+            }
+        },
     });
 
     const updateRoundMutation = useMutation({
@@ -424,6 +443,21 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
         },
         onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to nudge users.'),
     });
+
+    function isMediaReviewError(err: unknown): boolean {
+        const status = String((err as any)?.status ?? '');
+        return err instanceof MediaModerationError || ['flagged', 'failed', 'timeout', 'reviewing'].includes(status);
+    }
+
+    function showMediaReviewResult(err: any, title: string): void {
+        setUploadProgress({
+            title,
+            message: err?.message || 'This file could not be used. Please choose another file.',
+            status: err?.status === 'reviewing' ? 'reviewing' : 'error',
+            dismissLabel: 'OK',
+            onDismiss: () => setUploadProgress(null),
+        });
+    }
 
     // --- Computed ---
     const resolvedRound =

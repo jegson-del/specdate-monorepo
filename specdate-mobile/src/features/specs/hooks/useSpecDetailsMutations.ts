@@ -1,6 +1,7 @@
 import { Alert } from 'react-native';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { SpecService } from '../../../services/specs';
+import { MediaModerationError } from '../../../services/media';
 import { resolveShareableRoundMedia } from '../roundMediaUpload';
 import type { RoundMediaAsset } from '../components';
 import type { UploadProgressState } from '../../../components';
@@ -52,6 +53,21 @@ export function useSpecDetailsMutations({
         setLastManStandingVisible(false);
         setLastManStandingSpecId(null);
         setLastManStandingWinnerName('');
+    };
+
+    const isMediaReviewError = (err: unknown) => {
+        const status = String((err as any)?.status ?? '');
+        return err instanceof MediaModerationError || ['flagged', 'failed', 'timeout', 'reviewing'].includes(status);
+    };
+
+    const showMediaReviewResult = (err: any, title: string) => {
+        setUploadProgress?.({
+            title,
+            message: err?.message || 'This file could not be used. Please choose another file.',
+            status: err?.status === 'reviewing' ? 'reviewing' : 'error',
+            dismissLabel: 'OK',
+            onDismiss: () => setUploadProgress?.(null),
+        });
     };
 
     const likeMutation = useMutation({
@@ -189,8 +205,18 @@ export function useSpecDetailsMutations({
             setNewRoundQuestion('');
             setRoundQuestionMedia(null);
         },
-        onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || err?.message || 'Failed to start round.'),
-        onSettled: () => setUploadProgress?.(null),
+        onError: (err: any) => {
+            if (isMediaReviewError(err)) {
+                showMediaReviewResult(err, 'Round media not sent');
+                return;
+            }
+            Alert.alert('Error', err?.response?.data?.message || err?.message || 'Failed to start round.');
+        },
+        onSettled: (_data, err) => {
+            if (!isMediaReviewError(err)) {
+                setUploadProgress?.(null);
+            }
+        },
     });
 
     const eliminateUsersMutation = useMutation({

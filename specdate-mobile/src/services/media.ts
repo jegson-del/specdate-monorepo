@@ -190,6 +190,9 @@ export function moderationFailureMessage(status?: string): string {
     if (status === 'reviewing') {
         return 'This video is still being reviewed. You can come back and try again in a few minutes.';
     }
+    if (status === 'flagged') {
+        return 'This file could not be shared after safety review. Please choose a different file.';
+    }
     if (status === 'failed' || status === 'timeout') {
         return 'This file could not be checked. Please choose another file.';
     }

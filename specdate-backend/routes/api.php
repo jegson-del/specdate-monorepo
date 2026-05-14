@@ -76,6 +76,7 @@ Route::middleware(['auth:sanctum', 'device.fingerprint'])->group(function () {
     Route::patch('/admin/media-moderation/{media}/approve', [AdminMediaModerationController::class, 'approve']);
     Route::get('/admin/moderation/cases', [AdminModerationCaseController::class, 'index']);
     Route::get('/admin/moderation/cases/{case}', [AdminModerationCaseController::class, 'show']);
+    Route::patch('/admin/moderation/cases/{case}', [AdminModerationCaseController::class, 'update']);
     Route::post('/admin/moderation/cases/{case}/warning', [AdminModerationStrikeController::class, 'warning']);
     Route::post('/admin/moderation/cases/{case}/strike', [AdminModerationStrikeController::class, 'issue']);
     Route::post('/admin/moderation/cases/{case}/suspend', [AdminModerationStrikeController::class, 'suspend']);

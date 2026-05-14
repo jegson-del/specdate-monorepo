@@ -204,10 +204,13 @@ class ChatService
                     'thread_id' => $thread->id,
                     'thread_type' => $thread->type ?? 'match',
                     'spec_date_id' => $thread->spec_date_id,
+                    'message_id' => $message->id,
+                    'message_preview' => $this->messagePreview($body),
+                    'has_media' => (bool) $mediaId,
                     'sender_id' => $user->id,
                 ],
                 'New message',
-                "{$senderName} sent you a message."
+                $this->chatNotificationBody($senderName, $body, (bool) $mediaId)
             );
         }
 
@@ -320,5 +323,27 @@ class ChatService
                 'avatar' => $senderAvatar,
             ] : null,
         ];
+    }
+
+    private function chatNotificationBody(string $senderName, ?string $body, bool $hasMedia): string
+    {
+        $preview = $this->messagePreview($body);
+        if ($preview !== null) {
+            return "{$senderName}: {$preview}";
+        }
+
+        return $hasMedia
+            ? "{$senderName} sent you media."
+            : "{$senderName} sent you a message.";
+    }
+
+    private function messagePreview(?string $body): ?string
+    {
+        $body = trim((string) $body);
+        if ($body === '') {
+            return null;
+        }
+
+        return mb_strlen($body) > 120 ? mb_substr($body, 0, 117).'...' : $body;
     }
 }

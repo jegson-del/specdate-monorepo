@@ -54,6 +54,8 @@ export default function AdminModerationCasesPage() {
         severity={adminDashboard.moderationCaseSeverity}
         source={adminDashboard.moderationCaseSource}
         status={adminDashboard.moderationCaseStatus}
+        onUpdateCaseStatus={adminDashboard.updateModerationCase}
+        updatingCaseId={adminDashboard.updatingModerationCaseId}
       />
     </AdminShell>
   )

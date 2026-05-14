@@ -1,4 +1,4 @@
-import { MediaService, moderationFailureMessage, type MediaItem, type MediaUploadType } from '../../services/media';
+import { MediaModerationError, MediaService, moderationFailureMessage, type MediaItem, type MediaUploadType } from '../../services/media';
 import type { UploadProgressState } from '../../components';
 import type { RoundMediaAsset } from './components';
 
@@ -45,10 +45,13 @@ export async function resolveShareableRoundMedia({
   }
 
   if (MediaService.isModerationInProgress(reviewed)) {
-    throw new Error(moderationFailureMessage('reviewing'));
+    throw new MediaModerationError(moderationFailureMessage('reviewing'), 'reviewing');
   }
 
-  throw new Error(moderationFailureMessage(String(reviewed.moderation_status ?? 'failed')));
+  throw new MediaModerationError(
+    moderationFailureMessage(String(reviewed.moderation_status ?? 'failed')),
+    String(reviewed.moderation_status ?? 'failed'),
+  );
 }
 
 export function isRoundMediaReviewing(asset?: RoundMediaAsset | null): boolean {
