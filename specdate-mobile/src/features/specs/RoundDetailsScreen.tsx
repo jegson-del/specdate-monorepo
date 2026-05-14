@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, TextInput, Image } from 'react-native';
-import { Text, useTheme, Button, ActivityIndicator, IconButton } from 'react-native-paper';
+import { Text, useTheme, Button, ActivityIndicator, IconButton, Chip } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -12,9 +12,10 @@ import { MediaPickerSheet, VideoViewerModal } from '../../components';
 import { AudioMessagePlayer, CloseRoundModal, LastManStandingModal, PrivateRoundState, RoundMediaActions, RoundQuestionCard, RoundResponsesList, useRoundAudioRecorder, VideoThumbnailPlayer } from './components';
 import type { RoundMediaAsset } from './components';
 import * as ImagePicker from 'expo-image-picker';
-import { MediaService } from '../../services/media';
 import { confirmMediaShareWithAiScan } from '../../utils/confirmMediaShareWithAiScan';
 import { ModerationService, type ReportTargetType } from '../../services/moderation';
+import { isAudioMedia, isVideoMedia } from './specDetailsUtils';
+import { isRoundMediaReviewing, resolveShareableRoundMedia } from './roundMediaUpload';
 import ChatSafetySheet from '../chat/components/ChatSafetySheet';
 
 type ReportSheetState =
@@ -27,14 +28,6 @@ type RoundMediaSheetState = null | {
     target: 'answer' | 'next_question';
     source: 'file' | 'camera';
 };
-
-function isAudioMedia(media?: any) {
-    return String(media?.type ?? '').includes('_audio') || String(media?.mime_type ?? '').startsWith('audio/');
-}
-
-function isVideoMedia(media?: any) {
-    return String(media?.type ?? '').includes('_video') || String(media?.mime_type ?? '').startsWith('video/');
-}
 
 export default function RoundDetailsScreen({ route, navigation }: any) {
     const specId = route.params?.specId != null ? String(route.params.specId) : undefined;
@@ -120,13 +113,11 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                         : answerMedia.assetType === 'video'
                             ? 'round_answer_video'
                             : 'round_answer_image';
-                const uploaded = await MediaService.upload(
-                    answerMedia.uri,
+                const reviewed = await resolveShareableRoundMedia({
+                    asset: answerMedia,
                     uploadType,
-                    undefined,
-                    answerMedia.mimeType
-                );
-                const reviewed = await MediaService.waitForModeration(uploaded);
+                    onAssetChange: setAnswerMedia,
+                });
                 mediaId = reviewed.id;
             }
             return SpecService.submitAnswer(rId, text, mediaId);
@@ -361,13 +352,11 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                         : nextRoundQuestionMedia.assetType === 'video'
                             ? 'round_question_video'
                             : 'round_question_image';
-                const uploaded = await MediaService.upload(
-                    nextRoundQuestionMedia.uri,
+                const reviewed = await resolveShareableRoundMedia({
+                    asset: nextRoundQuestionMedia,
                     uploadType,
-                    null,
-                    nextRoundQuestionMedia.mimeType
-                );
-                const reviewed = await MediaService.waitForModeration(uploaded);
+                    onAssetChange: setNextRoundQuestionMedia,
+                });
                 mediaId = reviewed.id;
             }
             return SpecService.startRound(String(specId), question, mediaId);
@@ -667,6 +656,11 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                                 />
                                 {nextRoundQuestionMedia && (
                                     <View style={[styles.mediaPreviewBox, { borderColor: theme.colors.outlineVariant || theme.colors.outline + '40' }]}>
+                                        {isRoundMediaReviewing(nextRoundQuestionMedia) ? (
+                                            <Chip compact icon="clock-outline" style={{ alignSelf: 'flex-start', marginBottom: 8 }}>
+                                                Reviewing video
+                                            </Chip>
+                                        ) : null}
                                         {nextRoundQuestionMedia.assetType === 'image' ? (
                                             <Image source={{ uri: nextRoundQuestionMedia.uri }} style={styles.questionMediaImage} />
                                         ) : nextRoundQuestionMedia.assetType === 'video' ? (
@@ -772,6 +766,11 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                                 />
                                 {answerMedia && (
                                     <View style={{ marginBottom: 12, position: 'relative', alignSelf: 'flex-start' }}>
+                                        {isRoundMediaReviewing(answerMedia) ? (
+                                            <Chip compact icon="clock-outline" style={{ alignSelf: 'flex-start', marginBottom: 8 }}>
+                                                Reviewing video
+                                            </Chip>
+                                        ) : null}
                                         {answerMedia.assetType === 'image' ? (
                                             <Image source={{ uri: answerMedia.uri }} style={{ width: 120, height: 120, borderRadius: 8 }} />
                                         ) : answerMedia.assetType === 'video' ? (

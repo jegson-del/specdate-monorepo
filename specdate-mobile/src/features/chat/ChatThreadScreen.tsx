@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
 import { ChatMessage, ChatService } from '../../services/chat';
-import { MediaService, type MediaUploadType } from '../../services/media';
+import { MediaService, moderationFailureMessage, type MediaUploadType } from '../../services/media';
 import { ModerationService, type ReportTargetType } from '../../services/moderation';
 import { useUser } from '../../hooks/useUser';
 import { toImageUri } from '../../utils/imageUrl';
@@ -76,7 +76,13 @@ export default function ChatThreadScreen({ route, navigation }: any) {
       const uploadType: MediaUploadType =
         asset.assetType === 'audio' ? 'chat_audio' : asset.assetType === 'video' ? 'chat_video' : 'chat_image';
       const uploaded = await MediaService.upload(asset.uri, uploadType, null, asset.mimeType);
-      const reviewed = await MediaService.waitForModeration(uploaded);
+      const reviewed = await MediaService.waitForModeration(uploaded, {
+        returnLatestOnTimeout: asset.assetType === 'video',
+      });
+      if (!MediaService.isAllowedToShare(reviewed)) {
+        Alert.alert('Video reviewing', moderationFailureMessage('reviewing'));
+        return;
+      }
       sendMutation.mutate({ body: '', mediaId: reviewed.id });
     } catch (e: any) {
       Alert.alert('Upload failed', e?.message || 'Could not send this media.');

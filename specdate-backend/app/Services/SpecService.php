@@ -2,437 +2,81 @@
 
 namespace App\Services;
 
-use App\Models\Spec;
-use App\Models\SpecDate;
-use App\Models\SpecNotificationLog;
 use App\Models\SpecRound;
 use App\Models\SpecRoundAnswer;
 use App\Models\User;
-use App\Models\UserBalance;
-use App\Services\ChatService;
-use App\Services\MediaAttachmentPolicyService;
-use App\Services\NotificationService;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class SpecService
 {
-    protected $notificationService;
-    protected $chatService;
-    protected $mediaAttachmentPolicy;
+    protected $specApplicationService;
+    protected $specRoundService;
+    protected $specDateService;
+    protected $specMutationService;
+    protected $specQueryService;
+    protected $specInteractionService;
 
     public function __construct(
-        NotificationService $notificationService,
-        ChatService $chatService,
-        MediaAttachmentPolicyService $mediaAttachmentPolicy,
+        SpecApplicationService $specApplicationService,
+        SpecRoundService $specRoundService,
+        SpecDateService $specDateService,
+        SpecMutationService $specMutationService,
+        SpecQueryService $specQueryService,
+        SpecInteractionService $specInteractionService,
     )
     {
-        $this->notificationService = $notificationService;
-        $this->chatService = $chatService;
-        $this->mediaAttachmentPolicy = $mediaAttachmentPolicy;
+        $this->specApplicationService = $specApplicationService;
+        $this->specRoundService = $specRoundService;
+        $this->specDateService = $specDateService;
+        $this->specMutationService = $specMutationService;
+        $this->specQueryService = $specQueryService;
+        $this->specInteractionService = $specInteractionService;
     }
 
     public function listForFeed($user, string $filter = 'LIVE', bool $excludeOwn = false)
     {
-        $query = Spec::query()
-            ->with(['owner.profile', 'owner.media', 'requirements'])
-            ->withCount(['applications', 'likes'])
-            ->whereHas('owner', fn ($q) => $q->where('is_paused', false));
-
-        if ($excludeOwn) {
-            $query->where('user_id', '!=', $user->id);
-        }
-
-        // NOTE: In early MVP data sets, these can overlap; the goal is different "feels":
-        // - LIVE: newly created
-        // - ONGOING: ending soon
-        // - POPULAR: most applications
-        // - HOTTEST: recent + popular
-        switch ($filter) {
-            case 'POPULAR':
-                $query->where('status', 'OPEN')
-                    ->where('expires_at', '>', now())
-                    ->orderByDesc('applications_count');
-                break;
-            case 'HOTTEST':
-                $query->where('status', 'OPEN')
-                    ->where('expires_at', '>', now())
-                    ->where('created_at', '>=', now()->subDays(3))
-                    ->orderByDesc('applications_count');
-                break;
-            case 'ONGOING':
-                $query->where('status', 'ACTIVE')
-                    ->orderBy('expires_at', 'asc');
-                break;
-            case 'LIVE':
-            default:
-                // All active specs (default)
-                $query->where('status', 'OPEN')
-                    ->where('expires_at', '>', now())
-                    ->latest();
-                break;
-        }
-
-        $specs = $query->paginate(10);
-
-        // Append tag to each item for frontend mapping
-        $specs->getCollection()->transform(function ($spec) use ($filter) {
-            $spec->tag = $filter;
-            return $spec;
-        });
-
-        return $specs;
+        return $this->specQueryService->listForFeed($user, $filter, $excludeOwn);
     }
 
     public function listMine($user, $type = 'all')
     {
-        $query = Spec::query()
-            ->with(['requirements', 'owner.profile', 'owner.media'])
-            ->withCount('applications');
-
-        if ($type === 'owned') {
-            $query->where('user_id', $user->id);
-        } elseif ($type === 'joined') {
-            $query->whereHas('applications', function ($a) use ($user) {
-                $a->where('user_id', $user->id);
-            })->where('user_id', '!=', $user->id); // Ensure not picking own specs if joined logic is loose (though app prevents joining own)
-        } else {
-             // 'all'
-             $query->where(function ($q) use ($user) {
-                $q->where('user_id', $user->id)
-                    ->orWhereHas('applications', function ($a) use ($user) {
-                        $a->where('user_id', $user->id);
-                    });
-            });
-        }
-
-        $specs = $query->latest()->paginate(20);
-
-        // Inject owner avatar URL
-        $specs->getCollection()->transform(function ($spec) {
-            if ($spec->owner) {
-                // If owner is loaded, get avatar from media
-                $avatarMedia = $spec->owner->media->where('type', 'avatar')->filter(fn ($media) => $media->isShareable())->sortByDesc('id')->first();
-                $url = $avatarMedia ? $avatarMedia->url : null;
-                
-                if (!$spec->owner->profile) {
-                    $spec->owner->profile = (object) []; // Dummy if missing
-                }
-                $spec->owner->profile->avatar = $url;
-            }
-            return $spec;
-        });
-
-        return $specs;
+        return $this->specQueryService->listMine($user, $type);
     }
 
     public function getOne($id, $user = null)
     {
-        $query = Spec::with(['owner.profile', 'owner.media', 'requirements'])
-            ->withCount(['applications', 'likes'])
-            ->with(['applications' => function($q) {
-                // Return all applications so we can see statuses; load user profile + media for avatar from media table
-                $q->with('user.profile', 'user.media');
-            }])
-            // Load all rounds (history + active), newest first for list UX
-            ->with(['rounds' => function($q) {
-                $q->with('media')->orderBy('round_number', 'desc');
-            }]);
+        return $this->specQueryService->getOne($id, $user);
+    }
 
-        if ($user) {
-            $query->withExists(['likes as is_liked' => function ($q) use ($user) {
-                $q->where('user_id', $user->id);
-            }]);
-            
-             // Include answers for the active round
-
-        }
-
-        $spec = $query->find($id);
-
-        if ($spec && $user) {
-             // Privacy Logic for Answers:
-             // If User is Owner -> See ALL answers
-             // If User is Participant -> See ONLY OWN answer; if ELIMINATED, only show rounds up to the round they were eliminated in
-             if ((int) $spec->user_id === (int) $user->id) {
-                 // Owner: Load all answers for active rounds
-                 $spec->rounds->load(['answers' => function ($q) {
-                     $q->whereNull('hidden_at');
-                 }]);
-                 $spec->rounds->load(['answers.user.profile', 'answers.user.media', 'answers.media']);
-             } else {
-                 // Participant: maybe restrict rounds to "up until eliminated"
-                 $application = $spec->applications->firstWhere('user_id', $user->id);
-                 if ($application && $application->status === 'ELIMINATED') {
-                     // Find the round in which they were eliminated (their answer has is_eliminated = true)
-                     $eliminatedRound = SpecRoundAnswer::where('user_id', $user->id)
-                         ->where('is_eliminated', true)
-                         ->whereHas('round', fn ($q) => $q->where('spec_id', $spec->id))
-                         ->with('round')
-                         ->first();
-                     if ($eliminatedRound && $eliminatedRound->round) {
-                         $maxRoundNumber = $eliminatedRound->round->round_number;
-                         // Keep only rounds up to and including the elimination round
-                         $spec->setRelation('rounds', $spec->rounds->filter(fn ($r) => $r->round_number <= $maxRoundNumber)->values());
-                     }
-                 }
-                 // Load only their answers on the rounds collection
-                 $spec->rounds->load(['answers' => function ($q) use ($user) {
-                     $q->where('user_id', $user->id)->whereNull('hidden_at');
-                 }]);
-                 $spec->rounds->load(['answers.media']);
-             }
-        }
-
-        return $spec;
+    public function getOnePayload($id, $user = null): ?array
+    {
+        return $this->specQueryService->getOnePayload($id, $user);
     }
 
 
 
     public function join($user, $id): array
     {
-        $spec = Spec::with('requirements')->findOrFail($id);
-
-        if ($spec->expires_at && $spec->expires_at <= now()) {
-            throw new HttpException(400, 'This spec has already started (applications closed).');
-        }
-
-        if ($spec->status !== 'OPEN') {
-            throw new HttpException(400, 'This spec is not open for applications.');
-        }
-
-        // Compare as integers so string/int from DB or auth never causes a false positive
-        $ownerId = (int) $spec->getAttribute('user_id');
-        $currentUserId = (int) $user->getKey();
-        if ($ownerId === $currentUserId) {
-            throw new HttpException(400, 'You cannot join your own spec.');
-        }
-
-        if (!$user->profile_complete) {
-            throw new HttpException(403, 'Your profile must be complete to join a spec.');
-        }
-
-        $existing = $spec->applications()->where('user_id', $user->id)->first();
-        if ($existing) {
-            throw new HttpException(400, 'You have already applied to this spec.');
-        }
-
-        // Check Requirements (with age derived from dob)
-        $profile = $user->profile;
-        foreach ($spec->requirements as $req) {
-            if (!$req->is_compulsory) continue;
-
-            // Age: profile has dob, not age — compute age from dob for requirement check
-            if ($req->field === 'age') {
-                $userAge = $this->getAgeFromProfile($profile);
-                if ($userAge === null) {
-                    throw new HttpException(422, 'Requirement not met: age (date of birth required)');
-                }
-                $reqValue = $this->normalizeRequirementValue($req->value);
-                if (!$this->checkAgeRequirement($userAge, $req->operator, $reqValue)) {
-                    throw new HttpException(422, "Requirement not met: age (your age is {$userAge})");
-                }
-                continue;
-            }
-
-            // Height: min height is ">= value" (cm). User must be at or above required height.
-            if ($req->field === 'height') {
-                $userHeight = $profile->height !== null && $profile->height !== '' ? (int) $profile->height : null;
-                if ($userHeight === null) {
-                    throw new HttpException(422, 'Requirement not met: height (height is required)');
-                }
-                $reqValue = $this->normalizeRequirementValue($req->value);
-                if ($req->operator === '>=') {
-                    if ($userHeight < $reqValue) {
-                        throw new HttpException(422, "Requirement not met: height (min {$reqValue} cm, yours is {$userHeight} cm)");
-                    }
-                } else {
-                    if (!$this->checkNumericRequirement($userHeight, $req->operator ?? '=', $reqValue)) {
-                        throw new HttpException(422, "Requirement not met: height (yours is {$userHeight} cm)");
-                    }
-                }
-                continue;
-            }
-
-            // Religion: "Any" or empty means no filter; otherwise user's religion must match
-            if ($req->field === 'religion') {
-                $reqVal = is_string($req->value) ? trim($req->value) : $req->value;
-                if ($reqVal === '' || $reqVal === 'Any') {
-                    continue;
-                }
-                $userReligion = $profile->religion ?? null;
-                if ($userReligion === null || (string) $userReligion === '') {
-                    throw new HttpException(422, 'Requirement not met: religion (add your religion in Profile)');
-                }
-                $reqValue = $req->value;
-                if (is_string($reqValue) && (str_starts_with(trim($reqValue), '[') || str_starts_with(trim($reqValue), '{'))) {
-                    $reqValue = json_decode($reqValue, true);
-                }
-                if (is_array($reqValue)) {
-                    if (!in_array((string) $userReligion, array_map('strval', $reqValue))) {
-                        throw new HttpException(422, "Requirement not met: religion (spec requires one of: " . implode(', ', $reqValue) . ")");
-                    }
-                } else {
-                    if ((string) $userReligion !== (string) $reqValue) {
-                        throw new HttpException(422, "Requirement not met: religion (spec requires: {$reqValue})");
-                    }
-                }
-                continue;
-            }
-
-            $userValue = $profile->{$req->field} ?? null;
-            $reqValue = $req->value;
-            // Value may be JSON string in DB (e.g. from json_encode)
-            if (is_string($reqValue) && (str_starts_with(trim($reqValue), '[') || str_starts_with(trim($reqValue), '{'))) {
-                $reqValue = json_decode($reqValue, true);
-            }
-
-            if (is_array($reqValue)) {
-                if (!$userValue || !in_array((string) $userValue, array_map('strval', $reqValue))) {
-                    throw new HttpException(422, "Requirement not met: {$req->field}");
-                }
-            } else {
-                if ((string) $userValue !== (string) $reqValue) {
-                    throw new HttpException(422, "Requirement not met: {$req->field}");
-                }
-            }
-        }
-
-        $balance = DB::transaction(function () use ($spec, $user) {
-            $existing = $spec->applications()->where('user_id', $user->id)->lockForUpdate()->first();
-            if ($existing) {
-                throw new HttpException(400, 'You have already applied to this spec.');
-            }
-
-            // Create Application
-            $spec->applications()->create([
-                'user_id' => $user->id,
-                'user_role' => 'participant',
-                'status' => 'PENDING',
-            ]);
-
-            // Notify Owner
-            $this->notificationService->notify(
-                $spec->owner, 
-                'join_request',
-                [
-                    'spec_id' => $spec->id, 
-                    'spec_title' => $spec->title,
-                    'applicant_id' => $user->id,
-                    'applicant_name' => $user->name ?? 'User'
-                ],
-                'New Join Request',
-                "Someone wants to join '{$spec->title}'"
-            );
-
-            return UserBalance::where('user_id', $user->id)->first();
-        });
-
-        return [
-            'balance' => ['credits' => $balance?->credits ?? 0],
-        ];
+        return $this->specApplicationService->join($user, $id);
     }
 
     public function approveApplication($user, $specId, $applicationId): void
     {
-        $spec = Spec::findOrFail($specId);
-
-        if ($spec->user_id !== $user->id) {
-            throw new HttpException(403, 'Unauthorized.');
-        }
-
-        $application = $spec->applications()->where('id', $applicationId)->first();
-        if (!$application) {
-            throw new HttpException(404, 'Application not found.');
-        }
-
-        $wasAccepted = $application->status === 'ACCEPTED';
-        $application->update(['status' => 'ACCEPTED']);
-
-        if (!$wasAccepted && $application->user) {
-            $this->notificationService->notify(
-                $application->user,
-                'application_accepted',
-                [
-                    'spec_id' => $spec->id,
-                    'spec_title' => $spec->title,
-                ],
-                'Application accepted',
-                "You have been accepted into '{$spec->title}'."
-            );
-        }
-
-        $this->notifyOwnerWhenSpecIsFull($spec);
+        $this->specApplicationService->approveApplication($user, $specId, $applicationId);
     }
 
     public function rejectApplication($user, $specId, $applicationId): void
     {
-        $spec = Spec::findOrFail($specId);
-
-        if ($spec->user_id !== $user->id) {
-            throw new HttpException(403, 'Unauthorized.');
-        }
-
-        $application = $spec->applications()->where('id', $applicationId)->first();
-        if (!$application) {
-            throw new HttpException(404, 'Application not found.');
-        }
-
-        $application->update(['status' => 'REJECTED']);
+        $this->specApplicationService->rejectApplication($user, $specId, $applicationId);
     }
 
     public function eliminateApplication($user, $specId, $applicationId): array
     {
-        $spec = Spec::findOrFail($specId);
-
-        if ($spec->user_id !== $user->id) {
-            throw new HttpException(403, 'Unauthorized.');
-        }
-
-        $application = $spec->applications()->where('id', $applicationId)->first();
-        if (!$application) {
-            throw new HttpException(404, 'Application not found.');
-        }
-
-        if ($application->user_role !== 'participant') {
-            throw new HttpException(400, 'Only participants can be eliminated.');
-        }
-
-        if ($application->status === 'ELIMINATED') {
-            throw new HttpException(400, 'Participant has already been eliminated.');
-        }
-
-        if ($application->status !== 'ACCEPTED') {
-            throw new HttpException(400, 'Only accepted participants can be eliminated.');
-        }
-
-        DB::transaction(function () use ($spec, $application) {
-            $application->update(['status' => 'ELIMINATED']);
-            $this->notifyEliminatedParticipant($application->user, $spec, null);
-        });
-
-        return $this->lastManStandingPayload($spec) ?? ['message' => 'Participant eliminated.'];
+        return $this->specApplicationService->eliminateApplication($user, $specId, $applicationId);
     }
 
     public function toggleLike($user, $specId): array
     {
-        $spec = Spec::findOrFail($specId);
-        
-        $existing = $spec->likes()->where('user_id', $user->id)->first();
-        
-        if ($existing) {
-            $existing->delete();
-            $liked = false;
-        } else {
-            $spec->likes()->create(['user_id' => $user->id]);
-            $liked = true;
-        }
-
-        return [
-            'liked' => $liked,
-            'count' => $spec->likes()->count()
-        ];
+        return $this->specInteractionService->toggleLike($user, $specId);
     }
 
     /**
@@ -440,76 +84,7 @@ class SpecService
      */
     public function startRound($user, $specId, string $question = '', $mediaId = null): SpecRound
     {
-        $spec = Spec::findOrFail($specId);
-
-        if ($spec->user_id !== $user->id) {
-            throw new HttpException(403, 'Unauthorized.');
-        }
-
-        if (in_array($spec->status, ['COMPLETED', 'EXPIRED'], true)) {
-            throw new HttpException(400, 'Cannot start a round on a closed or expired spec.');
-        }
-
-        if ($mediaId) {
-            $this->assertAttachableMedia($user, $mediaId, ['round_question_image', 'round_question_video', 'round_question_audio']);
-        }
-
-        // Count active participants only; the owner also has an ACCEPTED application.
-        $activeCount = $this->activeParticipantCount($spec);
-        if ($activeCount < 1) {
-             throw new HttpException(400, 'Not enough participants to start a round.');
-        }
-
-        // Calculate 10% elimination (minimum 1 if there are participants)
-        $eliminationCount = max(1, (int) ceil($activeCount * 0.1));
-
-        // Check for any existing active/reviewing round and close/complete it
-        $latestRound = $spec->rounds()->latest('id')->first();
-        if ($latestRound && ($latestRound->status === 'ACTIVE' || $latestRound->status === 'REVIEWING')) {
-            $latestRound->update(['status' => 'COMPLETED']);
-        }
-
-        // Once the first round starts, applications close. If the owner starts below
-        // the originally requested capacity, lock capacity to the accepted count.
-        if ($spec->status === 'OPEN') {
-            $spec->status = 'ACTIVE';
-            if ($activeCount < (int) $spec->max_participants) {
-                $spec->max_participants = $activeCount;
-            }
-            $spec->save();
-        }
-        
-        // Find next round number
-        $nextRoundNumber = $spec->rounds()->max('round_number') + 1;
-
-        $round = $spec->rounds()->create([
-            'round_number' => $nextRoundNumber,
-            'question_text' => $question,
-            'media_id' => $mediaId,
-            'status' => 'ACTIVE',
-            'elimination_count' => $eliminationCount,
-        ]);
-
-        // Broadcast Real-time Event
-        \App\Events\RoundStarted::dispatch($round);
-
-        // Notify accepted participants only, not the spec owner application.
-        $participants = $this->activeParticipantApplications($spec)->with('user')->get();
-        foreach ($participants as $app) {
-            $this->notificationService->notify(
-                $app->user,
-                'round_started',
-                [
-                    'spec_id' => $spec->id,
-                    'round_id' => $round->id,
-                    'question' => $question
-                ],
-                'New Question Asked',
-                "{$user->username} asked a question"
-            );
-        }
-
-        return $round->load('media');
+        return $this->specRoundService->startRound($user, $specId, $question, $mediaId);
     }
 
     /**
@@ -517,22 +92,7 @@ class SpecService
      */
     public function updateRound($user, $roundId, $question)
     {
-        $round = SpecRound::with('spec')->findOrFail($roundId);
-
-        if ($round->spec->user_id !== $user->id) {
-            throw new HttpException(403, 'Unauthorized.');
-        }
-
-        if ($round->status !== 'ACTIVE') {
-            throw new HttpException(400, 'Can only edit active rounds.');
-        }
-
-        $round->update(['question_text' => $question]);
-
-        // Broadcast to update UI
-        \App\Events\RoundStarted::dispatch($round);
-
-        return $round;
+        return $this->specRoundService->updateRound($user, $roundId, $question);
     }
 
     /**
@@ -540,73 +100,7 @@ class SpecService
      */
     public function submitAnswer($user, $roundId, string $answer = '', $mediaId = null): SpecRoundAnswer
     {
-        $round = SpecRound::findOrFail($roundId);
-        $answer = trim($answer);
-
-        if ($answer === '' && !$mediaId) {
-            throw new HttpException(400, 'Please add an answer or attach a file.');
-        }
-
-        if ($mediaId) {
-            $this->assertAttachableMedia($user, $mediaId, ['round_answer_image', 'round_answer_video', 'round_answer_audio']);
-        }
-        
-        if ($round->status !== 'ACTIVE') {
-            throw new HttpException(400, 'Round is not active.');
-        }
-
-        // Verify user is a participant
-        $application = $round->spec->applications()
-            ->where('user_id', $user->id)
-            ->where('user_role', 'participant')
-            ->where('status', 'ACCEPTED')
-            ->first();
-
-        if (!$application) {
-            throw new HttpException(403, 'You are not an active participant in this spec.');
-        }
-
-        // Check if already answered
-        $existing = $round->answers()->where('user_id', $user->id)->first();
-        if ($existing) {
-             throw new HttpException(400, 'You have already answered this question.');
-        }
-
-        $answerModel = $round->answers()->create([
-            'user_id' => $user->id,
-            'answer_text' => $answer,
-            'media_id' => $mediaId,
-        ]);
-
-        // Notify Spec Owner (if not the answerer, which should be guaranteed by role checks but safe to check)
-        if ($round->spec->user_id !== $user->id) {
-            $this->notificationService->notify(
-                $round->spec->owner,
-                'round_answer',
-                [
-                    'spec_id' => $round->spec->id, 
-                    'round_id' => $round->id, 
-                    'answer_id' => $answerModel->id,
-                    'title' => 'New Answer Submitted',
-                    'message' => "{$user->username} has answered your question."
-                ],
-                'New Answer Submitted',
-                "{$user->username} has answered your question."
-            );
-        }
-
-        // Broadcast event
-        \App\Events\RoundAnswered::dispatch($answerModel);
-
-        // Check for Auto-Close Trigger (All participants have answered)
-        $participantCount = $this->activeParticipantCount($round->spec);
-        $answerCount = $round->answers()->count();
-
-        if ($answerCount >= $participantCount) {
-             $this->closeRound($round->spec->owner, $roundId);
-        }
-
-        return $answerModel;
+        return $this->specRoundService->submitAnswer($user, $roundId, $answer, $mediaId);
     }
 
     /**
@@ -614,22 +108,7 @@ class SpecService
      */
     public function closeRound($user, $roundId)
     {
-        $round = SpecRound::with('spec')->findOrFail($roundId);
-
-        if ($round->spec->user_id !== $user->id) {
-            throw new HttpException(403, 'Unauthorized.');
-        }
-
-        if ($round->status !== 'ACTIVE') {
-            throw new HttpException(400, 'Round is not active.');
-        }
-
-        $round->update(['status' => 'REVIEWING']);
-        
-        // Broadcast Event
-        // \App\Events\RoundStatusUpdated::dispatch($round);
-
-        return $round;
+        return $this->specRoundService->closeRound($user, $roundId);
     }
 
     /**
@@ -637,45 +116,7 @@ class SpecService
      */
     public function eliminateUser($user, $roundId, $userIdToEliminate)
     {
-        $round = SpecRound::with('spec')->findOrFail($roundId);
-
-        if ($round->spec->user_id !== $user->id) {
-            throw new HttpException(403, 'Unauthorized.');
-        }
-
-        // Allow elimination in REVIEWING state (and technically ACTIVE too if desired)
-        if ($round->status !== 'REVIEWING' && $round->status !== 'ACTIVE') {
-             throw new HttpException(400, 'Round must be Active or In Review to eliminate participants.');
-        }
-
-        $application = $round->spec->applications()
-            ->where('user_id', $userIdToEliminate)
-            ->where('user_role', 'participant')
-            ->where('status', 'ACCEPTED')
-            ->first();
-
-        if (!$application) {
-            throw new HttpException(404, 'Active participant not found.');
-        }
-
-        DB::transaction(function () use ($round, $userIdToEliminate, $application) {
-            // 1. Mark answer as eliminated (if exists)
-            $round->answers()->where('user_id', $userIdToEliminate)->update(['is_eliminated' => true]);
-
-            // 2. Update Application Status to ELIMINATED
-            $application->update(['status' => 'ELIMINATED']);
-
-            // 3. Notify eliminated user. Elimination no longer costs credits.
-            $this->notifyEliminatedParticipant($application->user, $round->spec, $round);
-        });
-
-        // After elimination: if exactly one active participant remains, return last-man-standing info
-        $lastManStanding = $this->lastManStandingPayload($round->spec);
-        if ($lastManStanding) {
-            return $lastManStanding;
-        }
-
-        return ['message' => 'User eliminated.'];
+        return $this->specRoundService->eliminateUser($user, $roundId, $userIdToEliminate);
     }
 
     /**
@@ -683,20 +124,7 @@ class SpecService
      */
     public function eliminateUsers($user, $roundId, array $userIdsToEliminate)
     {
-        // ... Reusing logic or deprecating. For now, let's keep it but wrap the new single logic?
-        // Or just keep as is for backward compat if needed.
-        // But for "Modern Flow", we use eliminateUser singular.
-        
-        // Let's repurpose this to Loop eliminateUser for simplicity if bulk is ever needed again
-        $lastResult = null;
-        foreach($userIdsToEliminate as $uid) {
-            $lastResult = $this->eliminateUser($user, $roundId, $uid);
-        }
-        
-        // Return simple message, do not auto-complete round
-        return ($lastResult && !empty($lastResult['last_man_standing']))
-            ? $lastResult
-            : ['message' => 'Users eliminated.'];
+        return $this->specRoundService->eliminateUsers($user, $roundId, $userIdsToEliminate);
     }
 
     /**
@@ -705,202 +133,17 @@ class SpecService
      */
     public function createDate($user, $specId)
     {
-        $spec = Spec::findOrFail($specId);
-        if ($spec->user_id !== $user->id) {
-            throw new HttpException(403, 'You are not the owner of this spec.');
-        }
-
-        $winnerApp = $this->activeParticipantApplications($spec)->with('user')->first();
-        if (!$winnerApp || $this->activeParticipantCount($spec) !== 1) {
-            throw new HttpException(400, 'There must be exactly one active participant (last man standing) to create a date.');
-        }
-
-        if ($spec->dates()->exists()) {
-            throw new HttpException(400, 'A date has already been created for this spec.');
-        }
-
-        $dateCode = $this->generateDateCode();
-
-        DB::transaction(function () use ($spec, $winnerApp, $dateCode) {
-            $date = $spec->dates()->create([
-                'owner_id' => $spec->user_id,
-                'winner_user_id' => $winnerApp->user_id,
-                'scheduled_by_user_id' => $spec->user_id,
-                'date_code' => $dateCode,
-                'date_number' => 1,
-                'status' => SpecDate::STATUS_ACTIVE,
-            ]);
-            $this->chatService->ensureThreadForDate($date);
-            $winnerApp->update(['status' => 'WINNER']);
-            $spec->rounds()
-                ->whereIn('status', ['ACTIVE', 'REVIEWING'])
-                ->update(['status' => 'COMPLETED']);
-            $spec->update(['status' => 'COMPLETED']);
-        });
-
-        return [
-            'message' => 'Date created successfully.',
-            'date_code' => $dateCode,
-            'winner_user_id' => $winnerApp->user_id,
-            'spec_status' => 'COMPLETED',
-        ];
+        return $this->specDateService->createDate($user, $specId);
     }
 
     public function scheduleFollowUpDate(User $user, int $dateId): array
     {
-        $selectedDate = SpecDate::with(['spec', 'owner', 'winner'])->findOrFail($dateId);
-        if ((int) $selectedDate->owner_id !== (int) $user->id && (int) $selectedDate->winner_user_id !== (int) $user->id) {
-            throw new HttpException(403, 'You cannot schedule another date for this match.');
-        }
-
-        $rootId = $selectedDate->root_spec_date_id ?: $selectedDate->id;
-        $dateCode = $this->generateDateCode();
-
-        $newDate = DB::transaction(function () use ($user, $rootId, $dateCode) {
-            $latestDate = SpecDate::query()
-                ->where(function ($q) use ($rootId) {
-                    $q->where('id', $rootId)->orWhere('root_spec_date_id', $rootId);
-                })
-                ->orderByDesc('date_number')
-                ->lockForUpdate()
-                ->firstOrFail();
-
-            if (!in_array($latestDate->status, [SpecDate::STATUS_COMPLETED, SpecDate::STATUS_CANCELLED], true)) {
-                throw new HttpException(422, 'You can schedule another date after the current date is completed or cancelled.');
-            }
-
-            $balance = $this->debitCredit(
-                $user,
-                'Scheduled another date',
-                [
-                    'spec_id' => $latestDate->spec_id,
-                    'root_spec_date_id' => $rootId,
-                    'previous_spec_date_id' => $latestDate->id,
-                    'action' => 'schedule_follow_up_date',
-                ]
-            );
-
-            $date = SpecDate::create([
-                'root_spec_date_id' => $rootId,
-                'parent_spec_date_id' => $latestDate->id,
-                'spec_id' => $latestDate->spec_id,
-                'owner_id' => $latestDate->owner_id,
-                'winner_user_id' => $latestDate->winner_user_id,
-                'scheduled_by_user_id' => $user->id,
-                'date_code' => $dateCode,
-                'date_number' => ((int) $latestDate->date_number) + 1,
-                'status' => SpecDate::STATUS_ACTIVE,
-            ]);
-
-            $this->chatService->ensureThreadForDate($date);
-
-            $date->balance_after = $balance->credits;
-            return $date;
-        });
-
-        $newDate->load([
-            'spec:id,title,description,location_city,status,created_at',
-            'owner:id,name,username',
-            'owner.profile',
-            'owner.media',
-            'winner:id,name,username',
-            'winner.profile',
-            'winner.media',
-        ]);
-
-        return [
-            'message' => $this->dateOrdinal((int) $newDate->date_number) . ' date scheduled.',
-            'date' => $this->datePayloadForUser($newDate, $user),
-            'balance' => ['credits' => $newDate->balance_after],
-        ];
+        return $this->specDateService->scheduleFollowUpDate($user, $dateId);
     }
 
     public function listDatesForUser($user, int $perPage = 20)
     {
-        $dates = SpecDate::query()
-            ->where(function ($q) use ($user) {
-                $q->where('owner_id', $user->id)
-                    ->orWhere('winner_user_id', $user->id);
-            })
-            ->whereNotExists(function ($q) {
-                $q->selectRaw('1')
-                    ->from('spec_dates as newer_dates')
-                    ->whereRaw('COALESCE(newer_dates.root_spec_date_id, newer_dates.id) = COALESCE(spec_dates.root_spec_date_id, spec_dates.id)')
-                    ->whereColumn('newer_dates.date_number', '>', 'spec_dates.date_number');
-            })
-            ->with([
-                'spec:id,title,description,location_city,status,created_at',
-                'owner:id,name,username',
-                'owner.profile',
-                'owner.media',
-                'winner:id,name,username',
-                'winner.profile',
-                'winner.media',
-            ])
-            ->latest()
-            ->paginate(max(1, min($perPage, 50)));
-
-        $dates->getCollection()->transform(fn (SpecDate $date) => $this->datePayloadForUser($date, $user));
-
-        return $dates;
-    }
-
-    private function datePayloadForUser(SpecDate $date, User $user): array
-    {
-        $owner = $date->owner;
-        $winner = $date->winner;
-        $isOwner = (int) $date->owner_id === (int) $user->id;
-        $otherUser = $isOwner ? $winner : $owner;
-        $chatThread = $this->chatService->ensureThreadForDate($date);
-        $winnerAvatar = $winner?->media?->where('type', 'avatar')->filter(fn ($media) => $media->isShareable())->sortByDesc('id')->first()?->url;
-        $ownerAvatar = $owner?->media?->where('type', 'avatar')->filter(fn ($media) => $media->isShareable())->sortByDesc('id')->first()?->url;
-        $otherAvatar = $otherUser?->media?->where('type', 'avatar')->filter(fn ($media) => $media->isShareable())->sortByDesc('id')->first()?->url;
-        $dateNumber = (int) ($date->date_number ?: 1);
-
-        return [
-            'id' => $date->id,
-            'root_spec_date_id' => $date->root_spec_date_id,
-            'parent_spec_date_id' => $date->parent_spec_date_id,
-            'spec_id' => $date->spec_id,
-            'owner_id' => $date->owner_id,
-            'winner_user_id' => $date->winner_user_id,
-            'scheduled_by_user_id' => $date->scheduled_by_user_id,
-            'date_code' => $date->date_code,
-            'date_number' => $dateNumber,
-            'date_label' => $this->dateOrdinal($dateNumber) . ' date',
-            'status' => $date->status ?: SpecDate::STATUS_ACTIVE,
-            'can_schedule_another' => in_array($date->status, [SpecDate::STATUS_COMPLETED, SpecDate::STATUS_CANCELLED], true),
-            'chat_thread_id' => $chatThread->id,
-            'matched_at' => $date->created_at,
-            'is_owner' => $isOwner,
-            'spec' => $date->spec,
-            'owner' => $owner ? [
-                'id' => $owner->id,
-                'name' => $owner->profile?->full_name ?? $owner->name,
-                'username' => $owner->username,
-                'avatar' => $ownerAvatar,
-            ] : null,
-            'winner' => $winner ? [
-                'id' => $winner->id,
-                'name' => $winner->profile?->full_name ?? $winner->name,
-                'username' => $winner->username,
-                'avatar' => $winnerAvatar,
-            ] : null,
-            'other_user' => $otherUser ? [
-                'id' => $otherUser->id,
-                'name' => $otherUser->profile?->full_name ?? $otherUser->name,
-                'username' => $otherUser->username,
-                'avatar' => $otherAvatar,
-            ] : null,
-        ];
-    }
-
-    private function dateOrdinal(int $number): string
-    {
-        if ($number === 1) return 'First';
-        if ($number === 2) return 'Second';
-        if ($number === 3) return 'Third';
-        return "{$number}th";
+        return $this->specDateService->listDatesForUser($user, $perPage);
     }
 
     /**
@@ -910,194 +153,7 @@ class SpecService
      */
     public function extendSearch($user, $specId, ?string $comment = null)
     {
-        $spec = Spec::with('rounds')->findOrFail($specId);
-        if ($spec->user_id !== $user->id) {
-            throw new HttpException(403, 'You are not the owner of this spec.');
-        }
-
-        $winnerApp = $this->activeParticipantApplications($spec)->with('user')->first();
-        if (!$winnerApp || $this->activeParticipantCount($spec) !== 1) {
-            throw new HttpException(400, 'There must be exactly one active participant to extend search.');
-        }
-
-        $round = $spec->rounds()->orderByDesc('round_number')->first();
-        if (!$round) {
-            throw new HttpException(400, 'No round found; cannot eliminate.');
-        }
-
-        $body = "The owner of '{$spec->title}' has extended their search. You have been removed from this quest.";
-        if ($comment !== null && trim($comment) !== '') {
-            $body .= "\n\nMessage from the owner: " . trim($comment);
-        }
-
-        $balance = DB::transaction(function () use ($user, $spec, $winnerApp, $round, $body) {
-            $balance = $this->debitCredit(
-                $user,
-                "Extended Spec: {$spec->title}",
-                ['spec_id' => $spec->id, 'action' => 'extend_search']
-            );
-
-            $round->answers()->where('user_id', $winnerApp->user_id)->update(['is_eliminated' => true]);
-            $winnerApp->update(['status' => 'ELIMINATED']);
-            $spec->update(['status' => 'OPEN']);
-
-            $victim = $winnerApp->user;
-            if ($victim) {
-                $this->notificationService->notify(
-                    $victim,
-                    'eliminated',
-                    ['spec_id' => $spec->id, 'round_id' => $round->id],
-                    'Search extended',
-                    $body
-                );
-            }
-
-            return $balance;
-        });
-
-        return [
-            'message' => 'Search extended. Edit your spec and keep it open to get more applicants.',
-            'balance' => ['credits' => $balance->credits],
-        ];
-    }
-
-    private function activeParticipantApplications(Spec $spec)
-    {
-        return $spec->applications()
-            ->where('user_role', 'participant')
-            ->where('status', 'ACCEPTED');
-    }
-
-    /**
-     * @param  list<string>  $types
-     */
-    private function assertAttachableMedia(User $user, int|string $mediaId, array $types): void
-    {
-        $media = \App\Models\Media::query()
-            ->where('id', $mediaId)
-            ->where('user_id', $user->id)
-            ->whereIn('type', $types)
-            ->whereNull('hidden_at')
-            ->first();
-
-        if (! $media) {
-            throw new HttpException(422, 'Media not found.');
-        }
-        if (! $this->mediaAttachmentPolicy->canAttach($media)) {
-            throw new HttpException(422, $this->mediaAttachmentPolicy->blockedMessage());
-        }
-    }
-
-    private function activeParticipantCount(Spec $spec): int
-    {
-        return $this->activeParticipantApplications($spec)->count();
-    }
-
-    private function notifyOwnerWhenSpecIsFull(Spec $spec): void
-    {
-        $spec->loadMissing('owner');
-
-        if (!$spec->owner || $spec->status !== 'OPEN') {
-            return;
-        }
-
-        $maxParticipants = (int) $spec->max_participants;
-        if ($maxParticipants < 1 || $this->activeParticipantCount($spec) < $maxParticipants) {
-            return;
-        }
-
-        $type = 'spec_full';
-        $reminderKey = 'spec_full_capacity';
-
-        if (SpecNotificationLog::where('spec_id', $spec->id)
-            ->where('user_id', $spec->owner->id)
-            ->where('type', $type)
-            ->where('reminder_key', $reminderKey)
-            ->exists()) {
-            return;
-        }
-
-        $this->notificationService->notify(
-            $spec->owner,
-            $type,
-            [
-                'spec_id' => $spec->id,
-                'spec_title' => $spec->title,
-                'accepted_count' => $maxParticipants,
-            ],
-            'Your spec is full',
-            'Your spec is full. You can begin the quest before the spec start date.'
-        );
-
-        SpecNotificationLog::create([
-            'spec_id' => $spec->id,
-            'user_id' => $spec->owner->id,
-            'type' => $type,
-            'reminder_key' => $reminderKey,
-            'channels' => ['database', 'push'],
-            'sent_at' => now(),
-        ]);
-    }
-
-    private function lastManStandingPayload(Spec $spec): ?array
-    {
-        if ($this->activeParticipantCount($spec) !== 1) {
-            return null;
-        }
-
-        $winnerApp = $this->activeParticipantApplications($spec)->with('user.profile')->first();
-        $winner = $winnerApp ? $winnerApp->user : null;
-        if (!$winner) {
-            return null;
-        }
-
-        $winnerName = $winner->profile
-            ? ($winner->profile->full_name ?? $winner->name ?? 'Winner')
-            : ($winner->name ?? 'Winner');
-
-        return [
-            'message' => 'Participant eliminated.',
-            'last_man_standing' => true,
-            'spec_id' => $spec->id,
-            'winner' => [
-                'user_id' => $winner->id,
-                'name' => $winnerName,
-            ],
-        ];
-    }
-
-    private function notifyEliminatedParticipant(?User $victim, Spec $spec, ?SpecRound $round): void
-    {
-        if (!$victim) {
-            return;
-        }
-
-        $payload = ['spec_id' => $spec->id];
-        if ($round) {
-            $payload['round_id'] = $round->id;
-        }
-
-        $message = "You have been eliminated from '{$spec->title}'.";
-
-        $this->notificationService->notify(
-            $victim,
-            'eliminated',
-            $payload,
-            'You were eliminated',
-            $message
-        );
-    }
-
-    private function generateDateCode(): string
-    {
-        $chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous 0/O, 1/I
-        do {
-            $code = '';
-            for ($i = 0; $i < 6; $i++) {
-                $code .= $chars[random_int(0, strlen($chars) - 1)];
-            }
-        } while (SpecDate::where('date_code', $code)->exists());
-        return $code;
+        return $this->specInteractionService->extendSearch($user, $specId, $comment);
     }
 
     /**
@@ -1105,47 +161,7 @@ class SpecService
      */
     public function nudgeUsers($user, $roundId, array $userIdsToNudge)
     {
-        $round = SpecRound::with('spec')->findOrFail($roundId);
-
-        if ($round->spec->user_id !== $user->id) {
-            throw new HttpException(403, 'Unauthorized.');
-        }
-
-        if ($round->status !== 'ACTIVE') {
-            throw new HttpException(400, 'Can only nudge in active rounds.');
-        }
-
-        $count = 0;
-        foreach ($userIdsToNudge as $userId) {
-            $targetUser = User::find($userId);
-            if ($targetUser) {
-                // Verify they are accepted and haven't answered
-                $application = $round->spec->applications()
-                    ->where('user_id', $userId)
-                    ->where('user_role', 'participant')
-                    ->where('status', 'ACCEPTED')
-                    ->first();
-                $hasAnswered = $round->answers()->where('user_id', $userId)->exists();
-
-                if ($application && !$hasAnswered) {
-                    $this->notificationService->notify(
-                        $targetUser,
-                        'round_nudge',
-                        [
-                            'spec_id' => $round->spec->id,
-                            'round_id' => $round->id,
-                            'title' => 'Action Required',
-                            'message' => "You have not answered the question for '{$round->spec->title}' yet. Please submit your answer soon!",
-                        ],
-                        'Action Required',
-                        "You have not answered the question for '{$round->spec->title}' yet. Please submit your answer soon!"
-                    );
-                    $count++;
-                }
-            }
-        }
-
-        return ['message' => "Nudged {$count} participants."];
+        return $this->specRoundService->nudgeUsers($user, $roundId, $userIdsToNudge);
     }
 
     /**
@@ -1158,136 +174,7 @@ class SpecService
      */
     public function createSpec(array $data, $user)
     {
-        if ($user->is_paused) {
-            throw new HttpException(403, 'You cannot create a spec while your account is paused. Unpause your account in Profile settings.');
-        }
-
-        try {
-            DB::beginTransaction();
-
-            $spec = Spec::create([
-                'user_id' => $user->id,
-                'title' => $data['title'],
-                'description' => $data['description'] ?? null,
-                'location_city' => $data['location_city'] ?? null,
-                'location_lat' => $data['location_lat'] ?? null,
-                'location_lng' => $data['location_lng'] ?? null,
-                'expires_at' => now()->addDays($data['duration']),
-                'max_participants' => $data['max_participants'],
-                'status' => 'OPEN',
-            ]);
-
-            $this->debitCredit(
-                $user,
-                "Created Spec: {$spec->title}",
-                ['spec_id' => $spec->id, 'action' => 'create_spec']
-            );
-
-            // Auto-create application for owner
-            $spec->applications()->create([
-                'user_id' => $user->id,
-                'user_role' => 'owner',
-                'status' => 'ACCEPTED', // Owner is always accepted
-            ]);
-
-            if (!empty($data['requirements'])) {
-                foreach ($data['requirements'] as $req) {
-                    $spec->requirements()->create([
-                        'field' => $req['field'],
-                        'operator' => $req['operator'],
-                        'value' => is_array($req['value']) ? json_encode($req['value']) : $req['value'],
-                        'is_compulsory' => $req['is_compulsory'] ?? false,
-                    ]);
-                }
-            }
-
-            DB::commit();
-
-            return $spec->load('requirements');
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Spec creation failed: ' . $e->getMessage());
-            throw $e;
-        }
-    }
-
-    protected function debitCredit(User $user, string $purpose, array $metadata = []): UserBalance
-    {
-        $balance = UserBalance::where('user_id', $user->id)->lockForUpdate()->first();
-
-        if (!$balance || $balance->credits < 1) {
-            throw new HttpException(403, 'Insufficient credits. Please purchase more.');
-        }
-
-        $balance->decrement('credits', 1);
-        $balance->refresh();
-
-        $user->transactions()->create([
-            'type' => 'DEBIT',
-            'item_type' => 'credit',
-            'quantity' => 1,
-            'amount' => null,
-            'currency' => null,
-            'purpose' => $purpose,
-            'metadata' => $metadata,
-        ]);
-
-        return $balance;
-    }
-
-    /**
-     * Get user's current age in years from profile dob (null if no dob).
-     * Uses Carbon: age = years from dob to today (same as frontend calculation).
-     */
-    protected function getAgeFromProfile($profile): ?int
-    {
-        if (!$profile || !$profile->dob) {
-            return null;
-        }
-        $dob = $profile->dob;
-        $carbon = $dob instanceof \Carbon\Carbon ? $dob : \Carbon\Carbon::parse($dob);
-        return (int) $carbon->diffInYears(now());
-    }
-
-    /**
-     * Normalize requirement value from DB (may be string "35" or int 35).
-     */
-    protected function normalizeRequirementValue($value): int
-    {
-        if (is_numeric($value)) {
-            return (int) $value;
-        }
-        return (int) $value;
-    }
-
-    /**
-     * Check age against a single requirement (e.g. >= 35 or <= 50).
-     */
-    protected function checkAgeRequirement(int $userAge, string $operator, int $reqValue): bool
-    {
-        return match ($operator) {
-            '>=' => $userAge >= $reqValue,
-            '<=' => $userAge <= $reqValue,
-            '=' => $userAge === $reqValue,
-            '>' => $userAge > $reqValue,
-            '<' => $userAge < $reqValue,
-            default => $userAge === $reqValue,
-        };
-    }
-
-    /**
-     * Check a numeric value (e.g. height in cm) against operator (>=, <=, =, etc.).
-     */
-    protected function checkNumericRequirement(int $userValue, string $operator, int $reqValue): bool
-    {
-        return match ($operator) {
-            '>=' => $userValue >= $reqValue,
-            '<=' => $userValue <= $reqValue,
-            '=' => $userValue === $reqValue,
-            '>' => $userValue > $reqValue,
-            '<' => $userValue < $reqValue,
-            default => $userValue === $reqValue,
-        };
+        return $this->specMutationService->createSpec($data, $user);
     }
 
     /**
@@ -1301,49 +188,7 @@ class SpecService
      */
     public function updateSpec($user, $id, array $data)
     {
-        $spec = Spec::findOrFail($id);
-
-        if ($spec->user_id !== $user->id) {
-            throw new HttpException(403, 'You are not the owner of this spec.');
-        }
-
-
-
-
-        if ($spec->status !== 'OPEN') {
-            throw new HttpException(400, 'This spec quest has already started or closed, so it can no longer be edited.');
-        }
-
-        if (isset($data['status']) && !in_array($data['status'], ['OPEN', 'COMPLETED'], true)) {
-            throw new HttpException(400, 'Status can only be changed to open or completed from the edit screen.');
-        }
-
-        // Handle status change
-        if (isset($data['status'])) {
-            $spec->status = $data['status'];
-        }
-
-        // Handle requirements update
-        if (isset($data['requirements'])) {
-            // Delete existing and re-create? Or update?
-            // Simplest is delete all and recreate specific ones, or just update value if ID provided.
-            // For MVP, let's wipe and recreate to handle additions/removals easily
-            $spec->requirements()->delete();
-            
-            foreach ($data['requirements'] as $req) {
-                 $spec->requirements()->create([
-                    'field' => $req['field'],
-                    'operator' => $req['operator'] ?? '=',
-                    'value' => is_array($req['value']) ? json_encode($req['value']) : $req['value'],
-                    'is_compulsory' => $req['is_compulsory'] ?? false,
-                ]);
-            }
-        }
-        
-        $spec->fill($data); // Handles other fields like title, description
-        $spec->save();
-
-        return $spec->load('requirements');
+        return $this->specMutationService->updateSpec($user, $id, $data);
     }
 
     /**
@@ -1351,27 +196,6 @@ class SpecService
      */
     public function getPendingRequests($user)
     {
-        $applications = \App\Models\SpecApplication::query()
-            ->whereHas('spec', function ($q) use ($user) {
-                $q->where('user_id', $user->id);
-            })
-            ->where('status', 'PENDING')
-            ->with(['spec:id,title,user_id', 'user.profile', 'user.media']) // Load applicant profile and spec info
-            ->latest()
-            ->get();
-
-        // Inject avatar URL into each application's user profile
-        return $applications->map(function ($app) {
-            if ($app->user) {
-                $avatarMedia = $app->user->media->where('type', 'avatar')->filter(fn ($media) => $media->isShareable())->sortByDesc('id')->first();
-                if ($app->user->profile) {
-                    $app->user->profile->avatar = $avatarMedia ? $avatarMedia->url : null;
-                } else {
-                     // Create a dummy profile object if missing so frontend doesn't crash
-                     $app->user->profile = (object) ['avatar' => $avatarMedia ? $avatarMedia->url : null, 'full_name' => $app->user->name, 'age' => null];
-                }
-            }
-            return $app;
-        });
+        return $this->specQueryService->getPendingRequests($user);
     }
 }

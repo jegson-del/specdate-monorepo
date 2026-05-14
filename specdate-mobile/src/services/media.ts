@@ -187,6 +187,9 @@ export function isMediaAllowedToShare(item: Pick<MediaItem, 'moderation_status'>
 }
 
 export function moderationFailureMessage(status?: string): string {
+    if (status === 'reviewing') {
+        return 'This video is still being reviewed. You can come back and try again in a few minutes.';
+    }
     if (status === 'failed' || status === 'timeout') {
         return 'This file could not be checked. Please choose another file.';
     }
@@ -198,7 +201,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export async function waitForMediaModeration(
     media: MediaItem,
-    options?: { intervalMs?: number; timeoutMs?: number },
+    options?: { intervalMs?: number; timeoutMs?: number; returnLatestOnTimeout?: boolean },
 ): Promise<MediaItem> {
     let latest = media;
     const intervalMs = options?.intervalMs ?? 2500;
@@ -207,6 +210,9 @@ export async function waitForMediaModeration(
 
     while (isMediaModerationInProgress(latest)) {
         if (Date.now() - startedAt >= timeoutMs) {
+            if (options?.returnLatestOnTimeout) {
+                return latest;
+            }
             throw new MediaModerationError(moderationFailureMessage('timeout'), 'timeout');
         }
         await sleep(intervalMs);

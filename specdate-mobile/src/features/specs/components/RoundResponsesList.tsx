@@ -5,6 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { toImageUri } from '../../../utils/imageUrl';
 import { AudioMessagePlayer } from './AudioMessagePlayer';
 import { VideoThumbnailPlayer } from './VideoThumbnailPlayer';
+import { isAudioMedia, isVideoMedia } from '../specDetailsUtils';
 
 type Props = {
   answers: any[];
@@ -14,14 +15,6 @@ type Props = {
   onOpenVideo: (uri: string) => void;
   onOpenReportMenu?: (answer: any) => void;
 };
-
-function isAudioMedia(media?: any) {
-  return String(media?.type ?? '').includes('_audio') || String(media?.mime_type ?? '').startsWith('audio/');
-}
-
-function isVideoMedia(media?: any) {
-  return String(media?.type ?? '').includes('_video') || String(media?.mime_type ?? '').startsWith('video/');
-}
 
 export function RoundResponsesList({ answers, roundStatus, theme, onEliminate, onOpenVideo, onOpenReportMenu }: Props) {
   const canEliminate = String(roundStatus).toUpperCase() === 'REVIEWING' || String(roundStatus).toUpperCase() === 'ACTIVE';

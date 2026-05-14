@@ -12,6 +12,8 @@ export type RoundMediaAsset = {
   uri: string;
   mimeType: string;
   assetType: 'image' | 'video' | 'audio';
+  uploadedMediaId?: number;
+  moderationStatus?: string;
 };
 
 function getAudioMimeType(uri: string): string {

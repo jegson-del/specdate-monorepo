@@ -177,4 +177,26 @@ describe('media service', () => {
             moderation_status: 'flagged',
         })).rejects.toThrow('This file could not be sent. Please choose another file.');
     });
+
+    it('waitForMediaModeration can return latest pending media on timeout', async () => {
+        await expect(waitForMediaModeration({
+            id: 10,
+            user_id: 2,
+            file_path: 'uploads/2/chat_video/x.mp4',
+            url: 'http://cdn/x.mp4',
+            type: 'chat_video',
+            mime_type: 'video/mp4',
+            size: 100,
+            created_at: '2026-01-01T00:00:00.000000Z',
+            moderation_status: 'scanning',
+        }, {
+            intervalMs: 1000,
+            timeoutMs: 0,
+            returnLatestOnTimeout: true,
+        })).resolves.toMatchObject({
+            id: 10,
+            moderation_status: 'scanning',
+        });
+        expect(mockFetch).not.toHaveBeenCalled();
+    });
 });

@@ -2,14 +2,10 @@ import React, { useCallback, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, ImageBackground, Alert, TouchableOpacity, Image } from 'react-native';
 import { Text, useTheme, IconButton, Button, Avatar, Surface, ActivityIndicator, Chip, TextInput } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { SpecService } from '../../services/specs';
-import { MediaService } from '../../services/media';
 import { confirmMediaShareWithAiScan } from '../../utils/confirmMediaShareWithAiScan';
 import { ModerationService, type ReportTargetType } from '../../services/moderation';
 import { useUser } from '../../hooks/useUser';
@@ -19,6 +15,10 @@ import { MediaPickerSheet, VideoViewerModal } from '../../components';
 import { EditSpecModal } from './components/EditSpecModal';
 import { AudioMessagePlayer, LastManStandingModal, RoundMediaActions, useRoundAudioRecorder, VideoThumbnailPlayer } from './components';
 import type { RoundMediaAsset } from './components';
+import { cmToFeetInches, isAudioMedia, isVideoMedia, requirementIcon, safeParseMaybeJson, toNumber } from './specDetailsUtils';
+import { useSpecDetailsMutations } from './hooks/useSpecDetailsMutations';
+import { useSpecDetailsQuery } from './hooks/useSpecDetailsQuery';
+import { isRoundMediaReviewing } from './roundMediaUpload';
 import ChatSafetySheet from '../chat/components/ChatSafetySheet';
 
 type ReportSheetState =
@@ -43,73 +43,11 @@ function titleCase(s: string) {
         .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function safeParseMaybeJson(v: any): any {
-    if (Array.isArray(v)) return v;
-    if (typeof v !== 'string') return v;
-    const trimmed = v.trim();
-    if (!trimmed) return v;
-    if (!(trimmed.startsWith('[') || trimmed.startsWith('{'))) return v;
-    try {
-        return JSON.parse(trimmed);
-    } catch {
-        return v;
-    }
-}
-
-function requirementIcon(field: string) {
-    switch (field) {
-        case 'age':
-            return 'calendar-account';
-        case 'height':
-            return 'human-male-height';
-        case 'genotype':
-            return 'dna';
-        case 'sex':
-            return 'gender-male-female';
-        case 'is_smoker':
-            return 'smoking';
-        case 'occupation':
-            return 'briefcase';
-        case 'qualification':
-            return 'school';
-        case 'city':
-        case 'country':
-            return 'map-marker';
-        default:
-            return 'checkbox-marked-circle-outline';
-    }
-}
-
-function toNumber(v: any): number | null {
-    if (typeof v === 'number' && Number.isFinite(v)) return v;
-    if (typeof v === 'string') {
-        const n = Number(v);
-        return Number.isFinite(n) ? n : null;
-    }
-    return null;
-}
-
-function isAudioMedia(media?: any) {
-    return String(media?.type ?? '').includes('_audio') || String(media?.mime_type ?? '').startsWith('audio/');
-}
-
-function isVideoMedia(media?: any) {
-    return String(media?.type ?? '').includes('_video') || String(media?.mime_type ?? '').startsWith('video/');
-}
-
-function cmToFeetInches(cm: number) {
-    const realFeet = (cm * 0.393701) / 12;
-    const feet = Math.floor(realFeet);
-    const inches = Math.round((realFeet - feet) * 12);
-    return { feet, inches: inches === 12 ? 0 : inches, feetAdjusted: inches === 12 ? feet + 1 : feet };
-}
-
 export default function SpecDetailsScreen({ route, navigation }: any) {
     // Normalize to string so query key is stable (avoids cache mismatch between number and string)
     const specId = route.params?.specId != null ? String(route.params.specId) : undefined;
     const theme = useTheme();
     const insets = useSafeAreaInsets();
-    const queryClient = useQueryClient();
     const { data: user } = useUser();
     const [isEditModalVisible, setIsEditModalVisible] = React.useState(false);
     const [lastManStandingVisible, setLastManStandingVisible] = React.useState(false);
@@ -119,192 +57,10 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
     const [reportLoading, setReportLoading] = React.useState(false);
     const [reportError, setReportError] = React.useState<string | null>(null);
 
-    const { data: spec, isLoading, isFetching, error, refetch: refetchSpec } = useQuery({
-        queryKey: ['spec', specId],
-        queryFn: async () => {
-            if (!specId) throw new Error('Spec ID is required');
-            return SpecService.getOne(specId);
-        },
-        retry: 1,
-        enabled: !!specId,
-        staleTime: 0,
-        gcTime: 0,
-        refetchOnMount: 'always',
-        placeholderData: undefined, // never show stale cache when we want fresh data
-    });
-
-    // When landing from notification: clear cache so we refetch and show spinner until data loads
-    useFocusEffect(
-        useCallback(() => {
-            if (specId && route.params?.fromNotification) {
-                queryClient.removeQueries({ queryKey: ['spec', specId] });
-                navigation.setParams({ fromNotification: undefined });
-            }
-        }, [specId, queryClient, navigation, route.params?.fromNotification])
-    );
-
-    // On every focus, refetch so data is fresh (after first load we still want latest when returning)
-    useFocusEffect(
-        useCallback(() => {
-            if (specId) {
-                queryClient.refetchQueries({ queryKey: ['spec', specId] });
-            }
-        }, [specId, queryClient])
-    );
-
-    // --- Real-time Updates (Pusher/Echo WebSockets) ---
-    React.useEffect(() => {
-        if (!specId) return;
-        const { echo } = require('../../utils/echo'); // Lazy require to avoid cycle if any
-
-        // Public channel spec.{id} – backend broadcasts RoundStarted & RoundAnswered here
-        const channelName = `spec.${specId}`;
-        const channel = echo.channel(channelName);
-
-        channel.listen('.RoundStarted', () => {
-            refetchSpec();
-        });
-
-        channel.listen('.RoundAnswered', () => refetchSpec());
-        channel.listen('.RoundStarted', () => refetchSpec());
-
-        return () => {
-            channel.stopListening('.RoundStarted');
-            channel.stopListening('.RoundAnswered');
-            echo.leave(channelName);
-        };
-    }, [specId, refetchSpec]);
-
-    const likeMutation = useMutation({
-        mutationFn: () => {
-            if (!specId) throw new Error('Spec ID is required');
-            return SpecService.toggleLike(specId);
-        },
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['spec', specId] }),
-    });
-
-    const eliminateMutation = useMutation({
-        mutationFn: (appId: string) => {
-            if (!specId) throw new Error('Spec ID is required');
-            return SpecService.eliminateApplication(specId, appId);
-        },
-        onSuccess: async (apiResponse: any) => {
-            queryClient.invalidateQueries({ queryKey: ['spec', specId] });
-            await refetchSpec();
-            const payload = apiResponse?.data;
-            if (payload?.last_man_standing && payload.winner && payload.spec_id != null) {
-                setLastManStandingWinnerName(payload.winner.name || 'Winner');
-                setLastManStandingSpecId(String(payload.spec_id));
-                setLastManStandingVisible(true);
-            } else {
-                Alert.alert('Success', 'Participant eliminated.');
-            }
-        },
-        onError: () => Alert.alert('Error', 'Failed to eliminate participant.'),
-    });
-
-    const createDateMutation = useMutation({
-        mutationFn: (specIdToUse: string) => SpecService.createDate(specIdToUse),
-        onSuccess: async (res: any) => {
-            const data = res?.data ?? res;
-            queryClient.setQueryData(['spec', specId], (current: any) => current ? ({
-                ...current,
-                status: 'COMPLETED',
-                rounds: Array.isArray(current.rounds)
-                    ? current.rounds.map((round: any) => (
-                        round.status === 'ACTIVE' || round.status === 'REVIEWING'
-                            ? { ...round, status: 'COMPLETED' }
-                            : round
-                    ))
-                    : current.rounds,
-            }) : current);
-            queryClient.invalidateQueries({ queryKey: ['spec', specId] });
-            queryClient.invalidateQueries({ queryKey: ['specs'] });
-            queryClient.invalidateQueries({ queryKey: ['my-specs'] });
-            queryClient.invalidateQueries({ queryKey: ['dates'] });
-            await refetchSpec();
-            setLastManStandingVisible(false);
-            setLastManStandingSpecId(null);
-            setLastManStandingWinnerName('');
-            Alert.alert('Date created!', data?.date_code ? `Your date code: ${data.date_code}` : 'You are now matched. Go plan your date!');
-        },
-        onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to create date.'),
-    });
-
-    const extendSearchMutation = useMutation({
-        mutationFn: ({ specIdToUse, comment }: { specIdToUse: string; comment: string }) =>
-            SpecService.extendSearch(specIdToUse, comment),
-        onSuccess: async (res: any) => {
-            const credits = res?.data?.balance?.credits;
-            if (typeof credits === 'number') {
-                queryClient.setQueryData(['user'], (current: any) => {
-                    if (!current) return current;
-                    return {
-                        ...current,
-                        balance: {
-                            ...(current.balance ?? {}),
-                            credits,
-                        },
-                    };
-                });
-            }
-            queryClient.invalidateQueries({ queryKey: ['spec', specId] });
-            await refetchSpec();
-            setLastManStandingVisible(false);
-            setLastManStandingSpecId(null);
-            setLastManStandingWinnerName('');
-            Alert.alert('Search extended', 'Edit your spec and set the status to open to get more applicants.');
-        },
-        onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to extend search.'),
-    });
-
-    const joinMutation = useMutation({
-        mutationFn: () => SpecService.joinSpec(String((spec as any)?.id ?? specId)),
-        onSuccess: (result: any) => {
-            const credits = result?.data?.balance?.credits;
-            if (typeof credits === 'number') {
-                queryClient.setQueryData(['user'], (current: any) => {
-                    if (!current) return current;
-                    return {
-                        ...current,
-                        balance: {
-                            ...(current.balance ?? {}),
-                            credits,
-                        },
-                    };
-                });
-            }
-            queryClient.invalidateQueries({ queryKey: ['spec', specId] });
-            queryClient.invalidateQueries({ queryKey: ['user'] }); // refresh profile/application state
-            Alert.alert('Applied', 'You have joined this spec for free!');
-        },
-        onError: (err: any) => {
-            const status = err?.response?.status;
-            const data = err?.response?.data;
-            // Backend sendError returns { success, message }; axios may wrap differently
-            const message =
-                (data && typeof data === 'object' && (data.message ?? data.error)) ||
-                (typeof data === 'string' ? data : null) ||
-                err?.message ||
-                'Failed to join.';
-            const code = data?.code;
-            const isProfileIncomplete =
-                status === 403 &&
-                (code === 'PROFILE_INCOMPLETE' || /profile.*complete|complete.*profile/i.test(String(message)));
-
-            if (isProfileIncomplete) {
-                Alert.alert(
-                    'Complete your profile',
-                    'Please complete your profile to join specs. Fill in all required fields and save.',
-                    [
-                        { text: 'Cancel', style: 'cancel' },
-                        { text: 'Go to Profile', onPress: () => navigation.navigate('Profile') }
-                    ]
-                );
-            } else {
-                Alert.alert('Error', message);
-            }
-        },
+    const { data: spec, isLoading, isFetching, error, refetch: refetchSpec } = useSpecDetailsQuery({
+        specId,
+        fromNotification: route.params?.fromNotification,
+        navigation,
     });
 
     const isOwner = useMemo(() => {
@@ -336,18 +92,6 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
         return isOwner || status === 'ACCEPTED' || status === 'ELIMINATED';
     }, [isOwner, myApplication?.status]);
 
-    const [answerText, setAnswerText] = React.useState('');
-
-    const submitAnswerMutation = useMutation({
-        mutationFn: ({ roundId, text }: { roundId: number, text: string }) => SpecService.submitAnswer(roundId, text),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['spec', specId] });
-            Alert.alert('Success', 'Answer submitted!');
-            setAnswerText(''); // Clear input
-        },
-        onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to submit answer.'),
-    });
-
     // --- OWNER ACTIONS ---
     const [newRoundQuestion, setNewRoundQuestion] = React.useState('');
     const [newRoundQuestionSelection, setNewRoundQuestionSelection] = React.useState<TextSelection>({ start: 0, end: 0 });
@@ -361,35 +105,25 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
         setNewRoundQuestion(next.value);
         setNewRoundQuestionSelection(next.selection);
     }, [newRoundQuestion, newRoundQuestionSelection]);
-    const startRoundMutation = useMutation({
-        mutationFn: async (question: string) => {
-            let mediaId: number | undefined;
-            if (roundQuestionMedia) {
-                const uploadType =
-                    roundQuestionMedia.assetType === 'audio'
-                        ? 'round_question_audio'
-                        : roundQuestionMedia.assetType === 'video'
-                            ? 'round_question_video'
-                            : 'round_question_image';
-                const uploaded = await MediaService.upload(
-                    roundQuestionMedia.uri,
-                    uploadType,
-                    null,
-                    roundQuestionMedia.mimeType
-                );
-                const reviewed = await MediaService.waitForModeration(uploaded);
-                mediaId = reviewed.id;
-            }
 
-            return SpecService.startRound(String(specId), question, mediaId);
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['spec', specId] });
-            Alert.alert('Success', 'Round started!');
-            setNewRoundQuestion('');
-            setRoundQuestionMedia(null);
-        },
-        onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || err?.message || 'Failed to start round.'),
+    const {
+        likeMutation,
+        eliminateMutation,
+        createDateMutation,
+        extendSearchMutation,
+        joinMutation,
+        startRoundMutation,
+    } = useSpecDetailsMutations({
+        specId,
+        spec,
+        navigation,
+        refetchSpec,
+        roundQuestionMedia,
+        setNewRoundQuestion,
+        setRoundQuestionMedia,
+        setLastManStandingVisible,
+        setLastManStandingWinnerName,
+        setLastManStandingSpecId,
     });
 
     const handleStartRoundPress = async () => {
@@ -502,16 +236,6 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
             Alert.alert('Error', e.message || String(e));
         }
     };
-
-    const eliminateUsersMutation = useMutation({
-        mutationFn: ({ roundId, userIds }: { roundId: number, userIds: number[] }) =>
-            SpecService.eliminateUsers(roundId, userIds),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['spec', specId] });
-            Alert.alert('Eliminated', 'Selected users have been eliminated.');
-        },
-        onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to eliminate users.'),
-    });
 
     const handleJoin = () => {
         // 1. Frontend check: profile must be complete to join (matches backend gate)
@@ -885,6 +609,11 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                             />
                             {roundQuestionMedia && (
                                 <View style={[styles.questionMediaPreview, { borderColor: theme.colors.outlineVariant || theme.colors.outline + '40' }]}>
+                                    {isRoundMediaReviewing(roundQuestionMedia) ? (
+                                        <Chip compact icon="clock-outline" style={{ alignSelf: 'flex-start', marginBottom: 8 }}>
+                                            Reviewing video
+                                        </Chip>
+                                    ) : null}
                                     {roundQuestionMedia.assetType === 'image' ? (
                                         <Image source={{ uri: roundQuestionMedia.uri }} style={styles.questionMediaImage} />
                                     ) : roundQuestionMedia.assetType === 'video' ? (

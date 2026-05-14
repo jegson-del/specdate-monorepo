@@ -6,6 +6,7 @@ import { AudioMessagePlayer } from './AudioMessagePlayer';
 import { VideoThumbnailPlayer } from './VideoThumbnailPlayer';
 import { EmojiPickerButton } from '../../../components';
 import { insertEmojiAtSelection, type TextSelection } from '../../../utils/emojiText';
+import { isAudioMedia, isVideoMedia } from '../specDetailsUtils';
 
 type Props = {
   round: any;
@@ -21,14 +22,6 @@ type Props = {
   onSaveEdit: () => void;
   onOpenVideo: (uri: string) => void;
 };
-
-function isAudioMedia(media?: any) {
-  return String(media?.type ?? '').includes('_audio') || String(media?.mime_type ?? '').startsWith('audio/');
-}
-
-function isVideoMedia(media?: any) {
-  return String(media?.type ?? '').includes('_video') || String(media?.mime_type ?? '').startsWith('video/');
-}
 
 export function RoundQuestionCard({
   round,

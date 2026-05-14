@@ -2,9 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Spec;
+use App\Http\Requests\ExtendSpecSearchRequest;
+use App\Http\Requests\SpecRoundUserListRequest;
+use App\Http\Requests\StartSpecRoundRequest;
 use App\Http\Requests\StoreSpecRequest;
+use App\Http\Requests\SubmitSpecRoundAnswerRequest;
 use App\Http\Requests\UpdateSpecRequest;
+use App\Http\Requests\UpdateSpecRoundRequest;
 use App\Services\SpecService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
@@ -74,65 +78,12 @@ class SpecController extends Controller
         }
     }
 
-    /**
-     * Display the specified spec.
-     */
-    /**
-     * Display the specified spec.
-     * Injects owner and participants' avatar URLs from media table (url column) into profile.avatar.
-     */
     public function show(Request $request, $id)
     {
-        // Pass user to check 'is_liked'
-        $spec = $this->specService->getOne($id, $request->user('sanctum'));
+        $data = $this->specService->getOnePayload($id, $request->user('sanctum'));
 
-        if (!$spec) {
+        if (!$data) {
             return $this->sendError('Spec not found.', [], 404);
-        }
-
-        $data = $spec->toArray();
-        // Owner avatar from media table (url column)
-        if (!empty($data['owner'])) {
-            $owner = $spec->owner;
-            $avatarMedia = $owner->relationLoaded('media') ? $owner->media->where('type', 'avatar')->filter(fn ($media) => $media->isShareable())->sortByDesc('id')->first() : null;
-            $avatarUrl = $avatarMedia ? $avatarMedia->url : null;
-            if (!isset($data['owner']['profile'])) {
-                $data['owner']['profile'] = [];
-            }
-            $data['owner']['profile']['avatar'] = $avatarUrl ?? ($data['owner']['profile']['avatar'] ?? null);
-        }
-        // Each application participant's avatar from media table
-        if (!empty($data['applications'])) {
-            foreach ($spec->applications as $i => $app) {
-                $u = $app->user;
-                if ($u && isset($data['applications'][$i]['user'])) {
-                    $avatarMedia = $u->relationLoaded('media') ? $u->media->where('type', 'avatar')->filter(fn ($media) => $media->isShareable())->sortByDesc('id')->first() : null;
-                    $avatarUrl = $avatarMedia ? $avatarMedia->url : null;
-                    if (!isset($data['applications'][$i]['user']['profile'])) {
-                        $data['applications'][$i]['user']['profile'] = [];
-                    }
-                    $data['applications'][$i]['user']['profile']['avatar'] = $avatarUrl ?? ($data['applications'][$i]['user']['profile']['avatar'] ?? null);
-                }
-            }
-        }
-        // Round answers: inject avatar for each answer's user (so owner sees participant avatars)
-        if (!empty($data['rounds'])) {
-            foreach ($spec->rounds as $ri => $round) {
-                if (empty($round->answers) || !isset($data['rounds'][$ri]['answers'])) {
-                    continue;
-                }
-                foreach ($round->answers as $ai => $answer) {
-                    $u = $answer->user;
-                    if ($u && isset($data['rounds'][$ri]['answers'][$ai]['user'])) {
-                        $avatarMedia = $u->relationLoaded('media') ? $u->media->where('type', 'avatar')->filter(fn ($media) => $media->isShareable())->sortByDesc('id')->first() : null;
-                        $avatarUrl = $avatarMedia ? $avatarMedia->url : null;
-                        if (!isset($data['rounds'][$ri]['answers'][$ai]['user']['profile'])) {
-                            $data['rounds'][$ri]['answers'][$ai]['user']['profile'] = [];
-                        }
-                        $data['rounds'][$ri]['answers'][$ai]['user']['profile']['avatar'] = $avatarUrl ?? ($data['rounds'][$ri]['answers'][$ai]['user']['profile']['avatar'] ?? null);
-                    }
-                }
-            }
         }
 
         return $this->sendResponse($data, 'Spec retrieved successfully.');
@@ -240,18 +191,14 @@ class SpecController extends Controller
             return $this->sendError($e->getMessage(), [], $e->getStatusCode());
         }
     }
-    public function startRound(Request $request, $id)
+    public function startRound(StartSpecRoundRequest $request, $id)
     {
-        $request->validate([
-            'question' => 'nullable|string|required_without:media_id',
-            'media_id' => 'nullable|exists:media,id',
-        ]);
         try {
             $round = $this->specService->startRound(
                 $request->user(),
                 $id,
-                (string) ($request->input('question') ?? ''),
-                $request->input('media_id')
+                $request->question(),
+                $request->mediaId()
             );
             return $this->sendResponse($round, 'Round started.');
         } catch (HttpException $e) {
@@ -259,18 +206,14 @@ class SpecController extends Controller
         }
     }
 
-    public function submitAnswer(Request $request, $roundId)
+    public function submitAnswer(SubmitSpecRoundAnswerRequest $request, $roundId)
     {
-        $request->validate([
-            'answer' => 'nullable|string|required_without:media_id',
-            'media_id' => 'nullable|exists:media,id',
-        ]);
         try {
             $answer = $this->specService->submitAnswer(
                 $request->user(),
                 $roundId,
-                (string) ($request->input('answer') ?? ''),
-                $request->input('media_id')
+                $request->answerText(),
+                $request->mediaId()
             );
             return $this->sendResponse($answer, 'Answer submitted.');
         } catch (HttpException $e) {
@@ -278,41 +221,30 @@ class SpecController extends Controller
         }
     }
 
-    public function eliminateUsers(Request $request, $roundId)
+    public function eliminateUsers(SpecRoundUserListRequest $request, $roundId)
     {
-        $request->validate([
-            'user_ids' => 'required|array',
-            'user_ids.*' => 'exists:users,id',
-        ]);
-
         try {
-            $result = $this->specService->eliminateUsers($request->user(), $roundId, $request->input('user_ids'));
+            $result = $this->specService->eliminateUsers($request->user(), $roundId, $request->userIds());
             return $this->sendResponse($result, 'Users eliminated.');
         } catch (HttpException $e) {
             return $this->sendError($e->getMessage(), [], $e->getStatusCode());
         }
     }
 
-    public function nudgeUsers(Request $request, $roundId)
+    public function nudgeUsers(SpecRoundUserListRequest $request, $roundId)
     {
-        $request->validate([
-            'user_ids' => 'required|array',
-            'user_ids.*' => 'exists:users,id',
-        ]);
-
         try {
-            $result = $this->specService->nudgeUsers($request->user(), $roundId, $request->input('user_ids'));
+            $result = $this->specService->nudgeUsers($request->user(), $roundId, $request->userIds());
             return $this->sendResponse($result, 'Users nudged.');
         } catch (HttpException $e) {
             return $this->sendError($e->getMessage(), [], $e->getStatusCode());
         }
     }
 
-    public function updateRound(Request $request, $roundId)
+    public function updateRound(UpdateSpecRoundRequest $request, $roundId)
     {
-        $request->validate(['question' => 'required|string']);
         try {
-            $round = $this->specService->updateRound($request->user(), $roundId, $request->input('question'));
+            $round = $this->specService->updateRound($request->user(), $roundId, $request->question());
             return $this->sendResponse($round, 'Round updated.');
         } catch (HttpException $e) {
             return $this->sendError($e->getMessage(), [], $e->getStatusCode());
@@ -359,11 +291,10 @@ class SpecController extends Controller
         }
     }
 
-    public function extendSearch(Request $request, $id)
+    public function extendSearch(ExtendSpecSearchRequest $request, $id)
     {
         try {
-            $comment = $request->input('comment');
-            $result = $this->specService->extendSearch($request->user(), $id, $comment);
+            $result = $this->specService->extendSearch($request->user(), $id, $request->comment());
             return $this->sendResponse($result, $result['message'] ?? 'Search extended.');
         } catch (HttpException $e) {
             return $this->sendError($e->getMessage(), [], $e->getStatusCode());
