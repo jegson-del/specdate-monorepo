@@ -7,6 +7,7 @@ import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-q
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { api } from '../../services/api';
 import { formatDistanceToNow } from 'date-fns';
+import { routeNotification } from './notificationRouting';
 
 export default function NotificationsScreen() {
     const theme = useTheme();
@@ -54,58 +55,7 @@ export default function NotificationsScreen() {
             markReadMutation.mutate(item.id);
         }
 
-        const type = item.type; // 'round_started', 'eliminated', etc.
-        let navData = item.data;
-        if (typeof navData === 'string') {
-            try {
-                navData = JSON.parse(navData);
-            } catch {
-                navData = null;
-            }
-        }
-        const specId = navData?.spec_id != null ? String(navData.spec_id) : null;
-        const roundId = navData?.round_id != null ? navData.round_id : null;
-        const ticketId = navData?.ticket_id != null ? navData.ticket_id : null;
-        const voucherId = navData?.voucher_id != null ? navData.voucher_id : null;
-
-        if (type === 'join_request') {
-            navigation.navigate('Home', { initialTab: 'Requests' });
-            return;
-        }
-
-        if ((type === 'support_reply' || type === 'support_ticket') && ticketId != null) {
-            navigation.navigate('SupportThread', { ticketId });
-            return;
-        }
-
-        if (type === 'voucher_redeemed' && voucherId != null) {
-            navigation.navigate('PostDateReview', { voucherId });
-            return;
-        }
-
-        if (specId) {
-            const navigatesToSpec =
-                type === 'round_started' ||
-                type === 'round_nudge' ||
-                type === 'eliminated' ||
-                type === 'application_accepted' ||
-                type === 'round_answer' ||
-                type === 'spec_starts_today' ||
-                type === 'spec_starts_tomorrow' ||
-                type === 'spec_full';
-            if (navigatesToSpec) {
-                queryClient.removeQueries({ queryKey: ['spec', specId] });
-                queryClient.removeQueries({ queryKey: ['spec', specId, 'round_details'] });
-                // Take user to the round where they can answer (nudge, new question) or see elimination
-                if ((type === 'round_nudge' || type === 'round_started') && roundId != null) {
-                    navigation.navigate('RoundDetails', { specId, roundId });
-                } else if (type === 'eliminated' && roundId != null) {
-                    navigation.navigate('RoundDetails', { specId, roundId });
-                } else {
-                    navigation.navigate('SpecDetails', { specId, fromNotification: true });
-                }
-            }
-        }
+        routeNotification(item, navigation, queryClient);
     };
 
     const renderItem = ({ item }: { item: any }) => {
@@ -148,10 +98,30 @@ export default function NotificationsScreen() {
             iconName = 'lifebuoy';
             color = '#0EA5E9';
             bgColor = 'rgba(14, 165, 233, 0.15)';
+        } else if (type === 'chat_message') {
+            iconName = 'chat-outline';
+            color = '#2563EB';
+            bgColor = 'rgba(37, 99, 235, 0.15)';
         } else if (type === 'voucher_redeemed') {
             iconName = 'clipboard-check-outline';
             color = '#16A34A';
             bgColor = 'rgba(22, 163, 74, 0.15)';
+        } else if (type === 'voucher_created') {
+            iconName = 'ticket-confirmation-outline';
+            color = '#F97316';
+            bgColor = 'rgba(249, 115, 22, 0.15)';
+        } else if (type === 'voucher_approved') {
+            iconName = 'ticket-percent-outline';
+            color = '#16A34A';
+            bgColor = 'rgba(22, 163, 74, 0.15)';
+        } else if (type === 'voucher_rejected') {
+            iconName = 'ticket-outline';
+            color = '#EF4444';
+            bgColor = 'rgba(239, 68, 68, 0.15)';
+        } else if (type === 'admin_media_moderation') {
+            iconName = 'shield-alert-outline';
+            color = '#DC2626';
+            bgColor = 'rgba(220, 38, 38, 0.15)';
         }
 
         const timeText = item.created_at ? formatDistanceToNow(new Date(item.created_at), { addSuffix: true }) : '';

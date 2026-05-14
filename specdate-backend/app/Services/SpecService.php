@@ -347,7 +347,21 @@ class SpecService
             throw new HttpException(404, 'Application not found.');
         }
 
+        $wasAccepted = $application->status === 'ACCEPTED';
         $application->update(['status' => 'ACCEPTED']);
+
+        if (!$wasAccepted && $application->user) {
+            $this->notificationService->notify(
+                $application->user,
+                'application_accepted',
+                [
+                    'spec_id' => $spec->id,
+                    'spec_title' => $spec->title,
+                ],
+                'Application accepted',
+                "You have been accepted into '{$spec->title}'."
+            );
+        }
 
         $this->notifyOwnerWhenSpecIsFull($spec);
     }

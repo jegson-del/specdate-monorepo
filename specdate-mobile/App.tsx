@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import * as ExpoNotifications from 'expo-notifications';
 import AnimatedSplashScreen from './src/features/splash/AnimatedSplashScreen';
 import { ActivityIndicator, PaperProvider } from 'react-native-paper';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { theme } from './src/theme';
 import { api, bootstrapAuthToken, getAuthToken, setAuthToken } from './src/services/api';
@@ -40,16 +41,19 @@ import SupportTicketsScreen from './src/features/support/SupportTicketsScreen';
 import SupportThreadScreen from './src/features/support/SupportThreadScreen';
 import CreateSupportTicketScreen from './src/features/support/CreateSupportTicketScreen';
 import CreditsTransactionScreen from './src/features/profile/CreditsTransactionScreen';
+import { routeNotification } from './src/features/notifications/notificationRouting';
 import { AppDialogProvider } from './src/components';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const queryClient = new QueryClient();
 const Stack = createNativeStackNavigator();
+const navigationRef = createNavigationContainerRef<any>();
 
 export default function App() {
   const [booting, setBooting] = useState(true);
   const [splashAnimationDone, setSplashAnimationDone] = useState(false);
   const [initialRoute, setInitialRoute] = useState<'Landing' | 'Home' | 'Profile' | 'ProviderDashboard'>('Landing');
+  const handledPushResponseIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -101,6 +105,38 @@ export default function App() {
     registerExpoPushToken();
   }, [booting, splashAnimationDone]);
 
+  useEffect(() => {
+    if (booting || !splashAnimationDone) return;
+
+    const routePushResponse = (response: ExpoNotifications.NotificationResponse | null) => {
+      if (!response) return;
+      const responseId = response.notification.request.identifier;
+      if (handledPushResponseIdRef.current === responseId) return;
+      handledPushResponseIdRef.current = responseId;
+
+      const data = response.notification.request.content.data ?? {};
+      const item = { type: (data as any).type ?? (data as any).notification_type, data };
+      const routeWhenReady = (attempt = 0) => {
+        if (navigationRef.isReady()) {
+          routeNotification(item, navigationRef, queryClient);
+          return;
+        }
+        if (attempt < 20) {
+          setTimeout(() => routeWhenReady(attempt + 1), 250);
+        }
+      };
+
+      routeWhenReady();
+    };
+
+    ExpoNotifications.getLastNotificationResponseAsync().then(routePushResponse);
+    const subscription = ExpoNotifications.addNotificationResponseReceivedListener(routePushResponse);
+
+    return () => {
+      subscription.remove();
+    };
+  }, [booting, splashAnimationDone]);
+
   // Show splash until both auth check (booting) AND animation are done.
   if (booting || !splashAnimationDone) {
     return (
@@ -117,7 +153,7 @@ export default function App() {
       <PaperProvider theme={theme}>
         <QueryClientProvider client={queryClient}>
           <AppDialogProvider>
-            <NavigationContainer>
+            <NavigationContainer ref={navigationRef}>
               <StatusBar style="dark" />
               <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={initialRoute}>
               <Stack.Screen name="Landing" component={LandingScreen} />

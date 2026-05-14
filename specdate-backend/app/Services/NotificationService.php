@@ -41,7 +41,12 @@ class NotificationService
 
         // 3. Send Push Notification via Expo when token is set; otherwise only DB + broadcast
         if ($user->expo_push_token) {
-            $this->sendExpoPush($user->expo_push_token, $title ?? 'New Notification', $body ?? 'You have a new notification', $data);
+            $this->sendExpoPush(
+                $user->expo_push_token,
+                $title ?? 'New Notification',
+                $body ?? 'You have a new notification',
+                array_merge($data, ['type' => $type])
+            );
         }
 
         return $notification;

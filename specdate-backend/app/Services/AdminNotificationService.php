@@ -24,6 +24,13 @@ class AdminNotificationService
             return;
         }
 
+        $adminUrl = rtrim((string) config('app.frontend_url', config('app.url')), '/')
+            . '/admin/media-moderation?'
+            . http_build_query([
+                'status' => 'needs_review',
+                'media_id' => $media->id,
+            ]);
+
         User::query()
             ->where('role', 'admin')
             ->get()
@@ -36,6 +43,7 @@ class AdminNotificationService
                     'media_type' => $media->type,
                     'moderation_status' => $media->moderation_status,
                     'url' => $media->url,
+                    'admin_url' => $adminUrl,
                 ],
                 $title,
                 $message

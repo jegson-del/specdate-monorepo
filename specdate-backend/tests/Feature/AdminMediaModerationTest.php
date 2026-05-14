@@ -90,6 +90,8 @@ class AdminMediaModerationTest extends TestCase
 
     public function test_serious_media_moderation_events_create_admin_notification_records(): void
     {
+        config(['app.frontend_url' => 'https://admin.example.test']);
+
         $admin = User::factory()->create(['role' => 'admin']);
         $owner = User::factory()->create();
         $media = Media::create([
@@ -114,6 +116,11 @@ class AdminMediaModerationTest extends TestCase
             'user_id' => $admin->id,
             'type' => 'admin_media_moderation',
         ]);
+        $notification = Notification::where('type', 'admin_media_moderation')->firstOrFail();
+        $this->assertSame(
+            "https://admin.example.test/admin/media-moderation?status=needs_review&media_id={$media->id}",
+            $notification->data['admin_url']
+        );
         $this->assertSame(1, Notification::where('type', 'admin_media_moderation')->count());
     }
 }
