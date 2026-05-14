@@ -1,6 +1,9 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { AlertProvider } from './components/AlertProvider'
+import AdminCreditFinancialsPage from './pages/AdminCreditFinancialsPage'
 import AdminMediaModerationPage from './pages/AdminMediaModerationPage'
+import AdminFinancialsPage from './pages/AdminFinancialsPage'
+import AdminVoucherFinancialsPage from './pages/AdminVoucherFinancialsPage'
 import AdminModerationCasesPage from './pages/AdminModerationCasesPage'
 import AdminModerationPage from './pages/AdminModerationPage'
 import AdminPage from './pages/AdminPage'
@@ -57,6 +60,9 @@ export default function App() {
           <Route path="/provider/setup-password" element={<ProviderPasswordSetupPage />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/admin/providers" element={<AdminProvidersPage />} />
+          <Route path="/admin/financials" element={<AdminFinancialsPage />} />
+          <Route path="/admin/financials/vouchers" element={<AdminVoucherFinancialsPage />} />
+          <Route path="/admin/financials/credits" element={<AdminCreditFinancialsPage />} />
           <Route path="/admin/media-moderation" element={<AdminMediaModerationPage />} />
           <Route path="/admin/moderation/cases" element={<AdminModerationCasesPage />} />
           <Route path="/admin/moderation" element={<AdminModerationPage />} />

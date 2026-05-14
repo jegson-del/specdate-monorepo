@@ -1,6 +1,15 @@
 import type {
   AdminReport,
   AdminReportAction,
+  AdminFinancialAppliedFilters,
+  AdminFinancialCreditSummary,
+  AdminFinancialCreditTransaction,
+  AdminFinancialCreditType,
+  AdminFinancialPeriod,
+  AdminFinancialVoucher,
+  AdminFinancialVoucherDateField,
+  AdminFinancialVoucherStatus,
+  AdminFinancialVoucherSummary,
   AdminMediaModerationItem,
   AdminMediaModerationStatus,
   AdminIpRiskEvent,
@@ -43,6 +52,30 @@ type Paginated<T> = {
   per_page?: number
   to?: number | null
   total?: number
+}
+
+export type AdminFinancialVoucherFilters = {
+  currency?: string
+  date?: string
+  dateField: AdminFinancialVoucherDateField
+  from?: string
+  month?: string
+  period: AdminFinancialPeriod
+  providerId?: string
+  status: AdminFinancialVoucherStatus
+  to?: string
+}
+
+export type AdminFinancialCreditFilters = {
+  currency?: string
+  date?: string
+  from?: string
+  itemType?: string
+  month?: string
+  period: AdminFinancialPeriod
+  to?: string
+  type: AdminFinancialCreditType
+  userId?: string
 }
 
 export const adminTokenKey = 'dateusher_admin_token'
@@ -216,6 +249,80 @@ export async function getAdminUser(token: string, userId: number) {
   }
 
   return result.data
+}
+
+export async function getAdminFinancialVouchers(
+  token: string,
+  filters: AdminFinancialVoucherFilters,
+  page = 1,
+  perPage = 25,
+) {
+  const query = financialQuery(filters, page, perPage)
+  if (filters.status !== 'all') {
+    query.set('status', filters.status)
+  }
+  if (filters.dateField) {
+    query.set('date_field', filters.dateField)
+  }
+  if (filters.providerId && /^\d+$/.test(filters.providerId)) {
+    query.set('provider_id', filters.providerId)
+  }
+
+  const response = await fetch(`${getApiBase()}/api/admin/financials/vouchers?${query.toString()}`, {
+    headers: adminHeaders(token),
+  })
+  const result = (await parseJson(response)) as ApiEnvelope<{
+    filters: AdminFinancialAppliedFilters
+    summary: AdminFinancialVoucherSummary
+    vouchers: Paginated<AdminFinancialVoucher>
+  }> | null
+
+  if (!response.ok || !result) {
+    throw new Error(pickApiError(result, 'Voucher financials could not be loaded.'))
+  }
+
+  return {
+    ...paginatedResult(result.data.vouchers, page, perPage),
+    filters: result.data.filters,
+    summary: result.data.summary,
+  }
+}
+
+export async function getAdminFinancialCredits(
+  token: string,
+  filters: AdminFinancialCreditFilters,
+  page = 1,
+  perPage = 25,
+) {
+  const query = financialQuery(filters, page, perPage)
+  if (filters.type !== 'all') {
+    query.set('type', filters.type)
+  }
+  if (filters.itemType) {
+    query.set('item_type', filters.itemType)
+  }
+  if (filters.userId && /^\d+$/.test(filters.userId)) {
+    query.set('user_id', filters.userId)
+  }
+
+  const response = await fetch(`${getApiBase()}/api/admin/financials/credits?${query.toString()}`, {
+    headers: adminHeaders(token),
+  })
+  const result = (await parseJson(response)) as ApiEnvelope<{
+    filters: AdminFinancialAppliedFilters
+    summary: AdminFinancialCreditSummary
+    transactions: Paginated<AdminFinancialCreditTransaction>
+  }> | null
+
+  if (!response.ok || !result) {
+    throw new Error(pickApiError(result, 'Credit financials could not be loaded.'))
+  }
+
+  return {
+    ...paginatedResult(result.data.transactions, page, perPage),
+    filters: result.data.filters,
+    summary: result.data.summary,
+  }
 }
 
 export async function updateAdminUserNote(token: string, userId: number, adminNote: string) {
@@ -655,6 +762,38 @@ function adminHeaders(token: string) {
     Accept: 'application/json',
     Authorization: `Bearer ${token}`,
   }
+}
+
+function financialQuery(
+  filters: AdminFinancialCreditFilters | AdminFinancialVoucherFilters,
+  page: number,
+  perPage: number,
+) {
+  const query = new URLSearchParams({ page: String(page), per_page: String(perPage) })
+  const currency = filters.currency?.trim().toUpperCase()
+
+  if (currency && currency.length === 3) {
+    query.set('currency', currency)
+  }
+  if (filters.period !== 'all' && filters.period !== 'custom') {
+    query.set('period', filters.period)
+  }
+  if ((filters.period === 'day' || filters.period === 'week') && filters.date) {
+    query.set('date', filters.date)
+  }
+  if (filters.period === 'month' && filters.month) {
+    query.set('month', filters.month)
+  }
+  if (filters.period === 'custom') {
+    if (filters.from) {
+      query.set('from', filters.from)
+    }
+    if (filters.to) {
+      query.set('to', filters.to)
+    }
+  }
+
+  return query
 }
 
 async function adminUserAction(

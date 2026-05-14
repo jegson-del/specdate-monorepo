@@ -441,3 +441,118 @@ export type AdminManagedUser = {
     last_valid_report_at: string | null
   }
 }
+
+export type AdminFinancialPeriod = 'all' | 'day' | 'week' | 'month' | 'custom'
+
+export type AdminFinancialVoucherStatus =
+  | 'all'
+  | 'pending_provider'
+  | 'active'
+  | 'rejected'
+  | 'redeemed'
+  | 'cancelled'
+  | 'completed'
+  | 'expired'
+
+export type AdminFinancialVoucherDateField =
+  | 'created_at'
+  | 'provider_decision_at'
+  | 'redeemed_at'
+  | 'spend_recorded_at'
+
+export type AdminFinancialCreditType = 'all' | 'CREDIT' | 'DEBIT'
+
+export type AdminFinancialUser = {
+  id: number
+  name: string
+  username: string | null
+  email: string
+  role?: string
+} | null
+
+export type AdminFinancialVoucher = {
+  id: number
+  voucher_code: string
+  date_code: string | null
+  spec_date_id: number | null
+  spec: {
+    id: number
+    title: string
+    location_city: string | null
+  } | null
+  provider: {
+    id: number
+    user_id: number | null
+    name: string | null
+    email: string | null
+    city: string | null
+    country: string | null
+    category: string | null
+  } | null
+  daters: {
+    owner: AdminFinancialUser
+    winner: AdminFinancialUser
+  }
+  requested_by: AdminFinancialUser
+  status: Exclude<AdminFinancialVoucherStatus, 'all'>
+  discount_percentage: number
+  minimum_spend: number | null
+  total_spent: number | null
+  currency: string
+  created_at: string
+  provider_decision_at: string | null
+  redeemed_at: string | null
+  spend_recorded_at: string | null
+  redeemed_by_provider: AdminFinancialUser
+}
+
+export type AdminFinancialVoucherSummary = {
+  total_vouchers: number
+  pending_provider: number
+  active: number
+  redeemed: number
+  completed: number
+  rejected: number
+  cancelled: number
+  expired: number
+  spend_by_currency: Array<{
+    currency: string
+    voucher_count: number
+    total_spent: number
+    average_spent: number
+  }>
+}
+
+export type AdminFinancialCreditTransaction = {
+  id: number
+  user: AdminFinancialUser
+  type: Exclude<AdminFinancialCreditType, 'all'>
+  item_type: string | null
+  quantity: number
+  amount: number | null
+  currency: string | null
+  purpose: string | null
+  revenue_cat_transaction_id: string | null
+  metadata: unknown
+  created_at: string
+}
+
+export type AdminFinancialCreditSummary = {
+  total_transactions: number
+  credit_transactions: number
+  debit_transactions: number
+  credits_purchased_or_granted: number
+  credits_spent: number
+  net_credit_movement: number
+  purchase_amount_by_currency: Array<{
+    currency: string
+    transaction_count: number
+    total_amount: number
+  }>
+}
+
+export type AdminFinancialAppliedFilters = {
+  date_field?: AdminFinancialVoucherDateField
+  from: string | null
+  to: string | null
+}

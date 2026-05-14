@@ -14,6 +14,9 @@ const navItems: NavItem[] = [
   { label: 'Overview', to: '/admin', enabled: true },
   { label: 'Users', to: '/admin/users', enabled: true },
   { label: 'Provider applications', to: '/admin/providers', enabled: true, badgeKey: 'providers_pending' },
+  { label: 'Financials', enabled: false },
+  { label: 'Vouchers', to: '/admin/financials/vouchers', enabled: true },
+  { label: 'Credits', to: '/admin/financials/credits', enabled: true },
   { label: 'Upload moderation', to: '/admin/media-moderation', enabled: true, badgeKey: 'media_needs_review' },
   { label: 'Cases', to: '/admin/moderation/cases', enabled: true, badgeKey: 'moderation_needs_review' },
   { label: 'Reports', to: '/admin/moderation', enabled: true, badgeKey: 'reports_open' },
@@ -60,7 +63,10 @@ export function AdminShell({
                   <AttentionBadge value={badgeKey ? stats[badgeKey] : 0} />
                 </NavLink>
               ) : (
-                <span key={label} className="block rounded-lg px-3 py-2 text-slate-500">
+                <span
+                  key={label}
+                  className="mt-4 block px-3 pt-2 text-[11px] font-black uppercase tracking-[0.16em] text-pink-300"
+                >
                   {label}
                 </span>
               ),

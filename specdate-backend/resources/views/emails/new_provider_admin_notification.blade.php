@@ -47,9 +47,6 @@
                 </tr>
             </table>
 
-            <div style="margin-top: 22px; border-radius: 14px; background: #111827; padding: 16px; color: #ffffff;">
-                Review this application in the admin dashboard when provider approvals are enabled.
-            </div>
         </div>
     </div>
 </body>
