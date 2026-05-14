@@ -10,7 +10,7 @@ import {
   Dimensions,
   Linking,
 } from 'react-native';
-import { Text, TextInput, Button, useTheme, ActivityIndicator } from 'react-native-paper';
+import { Text, TextInput, Button, useTheme, ActivityIndicator, Modal, Portal } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { api } from '../../services/api';
@@ -37,6 +37,12 @@ type ProviderBooking = {
   date_code?: string;
   requested_at?: string;
   status?: string;
+};
+
+type ProviderGalleryImage = {
+  id?: number;
+  url: string;
+  kind: 'cover' | 'gallery';
 };
 
 function SectionTitle({ children, theme }: { children: string; theme: any }) {
@@ -123,6 +129,10 @@ export default function ProviderDashboardScreen({ navigation }: any) {
 
   const [galleryViewerVisible, setGalleryViewerVisible] = useState(false);
   const [galleryInitialIndex, setGalleryInitialIndex] = useState(0);
+  const [mediaUploadProgress, setMediaUploadProgress] = useState<{
+    title: string;
+    message: string;
+  } | null>(null);
 
   // Reviews: from dashboard when API returns them; otherwise same shared dummy reviews as detail page
   const reviews = (profile?.reviews as ReviewItem[] | undefined) ?? DEFAULT_MOCK_REVIEWS;
@@ -199,14 +209,29 @@ export default function ProviderDashboardScreen({ navigation }: any) {
     }
   };
 
-  const uploadMedia = async (asset: any, type: 'avatar' | 'provider_gallery', skipRefresh = false) => {
+  const uploadMedia = async (
+    asset: any,
+    type: 'avatar' | 'provider_gallery',
+    skipRefresh = false,
+    itemLabel?: string,
+    mediaId?: number | null,
+  ) => {
     const confirmed = await confirmMediaShareWithAiScan();
     if (!confirmed) {
       return;
     }
+    const label = itemLabel ?? (type === 'avatar' ? 'cover photo' : 'gallery photo');
     try {
       setLoading(true);
-      const uploaded = await MediaService.upload(asset.uri, type, null, asset.mimeType || 'image/jpeg');
+      setMediaUploadProgress({
+        title: 'Uploading media',
+        message: `Uploading your ${label}.`,
+      });
+      const uploaded = await MediaService.upload(asset.uri, type, mediaId ?? null, asset.mimeType || 'image/jpeg');
+      setMediaUploadProgress({
+        title: 'Reviewing media',
+        message: `Checking your ${label} with our safety review. This can take a moment.`,
+      });
       await MediaService.waitForModeration(uploaded);
       if (!skipRefresh) fetchDashboard();
       if (!skipRefresh) Alert.alert('Success', 'Image uploaded.');
@@ -214,6 +239,7 @@ export default function ProviderDashboardScreen({ navigation }: any) {
       const msg = error?.response?.data?.message || error?.message || 'Upload failed.';
       Alert.alert('Error', msg);
     } finally {
+      setMediaUploadProgress(null);
       if (!skipRefresh) setLoading(false);
     }
   };
@@ -246,8 +272,8 @@ export default function ProviderDashboardScreen({ navigation }: any) {
       if (!result.canceled && result.assets) {
         setLoading(true);
         // Upload sequentially
-        for (const asset of result.assets) {
-          await uploadMedia(asset, 'provider_gallery', true);
+        for (const [index, asset] of result.assets.entries()) {
+          await uploadMedia(asset, 'provider_gallery', true, `gallery photo ${index + 1} of ${result.assets.length}`);
         }
         fetchDashboard();
         setLoading(false);
@@ -259,13 +285,52 @@ export default function ProviderDashboardScreen({ navigation }: any) {
     }
   };
 
-  const galleryImages = [
-    ...(profile?.image ? [profile.image] : []),
-    ...gallery.map((m: any) => m.url),
+  const pickGalleryReplacement = async (mediaId: number, index: number) => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        await uploadMedia(result.assets[0], 'provider_gallery', false, `gallery photo ${index + 1}`, mediaId);
+      }
+    } catch {
+      Alert.alert('Error', 'Failed to pick image');
+    }
+  };
+
+  const galleryImageItems: ProviderGalleryImage[] = [
+    ...(profile?.image ? [{ url: profile.image, kind: 'cover' as const }] : []),
+    ...gallery.map((m: any) => ({ id: m.id, url: m.url, kind: 'gallery' as const })),
   ];
+  const galleryImages = galleryImageItems.map((item) => item.url);
   const openGalleryAt = (index: number) => {
     setGalleryInitialIndex(index);
     setGalleryViewerVisible(true);
+  };
+  const editGalleryImageAt = (index: number) => {
+    const item = galleryImageItems[index];
+    if (!item) {
+      return;
+    }
+    if (item.kind === 'cover') {
+      pickAvatar();
+      return;
+    }
+    if (item.id) {
+      pickGalleryReplacement(item.id, index);
+    }
+  };
+  const handleHeroImagePress = () => {
+    if (profile?.image) {
+      openGalleryAt(0);
+      return;
+    }
+
+    pickAvatar();
   };
   const openWebsite = () => {
     const url = website?.trim();
@@ -345,25 +410,29 @@ export default function ProviderDashboardScreen({ navigation }: any) {
         {/* Hero image (match ProviderDetailScreen) */}
         <View style={styles.mainImageWrap}>
           <TouchableOpacity
-            activeOpacity={1}
-            onPress={() => galleryImages.length > 0 && openGalleryAt(0)}
+            activeOpacity={profile?.image ? 1 : 0.85}
+            onPress={handleHeroImagePress}
+            accessibilityRole="button"
+            accessibilityLabel={profile?.image ? 'Open cover photo' : 'Add cover photo'}
           >
             {profile?.image ? (
               <Image source={{ uri: profile.image }} style={styles.mainImage} />
             ) : (
               <View style={[styles.mainImagePlaceholder, { backgroundColor: theme.colors.surfaceVariant }]}>
-                <TouchableOpacity onPress={editMode ? pickAvatar : undefined}>
-                  <MaterialCommunityIcons name="store-plus" size={48} color={theme.colors.onSurfaceVariant} />
-                  <Text style={[styles.placeholderLabel, { color: theme.colors.onSurfaceVariant }]}>Add cover photo</Text>
-                </TouchableOpacity>
+                <MaterialCommunityIcons name="store-plus" size={48} color={theme.colors.onSurfaceVariant} />
+                <Text style={[styles.placeholderLabel, { color: theme.colors.onSurfaceVariant }]}>Add cover photo</Text>
               </View>
             )}
           </TouchableOpacity>
-          {profile?.image && editMode && (
-            <TouchableOpacity style={styles.editPhotoBadge} onPress={pickAvatar}>
-              <MaterialCommunityIcons name="camera" size={18} color="#fff" />
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity
+            style={styles.editPhotoBadge}
+            onPress={pickAvatar}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={profile?.image ? 'Edit cover photo' : 'Add cover photo'}
+          >
+            <MaterialCommunityIcons name={profile?.image ? 'camera' : 'camera-plus'} size={18} color="#fff" />
+          </TouchableOpacity>
           {/* Rating pill (match ProviderDetailScreen) – on hero image; profile.rating when API returns it */}
           {profile?.image && (
             <View style={[styles.ratingPill, { backgroundColor: 'rgba(0,0,0,0.6)' }]}>
@@ -444,14 +513,25 @@ export default function ProviderDashboardScreen({ navigation }: any) {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.galleryStrip}
             >
-              {galleryImages.map((uri: string, i: number) => (
+              {galleryImageItems.map((item, i: number) => (
                 <TouchableOpacity
                   key={i}
                   activeOpacity={0.9}
                   onPress={() => openGalleryAt(i)}
                   style={styles.galleryItemWrap}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open provider photo"
                 >
-                  <Image source={{ uri }} style={styles.galleryItem} />
+                  <Image source={{ uri: item.url }} style={styles.galleryItem} />
+                  <TouchableOpacity
+                    style={[styles.galleryEditBadge, { backgroundColor: theme.colors.primary }]}
+                    onPress={() => editGalleryImageAt(i)}
+                    activeOpacity={0.85}
+                    accessibilityRole="button"
+                    accessibilityLabel={item.kind === 'cover' ? 'Edit cover photo' : 'Replace gallery photo'}
+                  >
+                    <MaterialCommunityIcons name="pencil" size={13} color="#fff" />
+                  </TouchableOpacity>
                 </TouchableOpacity>
               ))}
               <View style={styles.galleryItemWrap}>
@@ -788,7 +868,24 @@ export default function ProviderDashboardScreen({ navigation }: any) {
         images={galleryImages}
         initialIndex={galleryInitialIndex}
         onClose={() => setGalleryViewerVisible(false)}
+        onReplace={editGalleryImageAt}
       />
+
+      <Portal>
+        <Modal
+          visible={Boolean(mediaUploadProgress)}
+          dismissable={false}
+          contentContainerStyle={[styles.uploadProgressModal, { backgroundColor: theme.colors.surface }]}
+        >
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={[styles.uploadProgressTitle, { color: theme.colors.onSurface }]}>
+            {mediaUploadProgress?.title}
+          </Text>
+          <Text style={[styles.uploadProgressText, { color: theme.colors.onSurfaceVariant }]}>
+            {mediaUploadProgress?.message}
+          </Text>
+        </Modal>
+      </Portal>
 
     </View>
   );
@@ -857,7 +954,7 @@ const styles = StyleSheet.create({
   placeholderLabel: { fontSize: 14, fontWeight: '600' },
   editPhotoBadge: {
     position: 'absolute',
-    bottom: 12,
+    top: 12,
     right: 12,
     width: 40,
     height: 40,
@@ -865,6 +962,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.6)',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.8)',
+    zIndex: 5,
+    elevation: 5,
   },
   visitWebsiteOverlay: {
     position: 'absolute',
@@ -915,6 +1016,19 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: '#eee',
   },
+  galleryEditBadge: {
+    position: 'absolute',
+    right: 4,
+    bottom: 4,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.8)',
+    zIndex: 2,
+  },
   galleryPlaceholder: {
     width: GALLERY_ITEM_SIZE,
     height: GALLERY_ITEM_SIZE,
@@ -924,6 +1038,26 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   galleryPlaceholderText: { fontSize: 11 },
+  uploadProgressModal: {
+    alignSelf: 'center',
+    width: '84%',
+    maxWidth: 360,
+    borderRadius: 12,
+    padding: 22,
+    alignItems: 'center',
+  },
+  uploadProgressTitle: {
+    marginTop: 14,
+    fontSize: 17,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  uploadProgressText: {
+    marginTop: 8,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
   input: { marginBottom: 8 },
   inputHalf: { flex: 1 },
   rowInputs: { flexDirection: 'row', gap: 10 },

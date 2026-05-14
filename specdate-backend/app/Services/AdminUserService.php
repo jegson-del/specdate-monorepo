@@ -49,7 +49,10 @@ class AdminUserService
     public function pause(User $admin, int $userId): array
     {
         $user = $this->enforceableUser($admin, $userId);
-        $user->forceFill(['is_paused' => true])->save();
+        $user->forceFill([
+            'is_paused' => true,
+            'moderation_status' => 'suspended',
+        ])->save();
 
         return $this->userPayload($user->fresh(['providerProfile', 'bannedBy']));
     }
@@ -57,7 +60,11 @@ class AdminUserService
     public function unpause(User $admin, int $userId): array
     {
         $user = $this->enforceableUser($admin, $userId);
-        $user->forceFill(['is_paused' => false])->save();
+        $user->forceFill([
+            'is_paused' => false,
+            'suspended_until' => null,
+            'moderation_status' => $this->moderationStatusWithoutSuspension($user),
+        ])->save();
 
         return $this->userPayload($user->fresh(['providerProfile', 'bannedBy']));
     }
@@ -70,6 +77,7 @@ class AdminUserService
             'ban_reason' => trim($reason),
             'banned_by' => $admin->id,
             'is_paused' => true,
+            'moderation_status' => 'permanently_banned',
         ])->save();
         $user->tokens()->delete();
 
@@ -84,6 +92,8 @@ class AdminUserService
             'ban_reason' => null,
             'banned_by' => null,
             'is_paused' => false,
+            'suspended_until' => null,
+            'moderation_status' => $this->moderationStatusWithoutSuspension($user),
         ])->save();
 
         return $this->userPayload($user->fresh(['providerProfile', 'bannedBy']));
@@ -131,6 +141,11 @@ class AdminUserService
             'mobile' => $user->mobile,
             'role' => $user->role,
             'status' => $this->statusFor($user),
+            'moderation_status' => $user->moderation_status ?? $this->statusFor($user),
+            'strike_count' => (int) ($user->strike_count ?? 0),
+            'risk_score' => (int) ($user->risk_score ?? 0),
+            'last_violation_at' => $user->last_violation_at,
+            'suspended_until' => $user->suspended_until,
             'is_paused' => (bool) $user->is_paused,
             'banned_at' => $user->banned_at,
             'ban_reason' => $user->ban_reason,
@@ -157,7 +172,15 @@ class AdminUserService
         if ($user->banned_at) {
             return 'banned';
         }
+        if ($user->suspended_until && $user->suspended_until->isFuture()) {
+            return 'suspended';
+        }
 
         return $user->is_paused ? 'paused' : 'active';
+    }
+
+    private function moderationStatusWithoutSuspension(User $user): string
+    {
+        return (int) ($user->strike_count ?? 0) > 0 ? 'warned' : 'active';
     }
 }

@@ -8,6 +8,8 @@ use App\Models\ChatThread;
 use App\Models\DatePartnerReview;
 use App\Models\DateVoucher;
 use App\Models\Media;
+use App\Models\ModerationAction;
+use App\Models\ModerationCase;
 use App\Models\ProviderProfile;
 use App\Models\ProviderReview;
 use App\Models\Report;
@@ -96,6 +98,16 @@ class ModerationAndBlockingTest extends TestCase
             ->assertJsonPath('data.reported_user_id', $owner->id)
             ->json('data.id');
 
+        $this->assertDatabaseHas('moderation_cases', [
+            'subject_user_id' => $owner->id,
+            'opened_by_user_id' => $winner->id,
+            'source' => ModerationCase::SOURCE_REPORT,
+            'target_type' => 'message',
+            'target_id' => $message->id,
+            'status' => ModerationCase::STATUS_OPEN,
+            'severity' => ModerationCase::SEVERITY_HIGH,
+        ]);
+
         Sanctum::actingAs($admin);
         $this->patchJson("/api/admin/reports/{$reportId}", [
             'status' => 'resolved',
@@ -107,6 +119,20 @@ class ModerationAndBlockingTest extends TestCase
 
         $this->assertNotNull($message->fresh()->hidden_at);
         $this->assertSame('Confirmed abuse', $message->fresh()->hidden_reason);
+        $this->assertDatabaseHas('moderation_cases', [
+            'source' => ModerationCase::SOURCE_REPORT,
+            'target_type' => 'message',
+            'target_id' => $message->id,
+            'status' => ModerationCase::STATUS_ACTIONED,
+        ]);
+        $this->assertDatabaseHas('moderation_actions', [
+            'user_id' => $owner->id,
+            'target_type' => 'message',
+            'target_id' => $message->id,
+            'admin_id' => $admin->id,
+            'action' => ModerationAction::ACTION_HIDE_CONTENT,
+            'reason' => 'Confirmed abuse',
+        ]);
     }
 
     public function test_user_cannot_report_own_media(): void

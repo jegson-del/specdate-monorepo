@@ -12,11 +12,15 @@ use App\Models\Spec;
 use App\Models\SpecRoundAnswer;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class ReportService
 {
-    public function __construct(private MediaService $mediaService)
+    public function __construct(
+        private MediaService $mediaService,
+        private ModerationCaseService $moderationCaseService,
+    )
     {
     }
 
@@ -31,15 +35,21 @@ class ReportService
             throw new HttpException(422, 'You cannot report your own content.');
         }
 
-        return Report::create([
-            'reporter_id' => $reporter->id,
-            'reported_user_id' => $reportedUserId,
-            'target_type' => $targetType,
-            'target_id' => $targetId,
-            'reason' => $data['reason'],
-            'details' => $data['details'] ?? null,
-            'status' => 'open',
-        ]);
+        return DB::transaction(function () use ($reporter, $reportedUserId, $targetType, $targetId, $data) {
+            $report = Report::create([
+                'reporter_id' => $reporter->id,
+                'reported_user_id' => $reportedUserId,
+                'target_type' => $targetType,
+                'target_id' => $targetId,
+                'reason' => $data['reason'],
+                'details' => $data['details'] ?? null,
+                'status' => 'open',
+            ]);
+
+            $this->moderationCaseService->createFromReport($report);
+
+            return $report;
+        });
     }
 
     public function review(User $admin, Report $report, array $data): Report
@@ -50,17 +60,22 @@ class ReportService
 
         $status = $data['status'] ?? $report->status;
         $action = $data['action'] ?? null;
-        if ($action && $action !== 'none') {
-            $this->applyAction($report, $action, $data['action_note'] ?? null);
-        }
 
-        $report->update([
-            'status' => $status,
-            'action' => $action ?: $report->action,
-            'action_note' => $data['action_note'] ?? $report->action_note,
-            'reviewed_by' => $admin->id,
-            'reviewed_at' => now(),
-        ]);
+        DB::transaction(function () use ($report, $status, $action, $data, $admin) {
+            if ($action && $action !== 'none') {
+                $this->applyAction($report, $action, $data['action_note'] ?? null);
+            }
+
+            $report->update([
+                'status' => $status,
+                'action' => $action ?: $report->action,
+                'action_note' => $data['action_note'] ?? $report->action_note,
+                'reviewed_by' => $admin->id,
+                'reviewed_at' => now(),
+            ]);
+
+            $this->moderationCaseService->recordReportReview($report->fresh(), $admin);
+        });
 
         return $report->fresh(['reporter:id,name,username', 'reportedUser:id,name,username', 'reviewer:id,name,username']);
     }

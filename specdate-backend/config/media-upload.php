@@ -5,7 +5,7 @@
  * max_kb: Laravel file rule uses KiB (1024 bytes) per framework convention.
  */
 return [
-    'supports_media_id' => ['avatar', 'profile_gallery'],
+    'supports_media_id' => ['avatar', 'profile_gallery', 'provider_gallery'],
 
     'types' => [
         'avatar' => [

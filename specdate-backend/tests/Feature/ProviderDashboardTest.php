@@ -2,9 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Models\Media;
 use App\Models\ProviderProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -72,5 +75,35 @@ class ProviderDashboardTest extends TestCase
 
         $this->postJson('/api/provider/scan-qr', ['code' => 'ANY-CODE'])
             ->assertNotFound();
+    }
+
+    public function test_provider_can_replace_gallery_media_by_id(): void
+    {
+        Storage::fake('public');
+        config(['filesystems.default' => 'public']);
+
+        $provider = User::factory()->create(['role' => 'provider']);
+        $media = Media::create([
+            'user_id' => $provider->id,
+            'file_path' => 'uploads/provider/old.jpg',
+            'url' => 'http://localhost/storage/uploads/provider/old.jpg',
+            'type' => 'provider_gallery',
+            'mime_type' => 'image/jpeg',
+            'size' => 123,
+            'moderation_status' => 'approved',
+        ]);
+
+        Sanctum::actingAs($provider);
+
+        $this->post('/api/media/upload', [
+            'type' => 'provider_gallery',
+            'media_id' => $media->id,
+            'file' => UploadedFile::fake()->create('new.jpg', 100, 'image/jpeg'),
+        ])->assertCreated()
+            ->assertJsonPath('data.id', $media->id)
+            ->assertJsonPath('data.type', 'provider_gallery');
+
+        $this->assertSame(1, Media::where('user_id', $provider->id)->where('type', 'provider_gallery')->count());
+        $this->assertNotSame('uploads/provider/old.jpg', $media->fresh()->file_path);
     }
 }

@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\Media;
 use App\Services\AdminNotificationService;
 use App\Services\MediaModerationService;
+use App\Services\ModerationCaseService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -23,7 +24,11 @@ class ProcessMediaModerationJob implements ShouldQueue
 
     public function __construct(public int $mediaId) {}
 
-    public function handle(MediaModerationService $moderation, AdminNotificationService $adminNotifications): void
+    public function handle(
+        MediaModerationService $moderation,
+        AdminNotificationService $adminNotifications,
+        ModerationCaseService $moderationCases,
+    ): void
     {
         $media = Media::query()->find($this->mediaId);
         if ($media === null) {
@@ -63,6 +68,11 @@ class ProcessMediaModerationJob implements ShouldQueue
                     'rekognition_job_id' => null,
                 ]);
                 if ($result['flagged']) {
+                    $moderationCases->createFromMediaModeration(
+                        $media->fresh(),
+                        'rekognition_flagged',
+                        'Upload flagged by Rekognition'
+                    );
                     $adminNotifications->notifyMediaModerationCase(
                         $media->fresh(),
                         'rekognition_flagged',
@@ -90,6 +100,12 @@ class ProcessMediaModerationJob implements ShouldQueue
                 'moderation_error' => $e->getMessage(),
                 'moderation_checked_at' => now(),
             ]);
+            $moderationCases->createFromMediaModeration(
+                $media->fresh(),
+                'rekognition_failed',
+                'Upload moderation failed',
+                ['error' => $e->getMessage()]
+            );
             $adminNotifications->notifyMediaModerationCase(
                 $media->fresh(),
                 'rekognition_failed',

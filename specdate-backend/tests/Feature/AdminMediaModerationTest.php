@@ -2,11 +2,15 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\ProcessMediaModerationJob;
 use App\Models\Media;
+use App\Models\ModerationCase;
 use App\Models\Notification;
 use App\Models\Report;
 use App\Models\User;
 use App\Services\AdminNotificationService;
+use App\Services\MediaModerationService;
+use App\Services\ModerationCaseService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -122,5 +126,56 @@ class AdminMediaModerationTest extends TestCase
             $notification->data['admin_url']
         );
         $this->assertSame(1, Notification::where('type', 'admin_media_moderation')->count());
+    }
+
+    public function test_flagged_image_moderation_creates_case_for_admin_review(): void
+    {
+        User::factory()->create(['role' => 'admin']);
+        $owner = User::factory()->create();
+        $media = Media::create([
+            'user_id' => $owner->id,
+            'file_path' => 'uploads/flagged.jpg',
+            'url' => 'https://example.test/uploads/flagged.jpg',
+            'type' => 'chat_image',
+            'mime_type' => 'image/jpeg',
+            'size' => 1234,
+            'moderation_status' => 'pending',
+        ]);
+
+        $moderation = $this->mock(MediaModerationService::class, function ($mock) {
+            $mock->shouldReceive('mediaKind')->with('image/jpeg')->andReturn('image');
+            $mock->shouldReceive('usesS3')->andReturn(true);
+            $mock->shouldReceive('rekognitionEnabled')->andReturn(true);
+            $mock->shouldReceive('detectImageModeration')
+                ->with('uploads/flagged.jpg')
+                ->andReturn([
+                    'flagged' => true,
+                    'labels' => [
+                        ['Name' => 'Explicit Nudity', 'Confidence' => 98.5],
+                    ],
+                ]);
+        });
+
+        (new ProcessMediaModerationJob($media->id))->handle(
+            $moderation,
+            app(AdminNotificationService::class),
+            app(ModerationCaseService::class)
+        );
+
+        $this->assertDatabaseHas('media', [
+            'id' => $media->id,
+            'moderation_status' => 'flagged',
+        ]);
+        $this->assertDatabaseHas('moderation_cases', [
+            'subject_user_id' => $owner->id,
+            'source' => ModerationCase::SOURCE_AI_MEDIA,
+            'target_type' => 'media',
+            'target_id' => $media->id,
+            'status' => ModerationCase::STATUS_OPEN,
+            'severity' => ModerationCase::SEVERITY_HIGH,
+        ]);
+        $this->assertDatabaseHas('notifications', [
+            'type' => 'admin_media_moderation',
+        ]);
     }
 }

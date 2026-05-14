@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\Media;
 use App\Services\AdminNotificationService;
 use App\Services\MediaModerationService;
+use App\Services\ModerationCaseService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -26,7 +27,11 @@ class PollRekognitionVideoModerationJob implements ShouldQueue
         public int $attempt = 0,
     ) {}
 
-    public function handle(MediaModerationService $moderation, AdminNotificationService $adminNotifications): void
+    public function handle(
+        MediaModerationService $moderation,
+        AdminNotificationService $adminNotifications,
+        ModerationCaseService $moderationCases,
+    ): void
     {
         $maxAttempts = (int) config('services.rekognition.video_poll_max_attempts', 80);
         if ($this->attempt >= $maxAttempts) {
@@ -37,6 +42,11 @@ class PollRekognitionVideoModerationJob implements ShouldQueue
                     'moderation_error' => 'Video moderation polling exceeded max attempts.',
                     'moderation_checked_at' => now(),
                 ]);
+                $moderationCases->createFromMediaModeration(
+                    $media->fresh(),
+                    'rekognition_stale_failed',
+                    'Upload scan timed out'
+                );
                 $adminNotifications->notifyMediaModerationCase(
                     $media->fresh(),
                     'rekognition_stale_failed',
@@ -72,6 +82,12 @@ class PollRekognitionVideoModerationJob implements ShouldQueue
                     'moderation_checked_at' => now(),
                     'rekognition_job_id' => null,
                 ]);
+                $moderationCases->createFromMediaModeration(
+                    $media->fresh(),
+                    'rekognition_failed',
+                    'Upload moderation failed',
+                    ['status_message' => $aggregate['status_message'] ?? null]
+                );
                 $adminNotifications->notifyMediaModerationCase(
                     $media->fresh(),
                     'rekognition_failed',
@@ -89,6 +105,12 @@ class PollRekognitionVideoModerationJob implements ShouldQueue
                     'moderation_checked_at' => now(),
                     'rekognition_job_id' => null,
                 ]);
+                $moderationCases->createFromMediaModeration(
+                    $media->fresh(),
+                    'rekognition_failed',
+                    'Upload moderation failed',
+                    ['state' => $state]
+                );
                 $adminNotifications->notifyMediaModerationCase(
                     $media->fresh(),
                     'rekognition_failed',
@@ -112,6 +134,11 @@ class PollRekognitionVideoModerationJob implements ShouldQueue
                 'moderation_error' => null,
             ]);
             if ($final['flagged']) {
+                $moderationCases->createFromMediaModeration(
+                    $media->fresh(),
+                    'rekognition_flagged',
+                    'Upload flagged by Rekognition'
+                );
                 $adminNotifications->notifyMediaModerationCase(
                     $media->fresh(),
                     'rekognition_flagged',
@@ -130,6 +157,12 @@ class PollRekognitionVideoModerationJob implements ShouldQueue
                 'moderation_error' => $e->getMessage(),
                 'moderation_checked_at' => now(),
             ]);
+            $moderationCases->createFromMediaModeration(
+                $media->fresh(),
+                'rekognition_failed',
+                'Upload moderation failed',
+                ['error' => $e->getMessage()]
+            );
             $adminNotifications->notifyMediaModerationCase(
                 $media->fresh(),
                 'rekognition_failed',

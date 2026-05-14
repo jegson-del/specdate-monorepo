@@ -41,8 +41,8 @@ class MediaService
      * Upload a file for a user, or update an existing media row when media_id is provided.
      * Works with S3 or local public disk (no video conversion; S3 allows any file type).
      *
-     * @param  string  $type  (avatar, profile_gallery, chat, chat_image, chat_video, chat_audio, proof, round_answer_image, round_answer_video, round_question_image, round_question_video, round_answer_audio, round_question_audio)
-     * @param  int|null  $mediaId  When provided (and type is profile_gallery), update this row instead of creating. Keeps slot count at 6.
+     * @param  string  $type  (avatar, profile_gallery, provider_gallery, chat, chat_image, chat_video, chat_audio, proof, round_answer_image, round_answer_video, round_question_image, round_question_video, round_answer_audio, round_question_audio)
+     * @param  int|null  $mediaId  When provided for supported profile/provider image types, update this row instead of creating.
      */
     public function uploadFile(UploadedFile $file, User $user, string $type, ?int $mediaId = null): Media
     {
@@ -55,11 +55,11 @@ class MediaService
         $useS3 = config('filesystems.default') === 's3' && config('filesystems.disks.s3.key');
         $options = $useS3 ? ['visibility' => 'public', 'ACL' => 'public-read'] : [];
 
-        // Update-by-id: replace file and url for existing row (avatar or profile_gallery). No media_id = new image.
+        // Update-by-id: replace file and url for existing profile/provider media. No media_id = new image.
         if ($mediaId !== null) {
-            $allowedTypes = ['avatar', 'profile_gallery'];
+            $allowedTypes = ['avatar', 'profile_gallery', 'provider_gallery'];
             if (! in_array($type, $allowedTypes, true)) {
-                throw new \InvalidArgumentException('media_id is only supported for avatar or profile_gallery.');
+                throw new \InvalidArgumentException('media_id is only supported for avatar, profile_gallery, or provider_gallery.');
             }
             $media = Media::where('id', $mediaId)->where('user_id', $user->id)->where('type', $type)->firstOrFail();
             $disk->delete($media->file_path);

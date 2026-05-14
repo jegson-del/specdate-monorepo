@@ -30,6 +30,11 @@ class User extends Authenticatable
         'ban_reason',
         'admin_note',
         'banned_by',
+        'moderation_status',
+        'strike_count',
+        'risk_score',
+        'last_violation_at',
+        'suspended_until',
         'terms_accepted',
         'expo_push_token',
     ];
@@ -56,6 +61,10 @@ class User extends Authenticatable
             'password' => 'hashed',
             'is_paused' => 'boolean',
             'banned_at' => 'datetime',
+            'strike_count' => 'integer',
+            'risk_score' => 'integer',
+            'last_violation_at' => 'datetime',
+            'suspended_until' => 'datetime',
             'terms_accepted' => 'boolean',
         ];
     }
@@ -73,6 +82,16 @@ class User extends Authenticatable
     public function bannedBy()
     {
         return $this->belongsTo(User::class, 'banned_by');
+    }
+
+    public function moderationStrikes()
+    {
+        return $this->hasMany(ModerationStrike::class);
+    }
+
+    public function activeModerationStrikes()
+    {
+        return $this->hasMany(ModerationStrike::class)->where('active', true);
     }
 
     public function balance()

@@ -49,7 +49,7 @@ class MediaController extends Controller
     }
 
     /**
-     * Upload a file, or update an existing media row when media_id is sent (profile_gallery only).
+     * Upload a file, or update an existing media row when media_id is sent.
      *
      * Body: file, type, and optionally media_id (int) to replace that slot's image and url.
      * For round media: round_answer_image/round_question_image (images, max 10MB),
@@ -120,8 +120,8 @@ class MediaController extends Controller
 
         $type = $request->input('type');
         $mediaId = $request->has('media_id') ? (int) $request->input('media_id') : null;
-        if ($mediaId !== null && ! in_array($type, ['avatar', 'profile_gallery'], true)) {
-            return $this->sendError('media_id is only supported for avatar or profile_gallery.', [], 422);
+        if ($mediaId !== null && ! in_array($type, ['avatar', 'profile_gallery', 'provider_gallery'], true)) {
+            return $this->sendError('media_id is only supported for avatar, profile_gallery, or provider_gallery.', [], 422);
         }
 
         try {
