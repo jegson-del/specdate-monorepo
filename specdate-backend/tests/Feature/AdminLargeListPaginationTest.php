@@ -41,6 +41,37 @@ class AdminLargeListPaginationTest extends TestCase
             ->assertJsonPath('data.data.1.business_name', 'Provider 2');
     }
 
+    public function test_admin_provider_applications_can_be_filtered_by_country(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        foreach ([
+            ['company_name' => 'London Spa', 'country' => 'GB'],
+            ['company_name' => 'Manchester Dining', 'country' => 'GB'],
+            ['company_name' => 'Paris Studio', 'country' => 'FR'],
+        ] as $index => $provider) {
+            $user = User::factory()->create(['role' => 'provider']);
+            $profile = ProviderProfile::create([
+                'user_id' => $user->id,
+                'company_name' => $provider['company_name'],
+                'country' => $provider['country'],
+                'is_verified' => true,
+            ]);
+            $profile->forceFill([
+                'created_at' => now()->addMinutes($index),
+                'updated_at' => now()->addMinutes($index),
+            ])->save();
+        }
+
+        Sanctum::actingAs($admin);
+
+        $this->getJson('/api/admin/providers?status=approved&country=GB&per_page=10')
+            ->assertOk()
+            ->assertJsonPath('data.total', 2)
+            ->assertJsonPath('data.data.0.country', 'GB')
+            ->assertJsonPath('data.data.1.country', 'GB');
+    }
+
     public function test_admin_users_are_paginated(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);

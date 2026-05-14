@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type {
   AdminFinancialAppliedFilters,
   AdminFinancialVoucher,
@@ -5,6 +6,7 @@ import type {
   AdminFinancialVoucherStatus,
   AdminFinancialVoucherSummary,
   AdminPagination,
+  ProviderApplication,
 } from '../../../types/admin'
 import { AdminPaginationBar } from '../AdminPaginationBar'
 import {
@@ -20,35 +22,40 @@ import {
   periodOptions,
   ResetButton,
   SelectField,
-  TextField,
 } from './financialUi'
 
 type VoucherFinancialsPanelProps = {
   appliedFilters: AdminFinancialAppliedFilters | null
   filters: {
-    currency?: string
     date?: string
     dateField: AdminFinancialVoucherDateField
     from?: string
     month?: string
     period: 'all' | 'day' | 'week' | 'month' | 'custom'
-    providerId?: string
+    providerIds: number[]
     status: AdminFinancialVoucherStatus
     to?: string
   }
   isLoading: boolean
-  onCurrencyChange: (currency: string) => void
   onDateChange: (date: string) => void
   onDateFieldChange: (dateField: AdminFinancialVoucherDateField) => void
   onFromChange: (from: string) => void
   onMonthChange: (month: string) => void
   onPageChange: (page: number) => void
   onPeriodChange: (period: 'all' | 'day' | 'week' | 'month' | 'custom') => void
-  onProviderIdChange: (providerId: string) => void
+  onProviderCountryChange: (country: string) => void
+  onProviderIdsChange: (providerIds: number[]) => void
+  onProviderOptionsPageChange: (page: number) => void
+  onProviderSearchChange: (search: string) => void
   onReset: () => void
   onStatusChange: (status: AdminFinancialVoucherStatus) => void
   onToChange: (to: string) => void
   pagination: AdminPagination | null
+  providerCountry: string
+  providerOptions: ProviderApplication[]
+  providerOptionsLoading: boolean
+  providerOptionsPagination: AdminPagination | null
+  providerSearch: string
   summary: AdminFinancialVoucherSummary | null
   vouchers: AdminFinancialVoucher[]
 }
@@ -74,18 +81,25 @@ export function VoucherFinancialsPanel({
   appliedFilters,
   filters,
   isLoading,
-  onCurrencyChange,
   onDateChange,
   onDateFieldChange,
   onFromChange,
   onMonthChange,
   onPageChange,
   onPeriodChange,
-  onProviderIdChange,
+  onProviderCountryChange,
+  onProviderIdsChange,
+  onProviderOptionsPageChange,
+  onProviderSearchChange,
   onReset,
   onStatusChange,
   onToChange,
   pagination,
+  providerCountry,
+  providerOptions,
+  providerOptionsLoading,
+  providerOptionsPagination,
+  providerSearch,
   summary,
   vouchers,
 }: VoucherFinancialsPanelProps) {
@@ -99,7 +113,7 @@ export function VoucherFinancialsPanel({
       />
 
       <div className="border-b border-slate-200 p-5">
-        <div className="grid gap-3 lg:grid-cols-[150px_160px_150px_140px_140px_140px_150px]">
+        <div className="grid gap-3 lg:grid-cols-[150px_160px_150px_minmax(220px,1fr)_140px_150px]">
           <SelectField label="Period" options={periodOptions} value={filters.period} onChange={onPeriodChange} />
           <SelectField
             label="Date field"
@@ -113,8 +127,18 @@ export function VoucherFinancialsPanel({
             value={filters.status}
             onChange={onStatusChange}
           />
-          <TextField label="Provider ID" type="number" value={filters.providerId ?? ''} onChange={onProviderIdChange} />
-          <TextField label="Currency" maxLength={3} value={filters.currency ?? ''} onChange={onCurrencyChange} />
+          <ProviderPicker
+            country={providerCountry}
+            isLoading={providerOptionsLoading}
+            onCountryChange={onProviderCountryChange}
+            providerIds={filters.providerIds}
+            pagination={providerOptionsPagination}
+            providers={providerOptions}
+            onChange={onProviderIdsChange}
+            onPageChange={onProviderOptionsPageChange}
+            onSearchChange={onProviderSearchChange}
+            search={providerSearch}
+          />
           <DateControls
             date={filters.date ?? ''}
             from={filters.from ?? ''}
@@ -157,6 +181,155 @@ export function VoucherFinancialsPanel({
 
       <AdminPaginationBar onPageChange={onPageChange} pagination={pagination} />
     </section>
+  )
+}
+
+function ProviderPicker({
+  country,
+  isLoading,
+  onChange,
+  onCountryChange,
+  onPageChange,
+  onSearchChange,
+  pagination,
+  providerIds,
+  providers,
+  search,
+}: {
+  country: string
+  isLoading: boolean
+  onChange: (providerIds: number[]) => void
+  onCountryChange: (country: string) => void
+  onPageChange: (page: number) => void
+  onSearchChange: (search: string) => void
+  pagination: AdminPagination | null
+  providerIds: number[]
+  providers: ProviderApplication[]
+  search: string
+}) {
+  const selectedProviders = providers.filter((provider) => providerIds.includes(provider.id))
+  const summary = providerIds.length === 0
+    ? 'All providers'
+    : providerIds.length === 1
+      ? selectedProviders[0]?.business_name ?? '1 provider selected'
+      : `${providerIds.length} providers`
+  const totalProviders = pagination?.total ?? providers.length
+  const [isOpen, setIsOpen] = useState(false)
+
+  const toggleProvider = (providerId: number) => {
+    onChange(
+      providerIds.includes(providerId)
+        ? providerIds.filter((id) => id !== providerId)
+        : [...providerIds, providerId],
+    )
+  }
+
+  return (
+    <div>
+      <p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">
+        Providers
+      </p>
+      <div className="relative mt-1">
+        <button
+          type="button"
+          onClick={() => setIsOpen((current) => !current)}
+          className="flex h-10 w-full items-center justify-between rounded-lg border border-slate-300 bg-white px-3 text-sm font-bold text-slate-700"
+        >
+          <span className="truncate">{summary}</span>
+          <span className="text-xs text-slate-400">Select</span>
+        </button>
+        {isOpen && (
+        <div className="absolute z-30 mt-2 max-h-80 w-full min-w-80 overflow-y-auto rounded-lg border border-slate-200 bg-white p-3 shadow-xl">
+          <div className="grid gap-2">
+            <input
+              value={search}
+              onChange={(event) => onSearchChange(event.target.value)}
+              placeholder="Search provider, email, city"
+              className="h-10 rounded-lg border border-slate-300 px-3 text-sm font-bold text-slate-700 outline-none focus:border-pink-400 focus:ring-2 focus:ring-pink-100"
+            />
+            <input
+              value={country}
+              onChange={(event) => onCountryChange(event.target.value)}
+              placeholder="Country filter, e.g. GB"
+              className="h-10 rounded-lg border border-slate-300 px-3 text-sm font-bold text-slate-700 outline-none focus:border-pink-400 focus:ring-2 focus:ring-pink-100"
+            />
+          </div>
+          <div className="my-2 flex items-center justify-between gap-2">
+            <p className="text-xs font-black text-slate-500">
+              {isLoading ? 'Loading providers...' : `${totalProviders} approved providers`}
+            </p>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => onChange([])}
+                className="text-xs font-black text-pink-700 hover:text-pink-500"
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsOpen(false)}
+                className="text-xs font-black text-slate-500 hover:text-slate-800"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {providers.map((provider) => (
+              <label
+                key={provider.id}
+                className="flex cursor-pointer items-start gap-3 rounded-lg p-2 text-sm transition hover:bg-slate-50"
+              >
+                <input
+                  checked={providerIds.includes(provider.id)}
+                  onChange={() => toggleProvider(provider.id)}
+                  type="checkbox"
+                  className="mt-1 h-4 w-4 accent-pink-600"
+                />
+                <span>
+                  <span className="block font-black text-slate-800">{provider.business_name}</span>
+                  <span className="block text-xs font-semibold text-slate-500">
+                    {provider.city || provider.country || provider.email || `Provider #${provider.id}`}
+                  </span>
+                </span>
+              </label>
+            ))}
+            {providers.length === 0 && (
+              <p className="p-2 text-sm font-bold text-slate-500">
+                {isLoading ? 'Loading approved providers...' : 'No approved providers found.'}
+              </p>
+            )}
+          </div>
+          {pagination && pagination.last_page > 1 && (
+            <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
+              <p className="text-xs font-bold text-slate-500">
+                Page {pagination.current_page} of {pagination.last_page}
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={pagination.current_page <= 1}
+                  onClick={() => onPageChange(pagination.current_page - 1)}
+                  className="h-8 rounded-lg border border-slate-300 px-3 text-xs font-black text-slate-700 transition hover:border-pink-300 hover:text-pink-700 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  disabled={pagination.current_page >= pagination.last_page}
+                  onClick={() => onPageChange(pagination.current_page + 1)}
+                  className="h-8 rounded-lg border border-slate-300 px-3 text-xs font-black text-slate-700 transition hover:border-pink-300 hover:text-pink-700 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+        )}
+      </div>
+    </div>
   )
 }
 

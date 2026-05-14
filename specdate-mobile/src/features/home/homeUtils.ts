@@ -53,6 +53,7 @@ export async function mapSpecsResponse(res: any, fallbackFeed: FeedKey): Promise
       owner: s.owner?.profile?.full_name || s.owner?.name || 'Unknown',
       expiresIn: expiresText,
       joinCount: s.applications_count || 0,
+      locationCity: s.location_city || null,
       maxParticipants: s.max_participants,
       eliminatedCount: 0,
       firstDateProvider: '—',

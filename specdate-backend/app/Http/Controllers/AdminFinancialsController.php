@@ -22,6 +22,8 @@ class AdminFinancialsController extends Controller
     {
         $data = $request->validate([
             'provider_id' => 'nullable|integer|exists:provider_profiles,id',
+            'provider_ids' => 'nullable|array|max:100',
+            'provider_ids.*' => 'integer|exists:provider_profiles,id',
             'status' => ['nullable', 'string', Rule::in([
                 DateVoucher::STATUS_PENDING_PROVIDER,
                 DateVoucher::STATUS_ACTIVE,
@@ -31,7 +33,6 @@ class AdminFinancialsController extends Controller
                 DateVoucher::STATUS_COMPLETED,
                 DateVoucher::STATUS_EXPIRED,
             ])],
-            'currency' => 'nullable|string|size:3',
             'period' => ['nullable', 'string', Rule::in(['day', 'week', 'month'])],
             'date' => 'nullable|date',
             'month' => 'nullable|date_format:Y-m',

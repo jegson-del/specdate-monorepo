@@ -58,13 +58,12 @@ type Paginated<T> = {
 }
 
 export type AdminFinancialVoucherFilters = {
-  currency?: string
   date?: string
   dateField: AdminFinancialVoucherDateField
   from?: string
   month?: string
   period: AdminFinancialPeriod
-  providerId?: string
+  providerIds: number[]
   status: AdminFinancialVoucherStatus
   to?: string
 }
@@ -316,9 +315,9 @@ export async function getAdminFinancialVouchers(
   if (filters.dateField) {
     query.set('date_field', filters.dateField)
   }
-  if (filters.providerId && /^\d+$/.test(filters.providerId)) {
-    query.set('provider_id', filters.providerId)
-  }
+  filters.providerIds.forEach((providerId) => {
+    query.append('provider_ids[]', String(providerId))
+  })
 
   const response = await fetch(`${getApiBase()}/api/admin/financials/vouchers?${query.toString()}`, {
     headers: adminHeaders(token),
@@ -402,10 +401,17 @@ export async function getProviderApplications(
   status: ProviderApplicationStatus,
   page = 1,
   perPage = 10,
+  filters: { country?: string; q?: string } = {},
 ) {
   const query = new URLSearchParams({ page: String(page), per_page: String(perPage) })
   if (status !== 'all') {
     query.set('status', status)
+  }
+  if (filters.q?.trim()) {
+    query.set('q', filters.q.trim())
+  }
+  if (filters.country?.trim()) {
+    query.set('country', filters.country.trim())
   }
 
   const response = await fetch(`${getApiBase()}/api/admin/providers?${query.toString()}`, {
@@ -822,7 +828,7 @@ function financialQuery(
   perPage: number,
 ) {
   const query = new URLSearchParams({ page: String(page), per_page: String(perPage) })
-  const currency = filters.currency?.trim().toUpperCase()
+  const currency = 'currency' in filters ? filters.currency?.trim().toUpperCase() : ''
 
   if (currency && currency.length === 3) {
     query.set('currency', currency)

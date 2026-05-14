@@ -7,6 +7,7 @@ use App\Models\SpecApplication;
 use App\Models\SpecDate;
 use App\Models\SpecRound;
 use App\Models\SpecRoundAnswer;
+use App\Models\ChatThread;
 use App\Models\User;
 use App\Models\UserBalance;
 use App\Services\SpecService;
@@ -85,16 +86,18 @@ class SpecLastManStandingTest extends TestCase
     public function test_user_can_schedule_follow_up_after_completed_date(): void
     {
         [$owner, $winner, $spec] = $this->createLastManStandingSpec();
-        UserBalance::create(['user_id' => $winner->id, 'credits' => 2]);
+        UserBalance::create(['user_id' => $winner->id, 'credits' => 3]);
         app(SpecService::class)->createDate($owner, $spec->id);
         $firstDate = SpecDate::where('spec_id', $spec->id)->firstOrFail();
+        $firstThreadId = ChatThread::where('spec_id', $spec->id)->value('id');
         $firstDate->update(['status' => SpecDate::STATUS_COMPLETED]);
 
         $result = app(SpecService::class)->scheduleFollowUpDate($winner, $firstDate->id);
 
-        $this->assertSame(1, $result['balance']['credits']);
+        $this->assertSame(2, $result['balance']['credits']);
         $this->assertSame(2, $result['date']['date_number']);
         $this->assertSame('Second date', $result['date']['date_label']);
+        $this->assertSame($firstThreadId, $result['date']['chat_thread_id']);
         $this->assertNotSame($firstDate->date_code, $result['date']['date_code']);
         $this->assertDatabaseHas('spec_dates', [
             'root_spec_date_id' => $firstDate->id,
@@ -103,6 +106,20 @@ class SpecLastManStandingTest extends TestCase
             'scheduled_by_user_id' => $winner->id,
             'status' => SpecDate::STATUS_ACTIVE,
         ]);
+        $this->assertSame(1, ChatThread::where('spec_id', $spec->id)->count());
+        $this->assertDatabaseHas('chat_threads', [
+            'id' => $firstThreadId,
+            'spec_date_id' => $result['date']['id'],
+        ]);
+
+        SpecDate::findOrFail($result['date']['id'])->update(['status' => SpecDate::STATUS_COMPLETED]);
+
+        $thirdResult = app(SpecService::class)->scheduleFollowUpDate($winner, $result['date']['id']);
+
+        $this->assertSame(1, $thirdResult['balance']['credits']);
+        $this->assertSame(3, $thirdResult['date']['date_number']);
+        $this->assertSame($firstThreadId, $thirdResult['date']['chat_thread_id']);
+        $this->assertSame(1, ChatThread::where('spec_id', $spec->id)->count());
     }
 
     public function test_follow_up_is_blocked_while_latest_date_is_active(): void

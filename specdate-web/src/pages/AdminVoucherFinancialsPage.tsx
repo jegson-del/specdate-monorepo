@@ -32,18 +32,25 @@ export default function AdminVoucherFinancialsPage() {
         appliedFilters={vouchers.appliedFilters}
         filters={vouchers.filters}
         isLoading={vouchers.isLoading}
-        onCurrencyChange={vouchers.setCurrency}
         onDateChange={vouchers.setDate}
         onDateFieldChange={vouchers.setDateField}
         onFromChange={vouchers.setFrom}
         onMonthChange={vouchers.setMonth}
         onPageChange={vouchers.setPage}
         onPeriodChange={vouchers.setPeriod}
-        onProviderIdChange={vouchers.setProviderId}
+        onProviderCountryChange={vouchers.setProviderCountry}
+        onProviderIdsChange={vouchers.setProviderIds}
+        onProviderOptionsPageChange={vouchers.setProviderOptionsPage}
+        onProviderSearchChange={vouchers.setProviderSearch}
         onReset={vouchers.resetFilters}
         onStatusChange={vouchers.setStatus}
         onToChange={vouchers.setTo}
         pagination={vouchers.pagination}
+        providerCountry={vouchers.providerCountry}
+        providerOptions={vouchers.providerOptions}
+        providerOptionsLoading={vouchers.providerOptionsLoading}
+        providerOptionsPagination={vouchers.providerOptionsPagination}
+        providerSearch={vouchers.providerSearch}
         summary={vouchers.summary}
         vouchers={vouchers.vouchers}
       />

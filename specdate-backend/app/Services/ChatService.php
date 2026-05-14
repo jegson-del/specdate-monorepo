@@ -21,15 +21,35 @@ class ChatService
 
     public function ensureThreadForDate(SpecDate $date): ChatThread
     {
-        return ChatThread::firstOrCreate(
-            ['spec_date_id' => $date->id],
-            [
+        return DB::transaction(function () use ($date) {
+            $thread = ChatThread::query()
+                ->where('type', 'match')
+                ->where('spec_id', $date->spec_id)
+                ->where('owner_id', $date->owner_id)
+                ->where('winner_user_id', $date->winner_user_id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($thread) {
+                $currentDateNumber = $thread->spec_date_id
+                    ? (int) SpecDate::whereKey($thread->spec_date_id)->value('date_number')
+                    : 0;
+
+                if ((int) $thread->spec_date_id !== (int) $date->id && (int) $date->date_number >= $currentDateNumber) {
+                    $thread->update(['spec_date_id' => $date->id]);
+                }
+
+                return $thread;
+            }
+
+            return ChatThread::create([
+                'spec_date_id' => $date->id,
                 'type' => 'match',
                 'spec_id' => $date->spec_id,
                 'owner_id' => $date->owner_id,
                 'winner_user_id' => $date->winner_user_id,
-            ]
-        );
+            ]);
+        });
     }
 
     public function ensureThreadForProvider(User $customer, int $providerId): ChatThread

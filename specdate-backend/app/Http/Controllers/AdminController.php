@@ -65,7 +65,8 @@ class AdminController extends Controller
                     $request->user(),
                     $request->query('status'),
                     $request->query('q'),
-                    (int) $request->integer('per_page', 25)
+                    (int) $request->integer('per_page', 25),
+                    $request->query('country')
                 ),
                 'Provider applications retrieved successfully.'
             );

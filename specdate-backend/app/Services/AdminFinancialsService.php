@@ -37,8 +37,8 @@ class AdminFinancialsService
                 'specDate.spec:id,title,location_city',
             ])
             ->when($filters['provider_id'] ?? null, fn (Builder $query, int $providerId) => $query->where('provider_profile_id', $providerId))
+            ->when($filters['provider_ids'] ?? null, fn (Builder $query, array $providerIds) => $query->whereIn('provider_profile_id', $providerIds))
             ->when($filters['status'] ?? null, fn (Builder $query, string $status) => $query->where('status', $status))
-            ->when($filters['currency'] ?? null, fn (Builder $query, string $currency) => $query->where('currency', strtoupper($currency)))
             ->when($range, fn (Builder $query, array $range) => $query->whereBetween($dateField, $range));
 
         $summary = $this->voucherSummary(clone $query);

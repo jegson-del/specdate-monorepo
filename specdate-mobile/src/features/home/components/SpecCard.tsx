@@ -10,6 +10,7 @@ type SpecCardItem = {
     owner: string;
     expiresIn: string;
     joinCount: number;
+    locationCity?: string | null;
     maxParticipants: number;
     eliminatedCount: number;
     firstDateProvider: string;
@@ -91,7 +92,7 @@ const SpecCard = memo(({ item, theme, homeColors, tagColor, withAlpha, onPress }
                             <View style={styles.metaRow}>
                                 <MaterialCommunityIcons name="map-marker" size={20} color={theme.colors.primary} />
                                 <Text style={[styles.metaText, { color: homeColors.cardSubtext }]} numberOfLines={1}>
-                                    {(item.title.split('•')[1] || 'Location').trim()}
+                                    {item.locationCity?.trim() || 'Location not set'}
                                 </Text>
                             </View>
 

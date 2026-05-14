@@ -85,11 +85,12 @@ class AdminService
         ];
     }
 
-    public function providerApplications(User $admin, ?string $status = null, ?string $search = null, int $perPage = 25): LengthAwarePaginator
+    public function providerApplications(User $admin, ?string $status = null, ?string $search = null, int $perPage = 25, ?string $country = null): LengthAwarePaginator
     {
         $this->ensureAdmin($admin);
 
         $search = trim((string) $search);
+        $country = trim((string) $country);
         $perPage = max(1, min($perPage, 100));
 
         $providers = ProviderProfile::query()
@@ -97,6 +98,7 @@ class AdminService
             ->when($status === 'pending', fn ($q) => $q->where('is_verified', false)->whereNull('rejected_at'))
             ->when($status === 'approved', fn ($q) => $q->where('is_verified', true))
             ->when($status === 'rejected', fn ($q) => $q->whereNotNull('rejected_at'))
+            ->when($country !== '', fn ($q) => $q->where('country', $country))
             ->when($search !== '', function ($q) use ($search) {
                 $q->where(function ($nested) use ($search) {
                     $nested->where('company_name', 'like', "%{$search}%")

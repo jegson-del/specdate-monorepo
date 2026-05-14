@@ -101,6 +101,32 @@ class AdminFinancialsTest extends TestCase
         $this->assertEquals(150.0, $data[0]['total_spent']);
     }
 
+    public function test_voucher_financials_can_filter_by_multiple_providers(): void
+    {
+        $admin = $this->adminWithAccess(vouchers: true);
+        [$owner, $winner, $date] = $this->createSpecDate();
+        $provider = $this->createProvider('Dinner House', 'GBP');
+        $secondProvider = $this->createProvider('Sky Bar', 'GBP');
+        $otherProvider = $this->createProvider('Other Place', 'GBP');
+
+        foreach ([$provider, $secondProvider, $otherProvider] as $index => $currentProvider) {
+            $this->createVoucher($date, $currentProvider, $owner, $winner, [
+                'currency' => 'GBP',
+                'status' => DateVoucher::STATUS_REDEEMED,
+                'total_spent' => 100 + $index,
+                'redeemed_at' => '2026-05-14 12:00:00',
+                'created_at' => '2026-05-14 10:00:00',
+            ]);
+        }
+
+        Sanctum::actingAs($admin);
+
+        $this->getJson("/api/admin/financials/vouchers?provider_ids[]={$provider->id}&provider_ids[]={$secondProvider->id}&period=day&date=2026-05-14&date_field=redeemed_at")
+            ->assertOk()
+            ->assertJsonPath('data.summary.total_vouchers', 2)
+            ->assertJsonPath('data.vouchers.total', 2);
+    }
+
     public function test_admin_can_view_credit_financials_with_net_movement_and_purchase_totals(): void
     {
         $admin = $this->adminWithAccess(credits: true);

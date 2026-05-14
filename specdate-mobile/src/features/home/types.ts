@@ -4,6 +4,7 @@ export type SpecCardItem = {
   owner: string;
   expiresIn: string;
   joinCount: number;
+  locationCity?: string | null;
   maxParticipants: number;
   eliminatedCount: number;
   firstDateProvider: string;
