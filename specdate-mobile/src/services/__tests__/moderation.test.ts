@@ -44,4 +44,26 @@ describe('ModerationService', () => {
     expect(mockedApi.post).toHaveBeenCalledWith('/blocks', { user_id: 7, reason: 'Spam' });
     expect(mockedApi.delete).toHaveBeenCalledWith('/blocks/7');
   });
+
+  it('loads account moderation status', async () => {
+    mockedApi.get.mockResolvedValueOnce({ data: { success: true, data: { user: { moderation_status: 'active' } } } });
+
+    await ModerationService.getModerationStatus();
+
+    expect(mockedApi.get).toHaveBeenCalledWith('/me/moderation');
+  });
+
+  it('submits moderation appeals', async () => {
+    mockedApi.post.mockResolvedValueOnce({ data: { success: true } });
+
+    await ModerationService.submitModerationAppeal({
+      action_id: 9,
+      appeal_text: 'Please review this decision again.',
+    });
+
+    expect(mockedApi.post).toHaveBeenCalledWith('/moderation/appeals', {
+      action_id: 9,
+      appeal_text: 'Please review this decision again.',
+    });
+  });
 });

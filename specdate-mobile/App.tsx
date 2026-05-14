@@ -32,6 +32,7 @@ import CreateSpecScreen from './src/features/specs/CreateSpecScreen';
 import SpecDetailsScreen from './src/features/specs/SpecDetailsScreen';
 import RoundDetailsScreen from './src/features/specs/RoundDetailsScreen';
 import NotificationsScreen from './src/features/notifications/NotificationsScreen';
+import ModerationStatusScreen from './src/features/moderation/ModerationStatusScreen';
 import ChatListScreen from './src/features/chat/ChatListScreen';
 import ChatThreadScreen from './src/features/chat/ChatThreadScreen';
 import LegalScreen from './src/features/legal/LegalScreen';
@@ -176,6 +177,7 @@ export default function App() {
               <Stack.Screen name="QRScanner" component={QRScannerScreen} />
 
               <Stack.Screen name="Notifications" component={NotificationsScreen} />
+              <Stack.Screen name="ModerationStatus" component={ModerationStatusScreen} />
               <Stack.Screen name="CreditsTransactions" component={CreditsTransactionScreen} />
               <Stack.Screen name="Messages" component={ChatListScreen} />
               <Stack.Screen name="ChatThread" component={ChatThreadScreen} />

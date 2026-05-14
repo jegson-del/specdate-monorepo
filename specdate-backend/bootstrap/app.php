@@ -19,6 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'profile.complete' => \App\Http\Middleware\EnsureProfileComplete::class,
             'account.active' => \App\Http\Middleware\EnsureAccountCanAct::class,
+            'device.fingerprint' => \App\Http\Middleware\CaptureDeviceFingerprint::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

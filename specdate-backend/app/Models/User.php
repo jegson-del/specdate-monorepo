@@ -99,6 +99,16 @@ class User extends Authenticatable
         return $this->hasMany(ModerationAppeal::class);
     }
 
+    public function reporterRiskScore()
+    {
+        return $this->hasOne(ReporterRiskScore::class);
+    }
+
+    public function deviceFingerprints()
+    {
+        return $this->hasMany(DeviceFingerprint::class);
+    }
+
     public function balance()
     {
         return $this->hasOne(UserBalance::class);

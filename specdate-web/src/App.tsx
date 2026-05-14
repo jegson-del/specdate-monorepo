@@ -57,6 +57,7 @@ export default function App() {
           <Route path="/admin/providers" element={<AdminProvidersPage />} />
           <Route path="/admin/media-moderation" element={<AdminMediaModerationPage />} />
           <Route path="/admin/moderation" element={<AdminModerationPage />} />
+          <Route path="/admin/moderation/appeals" element={<AdminModerationPage />} />
           <Route path="/admin/support" element={<AdminSupportPage />} />
           <Route path="/admin/users" element={<AdminUsersPage />} />
         </Routes>

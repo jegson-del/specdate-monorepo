@@ -1,8 +1,10 @@
 import type {
+  AdminPagination,
   AdminReport,
   AdminReportAction,
   AdminReportStatus,
 } from '../../types/admin'
+import { AdminPaginationBar, AdminPaginationSummary } from './AdminPaginationBar'
 
 type ModerationReportsPanelProps = {
   onStatusChange: (status: AdminReportStatus) => void
@@ -14,6 +16,8 @@ type ModerationReportsPanelProps = {
       status?: Exclude<AdminReportStatus, 'all'>
     },
   ) => void
+  onPageChange: (page: number) => void
+  pagination: AdminPagination | null
   reports: AdminReport[]
   status: AdminReportStatus
   updatingReportId: number | null
@@ -24,6 +28,8 @@ const statusOptions: AdminReportStatus[] = ['open', 'reviewing', 'resolved', 'di
 export function ModerationReportsPanel({
   onStatusChange,
   onUpdateReport,
+  onPageChange,
+  pagination,
   reports,
   status,
   updatingReportId,
@@ -37,17 +43,20 @@ export function ModerationReportsPanel({
             Triage reports, mark reviews in progress, resolve safe cases, or apply moderation actions.
           </p>
         </div>
-        <select
-          value={status}
-          onChange={(event) => onStatusChange(event.target.value as AdminReportStatus)}
-          className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm font-bold"
-        >
-          {statusOptions.map((option) => (
-            <option key={option} value={option}>
-              {option.charAt(0).toUpperCase() + option.slice(1)}
-            </option>
-          ))}
-        </select>
+        <div className="flex flex-wrap items-center gap-3">
+          <AdminPaginationSummary pagination={pagination} />
+          <select
+            value={status}
+            onChange={(event) => onStatusChange(event.target.value as AdminReportStatus)}
+            className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm font-bold"
+          >
+            {statusOptions.map((option) => (
+              <option key={option} value={option}>
+                {option.charAt(0).toUpperCase() + option.slice(1)}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="overflow-x-auto">
@@ -81,6 +90,7 @@ export function ModerationReportsPanel({
           </tbody>
         </table>
       </div>
+      <AdminPaginationBar onPageChange={onPageChange} pagination={pagination} />
     </section>
   )
 }

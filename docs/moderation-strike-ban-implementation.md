@@ -551,17 +551,51 @@ Mobile routing:
   - Appeal grant reverses eligible strike decisions and recalculates user moderation status.
   - Added tests for submit, duplicate prevention, grant, deny, and status payload.
 - Still pending after backend rules are stable:
-  - Add notification types.
-  - Add mobile appeal form and status view.
-  - Add admin appeal UI.
+  - None for Phase 4 backend/mobile/admin foundation.
+- Notification/status routing complete:
+  - Added `moderation_appeal_received` admin notification.
+  - Added `moderation_appeal_granted` and `moderation_appeal_denied` user notifications.
+  - Added mobile moderation status route for appeal decision notifications.
+- Mobile appeal form complete:
+  - Added appealable action picker to moderation status screen.
+  - Added appeal message submission through `POST /api/moderation/appeals`.
+  - Refreshes status after submit so open appeals are reflected immediately.
+- Admin appeal UI complete:
+  - Added `/admin/moderation/appeals`.
+  - Added latest-first appeal list with status filter.
+  - Added grant/deny controls with required decision note.
+  - Admin notification links now land on a real appeals route.
 
 ### Phase 5: Risk and Anti-Abuse
 
-- Add phone blacklist.
-- Add device fingerprint table when mobile supplies stable device signals.
-- Add IP risk events.
-- Add false-report scoring.
-- Add rate limits for reports/appeals.
+- Device fingerprinting complete:
+  - Added `device_fingerprints`.
+  - Mobile sends a stable install fingerprint plus platform/app metadata on authenticated API requests.
+  - Backend hashes the install fingerprint before storage.
+  - Capture is non-blocking so device tracking cannot break normal API requests.
+- Phone blacklist complete:
+  - Added `phone_blacklist_entries`.
+  - Added phone blacklist model/service with normalized phone matching.
+  - Blocks blacklisted numbers during mobile OTP, mobile registration, and provider registration.
+  - Expired blacklist entries no longer block use.
+- Rate limits for reports/appeals complete:
+  - Reports: limited per user/IP with burst and hourly controls.
+  - Appeals: limited per user/IP to reduce appeal spam.
+  - Added backend tests for both limits.
+- IP risk events complete:
+  - Added `ip_risk_events`.
+  - Added risk event service/model.
+  - Records report/appeal rate-limit hits with user, IP, path, user agent, severity, score, and metadata.
+  - Coalesces duplicate events for the same user/IP/path/event within one minute.
+- False-report scoring complete:
+  - Added `reporter_risk_scores`.
+  - Stores report IP/user-agent and reporter score outcome on reports.
+  - Dismissed reports increase reporter false-report count and risk score.
+  - Actioned resolved reports count as valid without penalty.
+  - Repeated dismissed reports create `false_report_pattern` IP risk events.
+- Admin moderation pagination complete:
+  - Upload moderation, reports, and appeals all use latest-first paginated data.
+  - Admin Reports and Appeals pages show current result ranges and previous/next paging controls.
 
 ## Test Plan
 

@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\AuthService;
 use App\Services\DateVoucherService;
 use App\Services\EmailService;
+use App\Services\PhoneBlacklistService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Http\Request;
@@ -27,7 +28,8 @@ class ProviderController extends Controller
     public function __construct(
         private DateVoucherService $dateVoucherService,
         private AuthService $authService,
-        private EmailService $emailService
+        private EmailService $emailService,
+        private PhoneBlacklistService $phoneBlacklistService
     )
     {
     }
@@ -247,6 +249,11 @@ class ProviderController extends Controller
         ]);
 
         $data['email'] = strtolower(trim($data['email']));
+        if ($this->phoneBlacklistService->isBlacklisted($data['phone'])) {
+            throw ValidationException::withMessages([
+                'phone' => [$this->phoneBlacklistService->blockedValidationMessage()],
+            ]);
+        }
 
         if (!$this->authService->verifyOtp('email', $data['email'], $data['otp_code'])) {
             throw ValidationException::withMessages([

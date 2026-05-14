@@ -25,6 +25,8 @@ class ReportController extends Controller
             'reason' => 'required|string|max:120',
             'details' => 'nullable|string|max:2000',
         ]);
+        $data['reporter_ip_address'] = (string) $request->ip();
+        $data['reporter_user_agent'] = substr((string) $request->userAgent(), 0, 1000);
 
         try {
             $report = $this->reportService->create($request->user(), $data);
@@ -36,19 +38,23 @@ class ReportController extends Controller
 
     public function index(Request $request)
     {
-        if ($request->user()->role !== 'admin') {
-            return $this->sendError('Admin access required.', [], 403);
+        $data = $request->validate([
+            'status' => ['nullable', 'string', Rule::in(Report::STATUSES)],
+            'per_page' => 'nullable|integer|min:1|max:100',
+        ]);
+
+        try {
+            return $this->sendResponse(
+                $this->reportService->index(
+                    $request->user(),
+                    $data['status'] ?? null,
+                    (int) ($data['per_page'] ?? 50),
+                ),
+                'Reports retrieved successfully.'
+            );
+        } catch (HttpException $e) {
+            return $this->sendError($e->getMessage(), [], $e->getStatusCode());
         }
-
-        $status = $request->input('status');
-        $perPage = max(1, min((int) $request->integer('per_page', 50), 100));
-        $reports = Report::query()
-            ->with(['reporter:id,name,username', 'reportedUser:id,name,username', 'reviewer:id,name,username'])
-            ->when($status, fn ($q) => $q->where('status', $status))
-            ->latest()
-            ->paginate($perPage);
-
-        return $this->sendResponse($reports, 'Reports retrieved successfully.');
     }
 
     public function update(Request $request, Report $report)

@@ -142,6 +142,7 @@ export default function HomeScreen({ navigation, route }: any) {
         activeTab={bottomTab}
         onTabChange={setBottomTab}
         onCreate={() => navigation.navigate('CreateSpec')}
+        onOpenStatus={() => navigation.navigate('ModerationStatus')}
         user={user}
         theme={theme}
         homeColors={homeColors}

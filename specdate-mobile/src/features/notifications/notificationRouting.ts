@@ -62,6 +62,19 @@ export function routeNotification(item: any, navigation: NavigationLike, queryCl
     return true;
   }
 
+  if (
+    type === 'moderation_appeal_granted' ||
+    type === 'moderation_appeal_denied' ||
+    type === 'moderation_warning' ||
+    type === 'moderation_strike' ||
+    type === 'moderation_suspension' ||
+    type === 'moderation_ban'
+  ) {
+    queryClient?.invalidateQueries({ queryKey: ['moderation-status'] });
+    navigation.navigate('ModerationStatus');
+    return true;
+  }
+
   if (specId) {
     const navigatesToSpec =
       type === 'round_started' ||

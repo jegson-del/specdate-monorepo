@@ -16,6 +16,7 @@ const navItems: NavItem[] = [
   { label: 'Provider applications', to: '/admin/providers', enabled: true, badgeKey: 'providers_pending' },
   { label: 'Upload moderation', to: '/admin/media-moderation', enabled: true, badgeKey: 'media_needs_review' },
   { label: 'Reports', to: '/admin/moderation', enabled: true, badgeKey: 'reports_open' },
+  { label: 'Appeals', to: '/admin/moderation/appeals', enabled: true },
   { label: 'Support', to: '/admin/support', enabled: true, badgeKey: 'support_needs_admin' },
 ] as const
 
@@ -46,7 +47,7 @@ export function AdminShell({
                 <NavLink
                   key={label}
                   to={to}
-                  end={to === '/admin'}
+                  end={to === '/admin' || to === '/admin/moderation'}
                   className={({ isActive }) =>
                     `flex items-center gap-2 rounded-lg px-3 py-2 ${
                       isActive ? 'bg-white/15 text-white' : 'text-slate-300 hover:bg-white/10'

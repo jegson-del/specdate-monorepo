@@ -31,7 +31,7 @@ Route::post('/admin/login', [AdminController::class, 'login']);
 Route::post('/provider-registrations', [ProviderController::class, 'registerInterest']);
 Route::post('/provider-password/setup', [ProviderController::class, 'setupPassword']);
 
-Route::middleware(['auth:sanctum'])->group(function () {
+Route::middleware(['auth:sanctum', 'device.fingerprint'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::post('/account/pause', [AccountController::class, 'pause']);
     Route::post('/account/unpause', [AccountController::class, 'unpause']);
@@ -61,8 +61,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/blocks', [BlockController::class, 'index']);
     Route::post('/blocks', [BlockController::class, 'store']);
     Route::delete('/blocks/{user}', [BlockController::class, 'destroy']);
-    Route::post('/reports', [ReportController::class, 'store']);
-    Route::post('/moderation/appeals', [ModerationAppealController::class, 'store']);
+    Route::post('/reports', [ReportController::class, 'store'])->middleware('throttle:reports');
+    Route::post('/moderation/appeals', [ModerationAppealController::class, 'store'])->middleware('throttle:moderation-appeals');
     Route::get('/review-prompts', [ReviewController::class, 'pending']);
     Route::get('/date-vouchers/{voucher}/review-context', [ReviewController::class, 'context']);
     Route::post('/date-vouchers/{voucher}/provider-review', [ReviewController::class, 'provider']);

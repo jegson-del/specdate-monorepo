@@ -18,7 +18,11 @@ class AuthService
     protected $sparkService;
     protected $emailService;
 
-    public function __construct(SparkService $sparkService, EmailService $emailService)
+    public function __construct(
+        SparkService $sparkService,
+        EmailService $emailService,
+        private PhoneBlacklistService $phoneBlacklistService,
+    )
     {
         $this->sparkService = $sparkService;
         $this->emailService = $emailService;
@@ -35,6 +39,16 @@ class AuthService
      */
     public function sendOtp(string $channel, string $target): array
     {
+        if ($channel === 'mobile' && $this->phoneBlacklistService->isBlacklisted($target)) {
+            throw new HttpResponseException(
+                response()->json([
+                    'success' => false,
+                    'message' => $this->phoneBlacklistService->blockedValidationMessage(),
+                    'data' => ['errors' => ['target' => [$this->phoneBlacklistService->blockedValidationMessage()]]],
+                ], 422, [], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)
+            );
+        }
+
         $code = (string) random_int(100000, 999999);
         $key = $this->otpCacheKey($channel, $target);
         Cache::put($key, $code, self::OTP_TTL_SECONDS);
@@ -134,6 +148,16 @@ class AuthService
      */
     public function register(array $data): array
     {
+        if ($this->phoneBlacklistService->isBlacklisted($data['mobile'] ?? null)) {
+            throw new HttpResponseException(
+                response()->json([
+                    'success' => false,
+                    'message' => $this->phoneBlacklistService->blockedValidationMessage(),
+                    'data' => ['errors' => ['mobile' => [$this->phoneBlacklistService->blockedValidationMessage()]]],
+                ], 422, [], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)
+            );
+        }
+
         $otpCode = isset($data['otp_code'], $data['channel'], $data['target'])
             ? trim((string) $data['otp_code'])
             : null;

@@ -22,6 +22,8 @@ class Report extends Model
 
     protected $fillable = [
         'reporter_id',
+        'reporter_ip_address',
+        'reporter_user_agent',
         'reported_user_id',
         'target_type',
         'target_id',
@@ -32,10 +34,13 @@ class Report extends Model
         'action_note',
         'reviewed_by',
         'reviewed_at',
+        'reporter_score_outcome',
+        'reporter_score_applied_at',
     ];
 
     protected $casts = [
         'reviewed_at' => 'datetime',
+        'reporter_score_applied_at' => 'datetime',
     ];
 
     public function reporter()

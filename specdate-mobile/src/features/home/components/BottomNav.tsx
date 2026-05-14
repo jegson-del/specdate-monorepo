@@ -8,25 +8,35 @@ type Props = {
   activeTab: BottomTabKey;
   onTabChange: (tab: BottomTabKey) => void;
   onCreate: () => void;
+  onOpenStatus: () => void;
   user: any;
   theme: any;
   homeColors: HomeColors;
   insets: { bottom: number; left: number; right: number };
 };
 
-const items: Array<{
+type BottomNavItem = {
   key: BottomTabKey;
   label: string;
   activeIcon: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
   inactiveIcon: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
   color: string;
-}> = [
+};
+
+const items: BottomNavItem[] = [
   { key: 'Home', label: 'Home', activeIcon: 'home', inactiveIcon: 'home-outline', color: '' },
   { key: 'Matches', label: 'Matches', activeIcon: 'account-group', inactiveIcon: 'account-group-outline', color: '#ef5a46' },
   { key: 'Dates', label: 'Dates', activeIcon: 'heart', inactiveIcon: 'heart-outline', color: '#D946EF' },
   { key: 'Specs', label: 'Specs', activeIcon: 'clipboard-list', inactiveIcon: 'clipboard-list-outline', color: '#8B5CF6' },
   { key: 'Requests', label: 'Requests', activeIcon: 'account-plus', inactiveIcon: 'account-plus-outline', color: '#06B6D4' },
 ];
+
+const statusItem = {
+  label: 'Status',
+  activeIcon: 'shield-account',
+  inactiveIcon: 'shield-account-outline',
+  color: '#059669',
+} as const;
 
 function ActiveIcon({ children, color }: { children: React.ReactNode; color: string }) {
   return (
@@ -36,7 +46,7 @@ function ActiveIcon({ children, color }: { children: React.ReactNode; color: str
   );
 }
 
-export default function BottomNav({ activeTab, onTabChange, onCreate, user, theme, homeColors, insets }: Props) {
+export default function BottomNav({ activeTab, onTabChange, onCreate, onOpenStatus, user, theme, homeColors, insets }: Props) {
   return (
     <Surface
       style={[
@@ -82,6 +92,13 @@ export default function BottomNav({ activeTab, onTabChange, onCreate, user, them
             homeColors={homeColors}
           />
         ))}
+
+        <NavActionItem
+          item={statusItem}
+          onPress={onOpenStatus}
+          theme={theme}
+          homeColors={homeColors}
+        />
       </View>
     </Surface>
   );
@@ -115,6 +132,17 @@ function NavItem({ item, activeTab, onTabChange, user, theme, homeColors }: any)
         )}
       </View>
       <Text style={[styles.bottomNavLabel, { color: active ? theme.colors.primary : homeColors.subtext }]}>
+        {item.label}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+function NavActionItem({ item, onPress, theme, homeColors }: any) {
+  return (
+    <TouchableOpacity onPress={onPress} style={styles.bottomNavItem} activeOpacity={0.7}>
+      <MaterialCommunityIcons name={item.inactiveIcon} size={28} color={item.color || theme.colors.primary} style={{ opacity: 0.65 }} />
+      <Text style={[styles.bottomNavLabel, { color: homeColors.subtext }]}>
         {item.label}
       </Text>
     </TouchableOpacity>

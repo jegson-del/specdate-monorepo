@@ -38,6 +38,10 @@ class ModerationAppealTest extends TestCase
             'id' => $action->case_id,
             'status' => ModerationCase::STATUS_APPEALED,
         ]);
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $admin->id,
+            'type' => 'moderation_appeal_received',
+        ]);
 
         Sanctum::actingAs($admin);
         $this->getJson('/api/admin/moderation/appeals')
@@ -82,6 +86,10 @@ class ModerationAppealTest extends TestCase
             'action' => ModerationAction::ACTION_APPEAL_DENIED,
             'reason' => 'The evidence still supports the moderation action.',
         ]);
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $user->id,
+            'type' => 'moderation_appeal_denied',
+        ]);
     }
 
     public function test_admin_can_grant_strike_appeal_and_recalculate_user_status(): void
@@ -125,6 +133,10 @@ class ModerationAppealTest extends TestCase
             'user_id' => $user->id,
             'admin_id' => $admin->id,
             'action' => ModerationAction::ACTION_STRIKE_REVOKED,
+        ]);
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $user->id,
+            'type' => 'moderation_appeal_granted',
         ]);
     }
 

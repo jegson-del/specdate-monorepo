@@ -6,9 +6,11 @@ import {
   adminTokenKey,
   approveAdminMedia,
   approveProviderApplication,
+  decideAdminModerationAppeal,
   getAdminDashboard,
   getAdminMediaModerationQueue,
   getAdminMe,
+  getAdminModerationAppeals,
   getAdminReports,
   getAdminSupportTicket,
   getAdminSupportTickets,
@@ -24,6 +26,7 @@ import {
 } from '../lib/adminApi'
 import type {
   AdminMediaModerationStatus,
+  AdminModerationAppealStatus,
   AdminReportAction,
   AdminReportStatus,
   AdminSupportTicketStatus,
@@ -33,10 +36,12 @@ import type {
 type AdminDashboardOptions = {
   loadDashboard?: boolean
   loadMediaModeration?: boolean
+  loadModerationAppeals?: boolean
   loadProviders?: boolean
   loadReports?: boolean
   loadSupport?: boolean
   mediaPerPage?: number
+  moderationAppealPerPage?: number
   providerPerPage?: number
   reportPerPage?: number
   supportPerPage?: number
@@ -53,10 +58,12 @@ const adminQueryKeys = {
   me: ['admin', 'me'] as const,
   providers: (status: ProviderApplicationStatus, perPage: number) =>
     ['admin', 'providers', status, perPage] as const,
-  reports: (status: AdminReportStatus, perPage: number) =>
-    ['admin', 'reports', status, perPage] as const,
+  reports: (status: AdminReportStatus, page: number, perPage: number) =>
+    ['admin', 'reports', status, page, perPage] as const,
   mediaModeration: (status: AdminMediaModerationStatus, page: number, perPage: number) =>
     ['admin', 'media-moderation', status, page, perPage] as const,
+  moderationAppeals: (status: AdminModerationAppealStatus, page: number, perPage: number) =>
+    ['admin', 'moderation-appeals', status, page, perPage] as const,
   root: ['admin'] as const,
   support: (status: AdminSupportTicketStatus, perPage: number) =>
     ['admin', 'support', status, perPage] as const,
@@ -65,10 +72,12 @@ const adminQueryKeys = {
 export function useAdminDashboard({
   loadDashboard = true,
   loadMediaModeration = false,
+  loadModerationAppeals = false,
   loadProviders = true,
   loadReports = true,
   loadSupport = true,
   mediaPerPage = 25,
+  moderationAppealPerPage = 25,
   providerPerPage = 10,
   reportPerPage = 10,
   supportPerPage = 10,
@@ -77,7 +86,11 @@ export function useAdminDashboard({
   const queryClient = useQueryClient()
   const [token, setToken] = useState(() => localStorage.getItem(adminTokenKey) || '')
   const [mediaStatus, setMediaStatus] = useState<AdminMediaModerationStatus>('needs_review')
+  const [moderationAppealStatus, setModerationAppealStatus] =
+    useState<AdminModerationAppealStatus>('open')
   const [mediaPage, setMediaPage] = useState(1)
+  const [moderationAppealPage, setModerationAppealPage] = useState(1)
+  const [reportPage, setReportPage] = useState(1)
   const [reportStatus, setReportStatus] = useState<AdminReportStatus>('open')
   const [providerStatus, setProviderStatus] = useState<ProviderApplicationStatus>('pending')
   const [supportStatus, setSupportStatus] = useState<AdminSupportTicketStatus>('pending_admin')
@@ -126,8 +139,8 @@ export function useAdminDashboard({
 
   const reportsQuery = useQuery({
     enabled: isAuthenticated && loadReports,
-    queryKey: adminQueryKeys.reports(reportStatus, reportPerPage),
-    queryFn: () => getAdminReports(token, reportStatus, reportPerPage),
+    queryKey: adminQueryKeys.reports(reportStatus, reportPage, reportPerPage),
+    queryFn: () => getAdminReports(token, reportStatus, reportPage, reportPerPage),
     refetchInterval: 20_000,
     staleTime: 10_000,
   })
@@ -136,6 +149,24 @@ export function useAdminDashboard({
     enabled: isAuthenticated && loadMediaModeration,
     queryKey: adminQueryKeys.mediaModeration(mediaStatus, mediaPage, mediaPerPage),
     queryFn: () => getAdminMediaModerationQueue(token, mediaStatus, mediaPage, mediaPerPage),
+    refetchInterval: 20_000,
+    staleTime: 10_000,
+  })
+
+  const moderationAppealsQuery = useQuery({
+    enabled: isAuthenticated && loadModerationAppeals,
+    queryKey: adminQueryKeys.moderationAppeals(
+      moderationAppealStatus,
+      moderationAppealPage,
+      moderationAppealPerPage,
+    ),
+    queryFn: () =>
+      getAdminModerationAppeals(
+        token,
+        moderationAppealStatus,
+        moderationAppealPage,
+        moderationAppealPerPage,
+      ),
     refetchInterval: 20_000,
     staleTime: 10_000,
   })
@@ -160,6 +191,7 @@ export function useAdminDashboard({
       meQuery.error,
       dashboardQuery.error,
       mediaModerationQuery.error,
+      moderationAppealsQuery.error,
       providersQuery.error,
       reportsQuery.error,
       supportQuery.error,
@@ -177,6 +209,7 @@ export function useAdminDashboard({
     clearSession,
     dashboardQuery.error,
     mediaModerationQuery.error,
+    moderationAppealsQuery.error,
     meQuery.error,
     providersQuery.error,
     reportsQuery.error,
@@ -204,6 +237,7 @@ export function useAdminDashboard({
   const invalidateAdminWork = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: adminQueryKeys.dashboard })
     queryClient.invalidateQueries({ queryKey: ['admin', 'media-moderation'] })
+    queryClient.invalidateQueries({ queryKey: ['admin', 'moderation-appeals'] })
     queryClient.invalidateQueries({ queryKey: ['admin', 'providers'] })
     queryClient.invalidateQueries({ queryKey: ['admin', 'reports'] })
     queryClient.invalidateQueries({ queryKey: ['admin', 'support'] })
@@ -341,6 +375,37 @@ export function useAdminDashboard({
     },
   })
 
+  const decideAppealMutation = useMutation({
+    mutationFn: ({
+      appealId,
+      decisionNote,
+      status,
+    }: {
+      appealId: number
+      decisionNote: string
+      status: 'granted' | 'denied'
+    }) =>
+      decideAdminModerationAppeal(token, appealId, {
+        status,
+        decision_note: decisionNote,
+      }),
+    onError: (error) => {
+      showAlert({
+        tone: 'error',
+        title: 'Appeal decision failed',
+        message: error instanceof Error ? error.message : 'Appeal decision could not be saved.',
+      })
+    },
+    onSuccess: (message) => {
+      showAlert({
+        tone: 'success',
+        title: 'Appeal decision saved',
+        message,
+      })
+      invalidateAdminWork()
+    },
+  })
+
   const approveMediaMutation = useMutation({
     mutationFn: (mediaId: number) => approveAdminMedia(token, mediaId),
     onError: (error) => {
@@ -427,6 +492,16 @@ export function useAdminDashboard({
     setMediaPage(1)
   }
 
+  const changeModerationAppealStatus = (status: AdminModerationAppealStatus) => {
+    setModerationAppealStatus(status)
+    setModerationAppealPage(1)
+  }
+
+  const changeReportStatus = (status: AdminReportStatus) => {
+    setReportStatus(status)
+    setReportPage(1)
+  }
+
   return {
     admin: meQuery.data ?? null,
     approvingId: approveProviderMutation.isPending ? approveProviderMutation.variables : null,
@@ -438,6 +513,7 @@ export function useAdminDashboard({
       meQuery.isFetching ||
       dashboardQuery.isFetching ||
       mediaModerationQuery.isFetching ||
+      moderationAppealsQuery.isFetching ||
       providersQuery.isFetching ||
       reportsQuery.isFetching ||
       supportQuery.isFetching,
@@ -446,6 +522,10 @@ export function useAdminDashboard({
     approveMedia: (mediaId: number) => approveMediaMutation.mutate(mediaId),
     approvingMediaId: approveMediaMutation.isPending ? approveMediaMutation.variables : null,
     mediaModerationItems: mediaModerationQuery.data?.items ?? [],
+    moderationAppeals: moderationAppealsQuery.data?.items ?? [],
+    moderationAppealPagination: moderationAppealsQuery.data?.pagination ?? null,
+    moderationAppealPage,
+    moderationAppealStatus,
     mediaPagination: mediaModerationQuery.data?.pagination ?? null,
     mediaPage,
     mediaStatus,
@@ -453,7 +533,9 @@ export function useAdminDashboard({
     providers: providersQuery.data ?? [],
     rejectProvider: (providerId: number, reason: string, adminNote?: string) =>
       rejectProviderMutation.mutate({ adminNote, providerId, reason }),
-    reports: reportsQuery.data ?? [],
+    reports: reportsQuery.data?.items ?? [],
+    reportPagination: reportsQuery.data?.pagination ?? null,
+    reportPage,
     reportStatus,
     resendProviderSetupEmail: (providerId: number) => resendSetupEmailMutation.mutate(providerId),
     selectedSupportTicket: supportTicketDetailQuery.data ?? null,
@@ -466,7 +548,10 @@ export function useAdminDashboard({
     setProviderStatus,
     setMediaPage,
     setMediaStatus: changeMediaStatus,
-    setReportStatus,
+    setModerationAppealPage,
+    setModerationAppealStatus: changeModerationAppealStatus,
+    setReportPage,
+    setReportStatus: changeReportStatus,
     setSupportStatus,
     sendSupportReply: (ticketId: number, body: string) =>
       sendSupportReplyMutation.mutate({ body, ticketId }),
@@ -475,6 +560,11 @@ export function useAdminDashboard({
     openSupportTicket,
     updateReport: (reportId: number, payload: ReportUpdatePayload) =>
       updateReportMutation.mutate({ payload, reportId }),
+    decideAppeal: (appealId: number, status: 'granted' | 'denied', decisionNote: string) =>
+      decideAppealMutation.mutate({ appealId, decisionNote, status }),
+    updatingAppealId: decideAppealMutation.isPending
+      ? decideAppealMutation.variables?.appealId ?? null
+      : null,
     updateSupportStatus: (
       ticketId: number,
       status: Exclude<AdminSupportTicketStatus, 'all'>,

@@ -122,6 +122,18 @@ export default function NotificationsScreen() {
             iconName = 'shield-alert-outline';
             color = '#DC2626';
             bgColor = 'rgba(220, 38, 38, 0.15)';
+        } else if (type === 'moderation_appeal_granted') {
+            iconName = 'shield-check-outline';
+            color = '#16A34A';
+            bgColor = 'rgba(22, 163, 74, 0.15)';
+        } else if (type === 'moderation_appeal_denied') {
+            iconName = 'shield-alert-outline';
+            color = '#F59E0B';
+            bgColor = 'rgba(245, 158, 11, 0.15)';
+        } else if (type === 'moderation_warning' || type === 'moderation_strike' || type === 'moderation_suspension' || type === 'moderation_ban') {
+            iconName = 'account-alert-outline';
+            color = '#DC2626';
+            bgColor = 'rgba(220, 38, 38, 0.15)';
         }
 
         const timeText = item.created_at ? formatDistanceToNow(new Date(item.created_at), { addSuffix: true }) : '';

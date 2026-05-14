@@ -64,8 +64,10 @@ export default function AdminPage() {
         updatingProviderId={adminDashboard.updatingProviderId}
       />
       <ModerationReportsPanel
+        onPageChange={adminDashboard.setReportPage}
         onStatusChange={adminDashboard.setReportStatus}
         onUpdateReport={adminDashboard.updateReport}
+        pagination={adminDashboard.reportPagination}
         reports={adminDashboard.reports}
         status={adminDashboard.reportStatus}
         updatingReportId={adminDashboard.updatingReportId}

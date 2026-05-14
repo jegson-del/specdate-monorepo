@@ -12,6 +12,7 @@ use App\Models\Spec;
 use App\Models\SpecRoundAnswer;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -20,6 +21,7 @@ class ReportService
     public function __construct(
         private MediaService $mediaService,
         private ModerationCaseService $moderationCaseService,
+        private ReporterRiskService $reporterRiskService,
     )
     {
     }
@@ -38,6 +40,8 @@ class ReportService
         return DB::transaction(function () use ($reporter, $reportedUserId, $targetType, $targetId, $data) {
             $report = Report::create([
                 'reporter_id' => $reporter->id,
+                'reporter_ip_address' => $data['reporter_ip_address'] ?? null,
+                'reporter_user_agent' => $data['reporter_user_agent'] ?? null,
                 'reported_user_id' => $reportedUserId,
                 'target_type' => $targetType,
                 'target_id' => $targetId,
@@ -50,6 +54,19 @@ class ReportService
 
             return $report;
         });
+    }
+
+    public function index(User $admin, ?string $status, int $perPage): LengthAwarePaginator
+    {
+        if ($admin->role !== 'admin') {
+            throw new HttpException(403, 'Admin access required.');
+        }
+
+        return Report::query()
+            ->with(['reporter:id,name,username', 'reportedUser:id,name,username', 'reviewer:id,name,username'])
+            ->when($status, fn ($query) => $query->where('status', $status))
+            ->latest()
+            ->paginate($perPage);
     }
 
     public function review(User $admin, Report $report, array $data): Report
@@ -75,6 +92,7 @@ class ReportService
             ]);
 
             $this->moderationCaseService->recordReportReview($report->fresh(), $admin);
+            $this->reporterRiskService->applyReviewOutcome($report->fresh());
         });
 
         return $report->fresh(['reporter:id,name,username', 'reportedUser:id,name,username', 'reviewer:id,name,username']);

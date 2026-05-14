@@ -3,6 +3,8 @@ import type {
   AdminReportAction,
   AdminMediaModerationItem,
   AdminMediaModerationStatus,
+  AdminModerationAppeal,
+  AdminModerationAppealStatus,
   AdminPagination,
   AdminReportStatus,
   AdminSupportTicket,
@@ -192,8 +194,27 @@ export async function getProviderApplication(token: string, providerId: number) 
   return result.data
 }
 
-export async function getAdminReports(token: string, status: AdminReportStatus, perPage = 10) {
-  const query = new URLSearchParams({ per_page: String(perPage) })
+function paginatedResult<T>(result: Paginated<T>, page: number, perPage: number) {
+  return {
+    items: result.data,
+    pagination: {
+      current_page: result.current_page ?? page,
+      from: result.from ?? null,
+      last_page: result.last_page ?? 1,
+      per_page: result.per_page ?? perPage,
+      to: result.to ?? null,
+      total: result.total ?? result.data.length,
+    } satisfies AdminPagination,
+  }
+}
+
+export async function getAdminReports(
+  token: string,
+  status: AdminReportStatus,
+  page = 1,
+  perPage = 10,
+) {
+  const query = new URLSearchParams({ page: String(page), per_page: String(perPage) })
   if (status !== 'all') {
     query.set('status', status)
   }
@@ -207,7 +228,7 @@ export async function getAdminReports(token: string, status: AdminReportStatus, 
     throw new Error(pickApiError(result, 'Moderation reports could not be loaded.'))
   }
 
-  return result.data.data
+  return paginatedResult(result.data, page, perPage)
 }
 
 export async function getAdminMediaModerationQueue(
@@ -228,17 +249,7 @@ export async function getAdminMediaModerationQueue(
     throw new Error(pickApiError(result, 'Media moderation queue could not be loaded.'))
   }
 
-  return {
-    items: result.data.data,
-    pagination: {
-      current_page: result.data.current_page ?? page,
-      from: result.data.from ?? null,
-      last_page: result.data.last_page ?? 1,
-      per_page: result.data.per_page ?? perPage,
-      to: result.data.to ?? null,
-      total: result.data.total ?? result.data.data.length,
-    } satisfies AdminPagination,
-  }
+  return paginatedResult(result.data, page, perPage)
 }
 
 export async function approveAdminMedia(token: string, mediaId: number) {
@@ -279,6 +290,51 @@ export async function updateAdminReport(
   }
 
   return result?.message || 'Moderation report updated.'
+}
+
+export async function getAdminModerationAppeals(
+  token: string,
+  status: AdminModerationAppealStatus,
+  page = 1,
+  perPage = 25,
+) {
+  const query = new URLSearchParams({ page: String(page), per_page: String(perPage) })
+  if (status !== 'all') {
+    query.set('status', status)
+  }
+
+  const response = await fetch(`${getApiBase()}/api/admin/moderation/appeals?${query.toString()}`, {
+    headers: adminHeaders(token),
+  })
+  const result = (await parseJson(response)) as ApiEnvelope<Paginated<AdminModerationAppeal>> | null
+
+  if (!response.ok || !result) {
+    throw new Error(pickApiError(result, 'Moderation appeals could not be loaded.'))
+  }
+
+  return paginatedResult(result.data, page, perPage)
+}
+
+export async function decideAdminModerationAppeal(
+  token: string,
+  appealId: number,
+  payload: { status: 'granted' | 'denied'; decision_note: string },
+) {
+  const response = await fetch(`${getApiBase()}/api/admin/moderation/appeals/${appealId}`, {
+    method: 'PATCH',
+    headers: {
+      ...adminHeaders(token),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  })
+  const result = (await parseJson(response)) as { message?: string } | null
+
+  if (!response.ok) {
+    throw new Error(pickApiError(result, 'Appeal decision could not be saved.'))
+  }
+
+  return result?.message || 'Appeal decision saved.'
 }
 
 export async function getAdminSupportTickets(

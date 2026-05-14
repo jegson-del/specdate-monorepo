@@ -2,6 +2,7 @@ import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 
 import Constants from 'expo-constants';
+import { getDeviceFingerprintHeaders } from '../utils/deviceFingerprint';
 
 // API base URL. Set both in .env; app uses DEV in development and PRODUCTION in release builds.
 const API_PORT = 8001;
@@ -111,6 +112,18 @@ api.interceptors.request.use(async (config) => {
     // If a specific request already set auth, don't override it.
     if (!config.headers?.Authorization && authToken) {
         config.headers.Authorization = `Bearer ${authToken}`;
+    }
+    if (authToken) {
+        const deviceHeaders = await getDeviceFingerprintHeaders();
+        Object.entries(deviceHeaders).forEach(([key, value]) => {
+            if (!config.headers?.[key]) {
+                if (typeof config.headers?.set === 'function') {
+                    config.headers.set(key, value);
+                } else if (config.headers) {
+                    config.headers[key] = value;
+                }
+            }
+        });
     }
     return config;
 });

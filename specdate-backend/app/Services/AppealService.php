@@ -23,6 +23,7 @@ class AppealService
     public function __construct(
         private ModerationCaseService $moderationCases,
         private StrikeService $strikes,
+        private ModerationNotificationService $notifications,
     )
     {
     }
@@ -113,7 +114,10 @@ class AppealService
             $case->update(['status' => ModerationCase::STATUS_APPEALED]);
         }
 
-        return $this->appealPayload($appeal->fresh(['case', 'action']));
+        $appeal = $appeal->fresh(['case', 'action', 'user']);
+        $this->notifications->notifyAppealReceived($appeal);
+
+        return $this->appealPayload($appeal);
     }
 
     public function index(User $admin, array $filters = [], int $perPage = 20): LengthAwarePaginator
@@ -134,7 +138,7 @@ class AppealService
             throw new HttpException(422, 'This appeal has already been decided.');
         }
 
-        return DB::transaction(function () use ($admin, $appeal, $data) {
+        $payload = DB::transaction(function () use ($admin, $appeal, $data) {
             $status = $data['status'];
             $note = trim($data['decision_note']);
 
@@ -173,6 +177,10 @@ class AppealService
                 'result' => $result,
             ]);
         });
+
+        $this->notifications->notifyAppealDecision($appeal->fresh(['case', 'action', 'user']));
+
+        return $payload;
     }
 
     private function applyGrant(User $admin, ModerationAppeal $appeal, string $note): ?array

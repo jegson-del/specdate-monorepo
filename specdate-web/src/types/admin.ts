@@ -130,6 +130,61 @@ export type AdminReport = {
   } | null
 }
 
+export type AdminModerationAppealStatus =
+  | 'all'
+  | 'open'
+  | 'under_review'
+  | 'granted'
+  | 'denied'
+  | 'closed'
+
+export type AdminModerationAppeal = {
+  id: number
+  user_id: number
+  case_id: number | null
+  action_id: number | null
+  status: Exclude<AdminModerationAppealStatus, 'all'>
+  appeal_text: string
+  decision_note: string | null
+  submitted_at: string | null
+  reviewed_at: string | null
+  created_at: string
+  user: {
+    id: number
+    name: string
+    username: string | null
+    email: string
+    role: string
+    moderation_status: string
+    strike_count: number
+    is_paused: boolean
+    suspended_until: string | null
+    banned_at: string | null
+  } | null
+  action: {
+    id: number
+    case_id: number | null
+    action: string
+    reason: string | null
+    metadata: unknown
+    created_at: string
+  } | null
+  case: {
+    id: number
+    target_type: string | null
+    target_id: number | null
+    severity: string
+    status: string
+    summary: string | null
+  } | null
+  reviewed_by_user?: {
+    id: number
+    name: string
+    username: string | null
+    email: string
+  } | null
+}
+
 export type AdminSupportTicketStatus =
   | 'all'
   | 'open'
