@@ -1,8 +1,14 @@
 export type AdminUser = {
+  admin_access?: AdminAccess | null
   id: number
   name: string
   email: string
   role: string
+}
+
+export type AdminAccess = {
+  can_view_financial_vouchers: boolean
+  can_view_financial_credits: boolean
 }
 
 export type ProviderApplicationStatus = 'all' | 'pending' | 'approved' | 'rejected'
@@ -401,6 +407,7 @@ export type AdminUserStatus = 'all' | 'active' | 'paused' | 'suspended' | 'banne
 export type AdminUserRole = 'all' | 'user' | 'provider' | 'admin'
 
 export type AdminManagedUser = {
+  admin_access?: AdminAccess | null
   id: number
   name: string
   username: string

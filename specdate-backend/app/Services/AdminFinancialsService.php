@@ -11,9 +11,14 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class AdminFinancialsService
 {
+    public function __construct(private AdminAccessService $adminAccess)
+    {
+    }
+
     public function vouchers(User $admin, array $filters): array
     {
         $this->ensureAdmin($admin);
+        $this->adminAccess->assertCan($admin, AdminAccessService::FINANCIAL_VOUCHERS);
 
         $perPage = max(1, min((int) ($filters['per_page'] ?? 25), 100));
         $dateField = $filters['date_field'] ?? 'created_at';
@@ -58,6 +63,7 @@ class AdminFinancialsService
     public function credits(User $admin, array $filters): array
     {
         $this->ensureAdmin($admin);
+        $this->adminAccess->assertCan($admin, AdminAccessService::FINANCIAL_CREDITS);
 
         $perPage = max(1, min((int) ($filters['per_page'] ?? 25), 100));
         $range = $this->dateRange($filters);

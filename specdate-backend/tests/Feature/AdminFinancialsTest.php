@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\DateVoucher;
+use App\Models\AdminAccess;
 use App\Models\ProviderProfile;
 use App\Models\Spec;
 use App\Models\SpecDate;
@@ -18,7 +19,7 @@ class AdminFinancialsTest extends TestCase
 
     public function test_admin_can_view_voucher_financials_grouped_by_currency(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = $this->adminWithAccess(vouchers: true);
         [$owner, $winner, $date] = $this->createSpecDate();
         $gbpProvider = $this->createProvider('Dinner House', 'GBP');
         $usdProvider = $this->createProvider('Sky Bar', 'USD');
@@ -62,7 +63,7 @@ class AdminFinancialsTest extends TestCase
 
     public function test_voucher_financials_can_filter_by_provider_and_day(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = $this->adminWithAccess(vouchers: true);
         [$owner, $winner, $date] = $this->createSpecDate();
         $provider = $this->createProvider('Dinner House', 'GBP');
         $otherProvider = $this->createProvider('Other Place', 'GBP');
@@ -102,7 +103,7 @@ class AdminFinancialsTest extends TestCase
 
     public function test_admin_can_view_credit_financials_with_net_movement_and_purchase_totals(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = $this->adminWithAccess(credits: true);
         $user = User::factory()->create();
         $other = User::factory()->create();
 
@@ -152,7 +153,7 @@ class AdminFinancialsTest extends TestCase
 
     public function test_credit_financials_can_filter_by_user_and_type(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = $this->adminWithAccess(credits: true);
         $user = User::factory()->create();
         $other = User::factory()->create();
 
@@ -190,6 +191,61 @@ class AdminFinancialsTest extends TestCase
             ->assertJsonPath('data.transactions.data.0.type', 'DEBIT');
     }
 
+    public function test_admin_without_voucher_access_cannot_view_voucher_financials(): void
+    {
+        Sanctum::actingAs($this->adminWithAccess(vouchers: false, credits: true));
+
+        $this->getJson('/api/admin/financials/vouchers')
+            ->assertForbidden()
+            ->assertJsonPath('message', 'Admin voucher financial access required.');
+    }
+
+    public function test_admin_without_credit_access_cannot_view_credit_financials(): void
+    {
+        Sanctum::actingAs($this->adminWithAccess(vouchers: true, credits: false));
+
+        $this->getJson('/api/admin/financials/credits')
+            ->assertForbidden()
+            ->assertJsonPath('message', 'Admin credit financial access required.');
+    }
+
+    public function test_admin_access_can_be_toggled_for_admin_users(): void
+    {
+        $admin = $this->adminWithAccess(vouchers: true, credits: true);
+        $targetAdmin = $this->adminWithAccess(vouchers: false, credits: false);
+
+        Sanctum::actingAs($admin);
+
+        $this->patchJson("/api/admin/users/{$targetAdmin->id}/admin-access", [
+            'can_view_financial_vouchers' => true,
+            'can_view_financial_credits' => false,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.admin_access.can_view_financial_vouchers', true)
+            ->assertJsonPath('data.admin_access.can_view_financial_credits', false);
+
+        $this->assertDatabaseHas('admin_accesses', [
+            'admin_id' => $targetAdmin->id,
+            'can_view_financial_vouchers' => true,
+            'can_view_financial_credits' => false,
+        ]);
+    }
+
+    public function test_admin_access_cannot_be_assigned_to_non_admin_users(): void
+    {
+        $admin = $this->adminWithAccess(vouchers: true, credits: true);
+        $user = User::factory()->create(['role' => 'user']);
+
+        Sanctum::actingAs($admin);
+
+        $this->patchJson("/api/admin/users/{$user->id}/admin-access", [
+            'can_view_financial_vouchers' => true,
+            'can_view_financial_credits' => true,
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Admin access can only be assigned to admin users.');
+    }
+
     private function createSpecDate(): array
     {
         $owner = User::factory()->create();
@@ -210,6 +266,19 @@ class AdminFinancialsTest extends TestCase
         ]);
 
         return [$owner, $winner, $date];
+    }
+
+    private function adminWithAccess(bool $vouchers = false, bool $credits = false): User
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        AdminAccess::create([
+            'admin_id' => $admin->id,
+            'can_view_financial_vouchers' => $vouchers,
+            'can_view_financial_credits' => $credits,
+        ]);
+
+        return $admin;
     }
 
     private function createProvider(string $name, string $currency): ProviderProfile

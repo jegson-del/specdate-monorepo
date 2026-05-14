@@ -84,6 +84,11 @@ class User extends Authenticatable
         return $this->belongsTo(User::class, 'banned_by');
     }
 
+    public function adminAccess()
+    {
+        return $this->hasOne(AdminAccess::class, 'admin_id');
+    }
+
     public function moderationStrikes()
     {
         return $this->hasMany(ModerationStrike::class);

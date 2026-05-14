@@ -32,6 +32,7 @@ export default function AdminUsersPage() {
         onPageChange={adminUsers.setPage}
         onQueryChange={adminUsers.setQuery}
         onRoleChange={adminUsers.setRole}
+        onSaveAdminAccess={adminUsers.saveAdminAccess}
         onSaveNote={adminUsers.saveNote}
         onSelectUser={adminUsers.setSelectedUserId}
         onStatusChange={adminUsers.setStatus}

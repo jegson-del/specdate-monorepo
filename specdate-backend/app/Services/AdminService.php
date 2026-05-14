@@ -14,7 +14,10 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class AdminService
 {
-    public function __construct(private AdminProviderService $adminProviderService)
+    public function __construct(
+        private AdminAccessService $adminAccessService,
+        private AdminProviderService $adminProviderService,
+    )
     {
     }
 
@@ -46,6 +49,7 @@ class AdminService
             'name' => $admin->name,
             'email' => $admin->email,
             'role' => $admin->role,
+            'admin_access' => $this->adminAccessService->accessPayload($admin->adminAccess()->first()),
         ];
     }
 

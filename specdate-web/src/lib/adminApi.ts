@@ -10,6 +10,7 @@ import type {
   AdminFinancialVoucherDateField,
   AdminFinancialVoucherStatus,
   AdminFinancialVoucherSummary,
+  AdminAccess,
   AdminMediaModerationItem,
   AdminMediaModerationStatus,
   AdminIpRiskEvent,
@@ -327,6 +328,10 @@ export async function getAdminFinancialCredits(
 
 export async function updateAdminUserNote(token: string, userId: number, adminNote: string) {
   return adminUserAction(token, userId, 'note', { admin_note: adminNote }, 'User note could not be saved.')
+}
+
+export async function updateAdminUserAccess(token: string, userId: number, access: AdminAccess) {
+  return adminUserAction(token, userId, 'admin-access', access, 'Admin access could not be updated.')
 }
 
 export async function pauseAdminUser(token: string, userId: number) {
@@ -800,7 +805,7 @@ async function adminUserAction(
   token: string,
   userId: number,
   action: string,
-  payload: Record<string, string> | undefined,
+  payload: Record<string, boolean | string> | undefined,
   fallback: string,
 ) {
   const response = await fetch(`${getApiBase()}/api/admin/users/${userId}/${action}`, {

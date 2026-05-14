@@ -3,10 +3,12 @@ import { NavLink } from 'react-router-dom'
 import type { AdminUser } from '../../types/admin'
 
 type NavItem = {
+  accessKey?: 'can_view_financial_credits' | 'can_view_financial_vouchers'
   badgeKey?: string
   enabled: boolean
   href?: string
   label: string
+  section?: boolean
   to?: string
 }
 
@@ -14,15 +16,25 @@ const navItems: NavItem[] = [
   { label: 'Overview', to: '/admin', enabled: true },
   { label: 'Users', to: '/admin/users', enabled: true },
   { label: 'Provider applications', to: '/admin/providers', enabled: true, badgeKey: 'providers_pending' },
-  { label: 'Financials', enabled: false },
-  { label: 'Vouchers', to: '/admin/financials/vouchers', enabled: true },
-  { label: 'Credits', to: '/admin/financials/credits', enabled: true },
   { label: 'Upload moderation', to: '/admin/media-moderation', enabled: true, badgeKey: 'media_needs_review' },
   { label: 'Cases', to: '/admin/moderation/cases', enabled: true, badgeKey: 'moderation_needs_review' },
   { label: 'Reports', to: '/admin/moderation', enabled: true, badgeKey: 'reports_open' },
   { label: 'Appeals', to: '/admin/moderation/appeals', enabled: true },
   { label: 'Risk', to: '/admin/risk', enabled: true },
   { label: 'Support', to: '/admin/support', enabled: true, badgeKey: 'support_needs_admin' },
+  { label: 'Financials', enabled: true, section: true },
+  {
+    label: 'Vouchers',
+    to: '/admin/financials/vouchers',
+    enabled: true,
+    accessKey: 'can_view_financial_vouchers',
+  },
+  {
+    label: 'Credits',
+    to: '/admin/financials/credits',
+    enabled: true,
+    accessKey: 'can_view_financial_credits',
+  },
 ] as const
 
 type AdminShellProps = {
@@ -47,8 +59,17 @@ export function AdminShell({
           <p className="text-lg font-black">DateUsher</p>
           <p className="mt-1 text-xs font-bold uppercase tracking-[0.2em] text-pink-300">Admin</p>
           <nav className="mt-8 space-y-2 text-sm font-bold">
-            {navItems.map(({ badgeKey, enabled, label, to }) =>
-              enabled && to ? (
+            {navItems.map(({ accessKey, badgeKey, enabled, label, section, to }) =>
+              section ? (
+                hasFinancialAccess(admin) && (
+                  <span
+                    key={label}
+                    className="mt-4 block px-3 pt-2 text-[11px] font-black uppercase tracking-[0.16em] text-pink-300"
+                  >
+                    {label}
+                  </span>
+                )
+              ) : enabled && to && canUseNavItem(admin, accessKey) ? (
                 <NavLink
                   key={label}
                   to={to}
@@ -63,12 +84,7 @@ export function AdminShell({
                   <AttentionBadge value={badgeKey ? stats[badgeKey] : 0} />
                 </NavLink>
               ) : (
-                <span
-                  key={label}
-                  className="mt-4 block px-3 pt-2 text-[11px] font-black uppercase tracking-[0.16em] text-pink-300"
-                >
-                  {label}
-                </span>
+                null
               ),
             )}
           </nav>
@@ -121,6 +137,22 @@ export function AdminShell({
 
 function moderationAttentionCount(stats: Record<string, number>) {
   return (stats.reports_open ?? 0) + (stats.media_needs_review ?? 0)
+}
+
+function canUseNavItem(
+  admin: AdminUser | null,
+  accessKey?: 'can_view_financial_credits' | 'can_view_financial_vouchers',
+) {
+  if (!accessKey) return true
+
+  return Boolean(admin?.admin_access?.[accessKey])
+}
+
+function hasFinancialAccess(admin: AdminUser | null) {
+  return Boolean(
+    admin?.admin_access?.can_view_financial_vouchers ||
+    admin?.admin_access?.can_view_financial_credits,
+  )
 }
 
 function AttentionBadge({ value }: { value?: number }) {

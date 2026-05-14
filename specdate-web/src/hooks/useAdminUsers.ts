@@ -9,9 +9,10 @@ import {
   pauseAdminUser,
   unbanAdminUser,
   unpauseAdminUser,
+  updateAdminUserAccess,
   updateAdminUserNote,
 } from '../lib/adminApi'
-import type { AdminUserRole, AdminUserStatus } from '../types/admin'
+import type { AdminAccess, AdminUserRole, AdminUserStatus } from '../types/admin'
 
 export function useAdminUsers() {
   const { showAlert } = useAlert()
@@ -103,14 +104,36 @@ export function useAdminUsers() {
     },
   })
 
+  const accessMutation = useMutation({
+    mutationFn: ({ access, userId }: { access: AdminAccess; userId: number }) =>
+      updateAdminUserAccess(token, userId, access),
+    onError: (error) => {
+      showAlert({
+        tone: 'error',
+        title: 'Access not saved',
+        message: error instanceof Error ? error.message : 'Admin access could not be updated.',
+      })
+    },
+    onSuccess: (message) => {
+      showAlert({ tone: 'success', title: 'Admin access updated', message })
+      invalidateUsers()
+    },
+  })
+
   return {
-    actionUserId: actionMutation.variables?.userId ?? noteMutation.variables?.userId ?? null,
+    actionUserId:
+      actionMutation.variables?.userId ??
+      noteMutation.variables?.userId ??
+      accessMutation.variables?.userId ??
+      null,
     isAuthenticated: Boolean(token),
     isLoading: usersQuery.isFetching || userDetailQuery.isFetching,
     page,
     pagination: usersQuery.data?.pagination ?? null,
     query,
     role,
+    saveAdminAccess: (userId: number, access: AdminAccess) =>
+      accessMutation.mutate({ access, userId }),
     saveNote: (userId: number, note: string) => noteMutation.mutate({ note, userId }),
     selectedUser: userDetailQuery.data ?? null,
     selectedUserId,

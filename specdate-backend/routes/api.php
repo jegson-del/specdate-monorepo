@@ -99,6 +99,7 @@ Route::middleware(['auth:sanctum', 'device.fingerprint'])->group(function () {
     Route::patch('/admin/users/{user}/ban', [AdminUserController::class, 'ban']);
     Route::patch('/admin/users/{user}/unban', [AdminUserController::class, 'unban']);
     Route::patch('/admin/users/{user}/note', [AdminUserController::class, 'updateNote']);
+    Route::patch('/admin/users/{user}/admin-access', [AdminUserController::class, 'updateAdminAccess']);
     Route::get('/admin/providers', [AdminController::class, 'providers']);
     Route::get('/admin/providers/{provider}', [AdminProviderController::class, 'show']);
     Route::patch('/admin/providers/{provider}/approve', [AdminProviderController::class, 'approve']);
