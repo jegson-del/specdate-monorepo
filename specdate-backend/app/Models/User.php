@@ -94,6 +94,11 @@ class User extends Authenticatable
         return $this->hasMany(ModerationStrike::class)->where('active', true);
     }
 
+    public function moderationAppeals()
+    {
+        return $this->hasMany(ModerationAppeal::class);
+    }
+
     public function balance()
     {
         return $this->hasOne(UserBalance::class);

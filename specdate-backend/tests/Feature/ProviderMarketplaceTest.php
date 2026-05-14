@@ -105,6 +105,7 @@ class ProviderMarketplaceTest extends TestCase
             'service_type' => 'restaurant',
             'email' => 'partner@example.com',
             'address' => '12 Date Street, Victoria Island, Lagos',
+            'city' => 'Lagos',
             'postcode' => '101241',
             'country_code' => 'NG',
             'country_name' => 'Nigeria',
@@ -121,6 +122,7 @@ class ProviderMarketplaceTest extends TestCase
         $this->assertDatabaseHas('provider_profiles', [
             'user_id' => $provider->id,
             'company_name' => 'Velvet Table',
+            'city' => 'Lagos',
             'country' => 'Nigeria',
             'postcode' => '101241',
             'phone' => '+2348012345678',
@@ -145,6 +147,7 @@ class ProviderMarketplaceTest extends TestCase
             'service_type' => 'restaurant',
             'email' => 'partner@example.com',
             'address' => '12 Date Street, Victoria Island, Lagos',
+            'city' => 'Lagos',
             'postcode' => '101241',
             'country_code' => 'NG',
             'country_name' => 'Nigeria',

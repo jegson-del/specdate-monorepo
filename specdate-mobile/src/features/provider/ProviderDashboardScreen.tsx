@@ -10,7 +10,7 @@ import {
   Dimensions,
   Linking,
 } from 'react-native';
-import { Text, TextInput, Button, useTheme, ActivityIndicator, Modal, Portal } from 'react-native-paper';
+import { Text, TextInput, Button, useTheme, ActivityIndicator } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { api } from '../../services/api';
@@ -19,6 +19,7 @@ import { confirmMediaShareWithAiScan } from '../../utils/confirmMediaShareWithAi
 import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect } from '@react-navigation/native';
 import { Dropdown } from 'react-native-paper-dropdown';
+import { UploadProgressModal, type UploadProgressState } from '../../components';
 import { ImageViewerModal } from '../profile/components';
 import type { ReviewItem } from '../providers/components';
 import { DEFAULT_MOCK_REVIEWS } from '../providers/mockReviews';
@@ -129,10 +130,7 @@ export default function ProviderDashboardScreen({ navigation }: any) {
 
   const [galleryViewerVisible, setGalleryViewerVisible] = useState(false);
   const [galleryInitialIndex, setGalleryInitialIndex] = useState(0);
-  const [mediaUploadProgress, setMediaUploadProgress] = useState<{
-    title: string;
-    message: string;
-  } | null>(null);
+  const [mediaUploadProgress, setMediaUploadProgress] = useState<UploadProgressState>(null);
 
   // Reviews: from dashboard when API returns them; otherwise same shared dummy reviews as detail page
   const reviews = (profile?.reviews as ReviewItem[] | undefined) ?? DEFAULT_MOCK_REVIEWS;
@@ -871,21 +869,7 @@ export default function ProviderDashboardScreen({ navigation }: any) {
         onReplace={editGalleryImageAt}
       />
 
-      <Portal>
-        <Modal
-          visible={Boolean(mediaUploadProgress)}
-          dismissable={false}
-          contentContainerStyle={[styles.uploadProgressModal, { backgroundColor: theme.colors.surface }]}
-        >
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-          <Text style={[styles.uploadProgressTitle, { color: theme.colors.onSurface }]}>
-            {mediaUploadProgress?.title}
-          </Text>
-          <Text style={[styles.uploadProgressText, { color: theme.colors.onSurfaceVariant }]}>
-            {mediaUploadProgress?.message}
-          </Text>
-        </Modal>
-      </Portal>
+      <UploadProgressModal progress={mediaUploadProgress} />
 
     </View>
   );
@@ -1038,26 +1022,6 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   galleryPlaceholderText: { fontSize: 11 },
-  uploadProgressModal: {
-    alignSelf: 'center',
-    width: '84%',
-    maxWidth: 360,
-    borderRadius: 12,
-    padding: 22,
-    alignItems: 'center',
-  },
-  uploadProgressTitle: {
-    marginTop: 14,
-    fontSize: 17,
-    fontWeight: '800',
-    textAlign: 'center',
-  },
-  uploadProgressText: {
-    marginTop: 8,
-    fontSize: 14,
-    lineHeight: 20,
-    textAlign: 'center',
-  },
   input: { marginBottom: 8 },
   inputHalf: { flex: 1 },
   rowInputs: { flexDirection: 'row', gap: 10 },

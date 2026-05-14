@@ -29,6 +29,7 @@ const defaultValues: ProviderRegistrationFormInput = {
   serviceType: '',
   email: '',
   address: '',
+  city: '',
   postcode: '',
   country: '',
   phone: '',
@@ -67,6 +68,7 @@ export default function ProviderRegisterPage() {
       service_type: parsed.serviceType,
       email: normalizedEmail,
       address: parsed.address,
+      city: parsed.city,
       postcode: parsed.postcode,
       country_code: parsed.country,
       country_name: country?.name ?? parsed.country,
@@ -208,7 +210,7 @@ export default function ProviderRegisterPage() {
               id="address"
               rows={4}
               autoComplete="street-address"
-              placeholder="Building name, street, district, city"
+              placeholder="Building name, street, district"
               className={`${inputClass} resize-y${errors.address ? inputErrorClass : ''}`}
               aria-invalid={Boolean(errors.address)}
               aria-describedby={errors.address ? 'err-address' : undefined}
@@ -220,6 +222,26 @@ export default function ProviderRegisterPage() {
             {errors.address && (
               <p id="err-address" className="mt-1.5 text-sm text-red-300" role="alert">
                 {errors.address.message}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label htmlFor="city" className="block text-sm font-medium text-white/80">
+              City <span className="text-pink-400">*</span>
+            </label>
+            <input
+              id="city"
+              autoComplete="address-level2"
+              placeholder="Lagos, London, New York"
+              className={`${inputClass}${errors.city ? inputErrorClass : ''}`}
+              aria-invalid={Boolean(errors.city)}
+              aria-describedby={errors.city ? 'err-city' : undefined}
+              {...register('city')}
+            />
+            {errors.city && (
+              <p id="err-city" className="mt-1.5 text-sm text-red-300" role="alert">
+                {errors.city.message}
               </p>
             )}
           </div>

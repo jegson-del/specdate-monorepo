@@ -8,7 +8,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { SpecService } from '../../services/specs';
 import { useUser } from '../../hooks/useUser';
 import { insertEmojiAtSelection, type TextSelection } from '../../utils/emojiText';
-import { MediaPickerSheet, VideoViewerModal } from '../../components';
+import { MediaPickerSheet, UploadProgressModal, VideoViewerModal, type UploadProgressState } from '../../components';
 import { AudioMessagePlayer, CloseRoundModal, LastManStandingModal, PrivateRoundState, RoundMediaActions, RoundQuestionCard, RoundResponsesList, useRoundAudioRecorder, VideoThumbnailPlayer } from './components';
 import type { RoundMediaAsset } from './components';
 import * as ImagePicker from 'expo-image-picker';
@@ -117,9 +117,15 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                     asset: answerMedia,
                     uploadType,
                     onAssetChange: setAnswerMedia,
+                    onProgress: setUploadProgress,
+                    label: 'answer media',
                 });
                 mediaId = reviewed.id;
             }
+            setUploadProgress({
+                title: 'Submitting answer',
+                message: 'Adding your answer to the round.',
+            });
             return SpecService.submitAnswer(rId, text, mediaId);
         },
         onSuccess: async () => {
@@ -136,6 +142,7 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
             const detail = Array.isArray(fileErrors) ? fileErrors[0] : (typeof fileErrors === 'string' ? fileErrors : null);
             Alert.alert('Error', detail || msg || 'Failed to submit answer.');
         },
+        onSettled: () => setUploadProgress(null),
     });
 
     const closeRoundMutation = useMutation({
@@ -240,6 +247,7 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
     const [reportSheet, setReportSheet] = useState<ReportSheetState>(null);
     const [reportLoading, setReportLoading] = useState(false);
     const [reportError, setReportError] = useState<string | null>(null);
+    const [uploadProgress, setUploadProgress] = useState<UploadProgressState>(null);
 
     // Edit Question State
     const [isEditing, setIsEditing] = useState(false);
@@ -356,9 +364,15 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                     asset: nextRoundQuestionMedia,
                     uploadType,
                     onAssetChange: setNextRoundQuestionMedia,
+                    onProgress: setUploadProgress,
+                    label: 'round question media',
                 });
                 mediaId = reviewed.id;
             }
+            setUploadProgress({
+                title: 'Starting round',
+                message: 'Adding the media to the round question.',
+            });
             return SpecService.startRound(String(specId), question, mediaId);
         },
         onSuccess: () => {
@@ -370,6 +384,7 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
             navigation.goBack(); // Go back to list? Or stay?
         },
         onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || err?.message || 'Failed to start round.'),
+        onSettled: () => setUploadProgress(null),
     });
 
     const updateRoundMutation = useMutation({
@@ -939,6 +954,7 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                 matchLoading={createDateMutation.isPending}
                 extendLoading={extendSearchMutation.isPending}
             />
+            <UploadProgressModal progress={uploadProgress} />
 
         </View>
 

@@ -9,7 +9,7 @@ import { MediaService, moderationFailureMessage, type MediaUploadType } from '..
 import { ModerationService, type ReportTargetType } from '../../services/moderation';
 import { useUser } from '../../hooks/useUser';
 import { toImageUri } from '../../utils/imageUrl';
-import { VideoViewerModal } from '../../components';
+import { UploadProgressModal, VideoViewerModal, type UploadProgressState } from '../../components';
 import { confirmMediaShareWithAiScan } from '../../utils/confirmMediaShareWithAiScan';
 import { useRoundAudioRecorder, type RoundMediaAsset } from '../specs/components';
 import ChatMediaPickerSheet from './components/ChatMediaPickerSheet';
@@ -40,6 +40,7 @@ export default function ChatThreadScreen({ route, navigation }: any) {
   const [safetyLoading, setSafetyLoading] = React.useState(false);
   const [safetyError, setSafetyError] = React.useState<string | null>(null);
   const [loadingOlder, setLoadingOlder] = React.useState(false);
+  const [mediaProgress, setMediaProgress] = React.useState<UploadProgressState>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['chat-thread', String(threadId)],
@@ -75,7 +76,15 @@ export default function ChatThreadScreen({ route, navigation }: any) {
       setMediaSending(true);
       const uploadType: MediaUploadType =
         asset.assetType === 'audio' ? 'chat_audio' : asset.assetType === 'video' ? 'chat_video' : 'chat_image';
+      setMediaProgress({
+        title: 'Uploading media',
+        message: `Uploading your ${asset.assetType === 'video' ? 'video' : asset.assetType === 'audio' ? 'voice note' : 'image'}.`,
+      });
       const uploaded = await MediaService.upload(asset.uri, uploadType, null, asset.mimeType);
+      setMediaProgress({
+        title: 'Reviewing media',
+        message: `Checking your ${asset.assetType === 'video' ? 'video' : asset.assetType === 'audio' ? 'voice note' : 'image'} before it is sent.`,
+      });
       const reviewed = await MediaService.waitForModeration(uploaded, {
         returnLatestOnTimeout: asset.assetType === 'video',
       });
@@ -83,10 +92,15 @@ export default function ChatThreadScreen({ route, navigation }: any) {
         Alert.alert('Video reviewing', moderationFailureMessage('reviewing'));
         return;
       }
-      sendMutation.mutate({ body: '', mediaId: reviewed.id });
+      setMediaProgress({
+        title: 'Sending media',
+        message: 'Adding it to the chat.',
+      });
+      await sendMutation.mutateAsync({ body: '', mediaId: reviewed.id });
     } catch (e: any) {
       Alert.alert('Upload failed', e?.message || 'Could not send this media.');
     } finally {
+      setMediaProgress(null);
       setMediaSending(false);
     }
   }, [sendMutation]);
@@ -510,6 +524,8 @@ export default function ChatThreadScreen({ route, navigation }: any) {
         uri={videoViewerUri}
         onClose={() => setVideoViewerUri(null)}
       />
+
+      <UploadProgressModal progress={mediaProgress} />
     </KeyboardAvoidingView>
   );
 }

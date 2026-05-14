@@ -3,6 +3,7 @@ export type ProviderRegistrationPayload = {
   service_type: string
   email: string
   address: string
+  city: string
   postcode: string
   country_code: string
   country_name: string

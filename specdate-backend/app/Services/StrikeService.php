@@ -11,7 +11,10 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class StrikeService
 {
-    public function __construct(private ModerationCaseService $moderationCases)
+    public function __construct(
+        private ModerationCaseService $moderationCases,
+        private ModerationEnforcementService $enforcement,
+    )
     {
     }
 
@@ -68,8 +71,11 @@ class StrikeService
             );
 
             $this->refreshUserStrikeFields($user);
+            $outcome = $this->enforcement->applyStrikeOutcome($strike->fresh(['user', 'case']), $admin);
 
-            return $this->strikePayload($strike->fresh(['user', 'case']));
+            return array_merge($this->strikePayload($strike->fresh(['user', 'case'])), [
+                'enforcement' => $outcome['action'],
+            ]);
         });
     }
 

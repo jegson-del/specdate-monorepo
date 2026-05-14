@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { SpecService } from '../../../services/specs';
 import { resolveShareableRoundMedia } from '../roundMediaUpload';
 import type { RoundMediaAsset } from '../components';
+import type { UploadProgressState } from '../../../components';
 
 type UseSpecDetailsMutationsParams = {
     specId?: string;
@@ -15,6 +16,7 @@ type UseSpecDetailsMutationsParams = {
     setLastManStandingVisible: (value: boolean) => void;
     setLastManStandingWinnerName: (value: string) => void;
     setLastManStandingSpecId: (value: string | null) => void;
+    setUploadProgress?: (progress: UploadProgressState) => void;
 };
 
 export function useSpecDetailsMutations({
@@ -28,6 +30,7 @@ export function useSpecDetailsMutations({
     setLastManStandingVisible,
     setLastManStandingWinnerName,
     setLastManStandingSpecId,
+    setUploadProgress,
 }: UseSpecDetailsMutationsParams) {
     const queryClient = useQueryClient();
 
@@ -168,10 +171,16 @@ export function useSpecDetailsMutations({
                     asset: roundQuestionMedia,
                     uploadType,
                     onAssetChange: setRoundQuestionMedia,
+                    onProgress: setUploadProgress,
+                    label: 'round question media',
                 });
                 mediaId = reviewed.id;
             }
 
+            setUploadProgress?.({
+                title: 'Starting round',
+                message: 'Adding the media to the round question.',
+            });
             return SpecService.startRound(String(specId), question, mediaId);
         },
         onSuccess: () => {
@@ -181,6 +190,7 @@ export function useSpecDetailsMutations({
             setRoundQuestionMedia(null);
         },
         onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || err?.message || 'Failed to start round.'),
+        onSettled: () => setUploadProgress?.(null),
     });
 
     const eliminateUsersMutation = useMutation({

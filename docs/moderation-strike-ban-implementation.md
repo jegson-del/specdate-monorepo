@@ -542,12 +542,18 @@ Mobile routing:
 
 ### Phase 4: Appeals
 
-- Add `moderation_appeals`.
-- Add user appeal API.
-- Add admin appeal API.
-- Add notification types.
-- Add mobile appeal form and status view.
-- Add tests for appeal grant/deny.
+- Backend foundation complete:
+  - Added `moderation_appeals`.
+  - Added user moderation status API: `GET /api/me/moderation`.
+  - Added user appeal submission API: `POST /api/moderation/appeals`.
+  - Added admin appeal list/decision APIs: `GET /api/admin/moderation/appeals`, `PATCH /api/admin/moderation/appeals/{appeal}`.
+  - Added grant/deny audit actions.
+  - Appeal grant reverses eligible strike decisions and recalculates user moderation status.
+  - Added tests for submit, duplicate prevention, grant, deny, and status payload.
+- Still pending after backend rules are stable:
+  - Add notification types.
+  - Add mobile appeal form and status view.
+  - Add admin appeal UI.
 
 ### Phase 5: Risk and Anti-Abuse
 
@@ -605,4 +611,3 @@ Admin web tests:
 - Do not auto-ban from report count alone.
 - Avoid exposing AI labels to normal users.
 - Treat admin actions as auditable events.
-

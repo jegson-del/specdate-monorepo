@@ -55,6 +55,15 @@ export function createProviderRegistrationSchema(validCountryCodes: ReadonlySet<
         message: 'Address must include letters or numbers.',
       }),
 
+    city: z
+      .string()
+      .trim()
+      .min(2, { message: 'City must be at least 2 characters.' })
+      .max(120, { message: 'City must be at most 120 characters.' })
+      .refine((s) => /[\p{L}]/u.test(s), {
+        message: 'City must include letters.',
+      }),
+
     postcode: z
       .string()
       .trim()

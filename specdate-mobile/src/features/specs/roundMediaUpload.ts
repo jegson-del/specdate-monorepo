@@ -1,21 +1,35 @@
 import { MediaService, moderationFailureMessage, type MediaItem, type MediaUploadType } from '../../services/media';
+import type { UploadProgressState } from '../../components';
 import type { RoundMediaAsset } from './components';
 
 type ResolveRoundMediaParams = {
   asset: RoundMediaAsset;
   uploadType: MediaUploadType;
   onAssetChange: (asset: RoundMediaAsset) => void;
+  onProgress?: (progress: UploadProgressState) => void;
+  label?: string;
 };
 
 export async function resolveShareableRoundMedia({
   asset,
   uploadType,
   onAssetChange,
+  onProgress,
+  label,
 }: ResolveRoundMediaParams): Promise<MediaItem> {
+  const mediaLabel = label ?? (asset.assetType === 'video' ? 'video' : asset.assetType === 'audio' ? 'voice note' : 'image');
+  onProgress?.({
+    title: asset.uploadedMediaId ? 'Checking media' : 'Uploading media',
+    message: asset.uploadedMediaId ? `Checking your ${mediaLabel}.` : `Uploading your ${mediaLabel}.`,
+  });
   const uploaded = asset.uploadedMediaId
     ? await MediaService.fetchById(asset.uploadedMediaId)
     : await MediaService.upload(asset.uri, uploadType, null, asset.mimeType);
 
+  onProgress?.({
+    title: 'Reviewing media',
+    message: `Checking your ${mediaLabel} before it is used.`,
+  });
   const reviewed = await MediaService.waitForModeration(uploaded, {
     returnLatestOnTimeout: asset.assetType === 'video',
   });

@@ -11,7 +11,7 @@ import { ModerationService, type ReportTargetType } from '../../services/moderat
 import { useUser } from '../../hooks/useUser';
 import { toImageUri } from '../../utils/imageUrl';
 import { insertEmojiAtSelection, type TextSelection } from '../../utils/emojiText';
-import { MediaPickerSheet, VideoViewerModal } from '../../components';
+import { MediaPickerSheet, UploadProgressModal, VideoViewerModal, type UploadProgressState } from '../../components';
 import { EditSpecModal } from './components/EditSpecModal';
 import { AudioMessagePlayer, LastManStandingModal, RoundMediaActions, useRoundAudioRecorder, VideoThumbnailPlayer } from './components';
 import type { RoundMediaAsset } from './components';
@@ -99,6 +99,7 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
     const [roundQuestionMediaSheet, setRoundQuestionMediaSheet] = React.useState<'file' | 'camera' | null>(null);
     const [questionVideoViewerVisible, setQuestionVideoViewerVisible] = React.useState(false);
     const [questionVideoViewerUri, setQuestionVideoViewerUri] = React.useState<string | null>(null);
+    const [uploadProgress, setUploadProgress] = React.useState<UploadProgressState>(null);
     const questionAudioRecorder = useRoundAudioRecorder(setRoundQuestionMedia);
     const handleNewRoundQuestionEmoji = React.useCallback((emoji: string) => {
         const next = insertEmojiAtSelection(newRoundQuestion, emoji, newRoundQuestionSelection);
@@ -124,6 +125,7 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
         setLastManStandingVisible,
         setLastManStandingWinnerName,
         setLastManStandingSpecId,
+        setUploadProgress,
     });
 
     const handleStartRoundPress = async () => {
@@ -1067,6 +1069,7 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                 onDismiss={closeReportSheet}
                 onSubmitReport={submitReport}
             />
+            <UploadProgressModal progress={uploadProgress} />
         </View>
     );
 }

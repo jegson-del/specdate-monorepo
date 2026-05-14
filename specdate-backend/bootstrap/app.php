@@ -18,6 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'profile.complete' => \App\Http\Middleware\EnsureProfileComplete::class,
+            'account.active' => \App\Http\Middleware\EnsureAccountCanAct::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

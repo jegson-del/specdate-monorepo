@@ -19,6 +19,7 @@ import { MediaService } from '../../services/media';
 import { confirmMediaShareWithAiScan } from '../../utils/confirmMediaShareWithAiScan';
 import { toImageUri, imageUriWithCacheBust } from '../../utils/imageUrl';
 import { MultiSelectModal } from '../specs/components/MultiSelectModal';
+import { UploadProgressModal, type UploadProgressState } from '../../components';
 
 // --- OPTIONS & CONSTANTS ---
 const OTHER_VALUE = '__other__';
@@ -84,6 +85,7 @@ export default function ProfileScreen({ navigation }: any) {
     const [loading, setLoading] = useState(false);
     const [locLoading, setLocLoading] = useState(false);
     const [imgLoading, setImgLoading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState<UploadProgressState>(null);
 
     // UI Local State
     const [showDobPicker, setShowDobPicker] = useState(false);
@@ -244,8 +246,17 @@ export default function ProfileScreen({ navigation }: any) {
             return;
         }
         setImgLoading(true);
+        const label = type === 'avatar' ? 'avatar' : 'profile photo';
         try {
+            setUploadProgress({
+                title: 'Uploading media',
+                message: `Uploading your ${label}.`,
+            });
             const uploaded = await MediaService.upload(uri, type, mediaId);
+            setUploadProgress({
+                title: 'Reviewing media',
+                message: `Checking your ${label} with our safety review.`,
+            });
             const media = await MediaService.waitForModeration(uploaded);
             const uploadedUrl = media?.url && (media.url as string).startsWith('http') ? media.url : null;
             // Optimistic update: show the new image immediately using the URL returned from upload
@@ -296,6 +307,7 @@ export default function ProfileScreen({ navigation }: any) {
             const msg = e?.message || e?.response?.data?.message || 'Upload failed. Try again.';
             Alert.alert('Upload Failed', msg);
         } finally {
+            setUploadProgress(null);
             setImgLoading(false);
         }
     };
@@ -882,6 +894,8 @@ export default function ProfileScreen({ navigation }: any) {
                 onClose={() => setViewerVisible(false)}
                 onReplace={(index) => { setViewerVisible(false); pickFromGallery('profile_gallery', index); }}
             />
+
+            <UploadProgressModal progress={uploadProgress} />
 
         </View>
     );
