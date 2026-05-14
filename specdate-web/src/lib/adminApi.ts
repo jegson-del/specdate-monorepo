@@ -11,6 +11,8 @@ import type {
   AdminFinancialVoucherStatus,
   AdminFinancialVoucherSummary,
   AdminAccess,
+  AdminAccessPermission,
+  AdminManagedAdmin,
   AdminMediaModerationItem,
   AdminMediaModerationStatus,
   AdminIpRiskEvent,
@@ -252,6 +254,55 @@ export async function getAdminUser(token: string, userId: number) {
   return result.data
 }
 
+export async function getAdminManagedAdmins(token: string, q = '', page = 1, perPage = 25) {
+  const query = new URLSearchParams({ page: String(page), per_page: String(perPage) })
+  if (q) {
+    query.set('q', q)
+  }
+
+  const response = await fetch(`${getApiBase()}/api/admin/management/admins?${query.toString()}`, {
+    headers: adminHeaders(token),
+  })
+  const result = (await parseJson(response)) as ApiEnvelope<Paginated<AdminManagedAdmin>> | null
+
+  if (!response.ok || !result) {
+    throw new Error(pickApiError(result, 'Admins could not be loaded.'))
+  }
+
+  return paginatedResult(result.data, page, perPage)
+}
+
+export async function getAdminAccessPermissions(token: string) {
+  const response = await fetch(`${getApiBase()}/api/admin/management/permissions`, {
+    headers: adminHeaders(token),
+  })
+  const result = (await parseJson(response)) as ApiEnvelope<AdminAccessPermission[]> | null
+
+  if (!response.ok || !result) {
+    throw new Error(pickApiError(result, 'Admin access permissions could not be loaded.'))
+  }
+
+  return result.data
+}
+
+export async function updateManagedAdminAccess(token: string, adminId: number, access: AdminAccess) {
+  const response = await fetch(`${getApiBase()}/api/admin/management/admins/${adminId}/access`, {
+    method: 'PATCH',
+    headers: {
+      ...adminHeaders(token),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(access),
+  })
+  const result = (await parseJson(response)) as { message?: string } | null
+
+  if (!response.ok) {
+    throw new Error(pickApiError(result, 'Admin access could not be updated.'))
+  }
+
+  return result?.message || 'Admin access updated.'
+}
+
 export async function getAdminFinancialVouchers(
   token: string,
   filters: AdminFinancialVoucherFilters,
@@ -328,10 +379,6 @@ export async function getAdminFinancialCredits(
 
 export async function updateAdminUserNote(token: string, userId: number, adminNote: string) {
   return adminUserAction(token, userId, 'note', { admin_note: adminNote }, 'User note could not be saved.')
-}
-
-export async function updateAdminUserAccess(token: string, userId: number, access: AdminAccess) {
-  return adminUserAction(token, userId, 'admin-access', access, 'Admin access could not be updated.')
 }
 
 export async function pauseAdminUser(token: string, userId: number) {

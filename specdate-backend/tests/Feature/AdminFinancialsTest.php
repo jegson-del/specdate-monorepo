@@ -211,39 +211,76 @@ class AdminFinancialsTest extends TestCase
 
     public function test_admin_access_can_be_toggled_for_admin_users(): void
     {
-        $admin = $this->adminWithAccess(vouchers: true, credits: true);
+        $admin = $this->adminWithAccess(vouchers: true, credits: true, manageUsers: true);
         $targetAdmin = $this->adminWithAccess(vouchers: false, credits: false);
 
         Sanctum::actingAs($admin);
 
-        $this->patchJson("/api/admin/users/{$targetAdmin->id}/admin-access", [
+        $this->patchJson("/api/admin/management/admins/{$targetAdmin->id}/access", [
             'can_view_financial_vouchers' => true,
             'can_view_financial_credits' => false,
+            'can_manage_admin_users' => false,
         ])
             ->assertOk()
             ->assertJsonPath('data.admin_access.can_view_financial_vouchers', true)
-            ->assertJsonPath('data.admin_access.can_view_financial_credits', false);
+            ->assertJsonPath('data.admin_access.can_view_financial_credits', false)
+            ->assertJsonPath('data.admin_access.can_manage_admin_users', false);
 
         $this->assertDatabaseHas('admin_accesses', [
             'admin_id' => $targetAdmin->id,
             'can_view_financial_vouchers' => true,
             'can_view_financial_credits' => false,
+            'can_manage_admin_users' => false,
         ]);
     }
 
     public function test_admin_access_cannot_be_assigned_to_non_admin_users(): void
     {
-        $admin = $this->adminWithAccess(vouchers: true, credits: true);
+        $admin = $this->adminWithAccess(vouchers: true, credits: true, manageUsers: true);
         $user = User::factory()->create(['role' => 'user']);
 
         Sanctum::actingAs($admin);
 
-        $this->patchJson("/api/admin/users/{$user->id}/admin-access", [
+        $this->patchJson("/api/admin/management/admins/{$user->id}/access", [
             'can_view_financial_vouchers' => true,
             'can_view_financial_credits' => true,
+            'can_manage_admin_users' => true,
         ])
             ->assertStatus(422)
             ->assertJsonPath('message', 'Admin access can only be assigned to admin users.');
+    }
+
+    public function test_admin_without_user_management_access_cannot_view_or_update_admin_access(): void
+    {
+        $admin = $this->adminWithAccess(vouchers: true, credits: true, manageUsers: false);
+        $targetAdmin = $this->adminWithAccess(vouchers: false, credits: false);
+
+        Sanctum::actingAs($admin);
+
+        $this->getJson('/api/admin/management/admins')
+            ->assertForbidden()
+            ->assertJsonPath('message', 'Admin management access required.');
+
+        $this->patchJson("/api/admin/management/admins/{$targetAdmin->id}/access", [
+            'can_view_financial_vouchers' => true,
+            'can_view_financial_credits' => true,
+            'can_manage_admin_users' => true,
+        ])
+            ->assertForbidden()
+            ->assertJsonPath('message', 'Admin management access required.');
+    }
+
+    public function test_admin_access_permissions_are_returned_from_backend_metadata(): void
+    {
+        Sanctum::actingAs($this->adminWithAccess(manageUsers: true));
+
+        $permissions = $this->getJson('/api/admin/management/permissions')
+            ->assertOk()
+            ->json('data');
+
+        $this->assertContains('can_view_financial_vouchers', collect($permissions)->pluck('key'));
+        $this->assertContains('can_view_financial_credits', collect($permissions)->pluck('key'));
+        $this->assertContains('can_manage_admin_users', collect($permissions)->pluck('key'));
     }
 
     private function createSpecDate(): array
@@ -268,7 +305,7 @@ class AdminFinancialsTest extends TestCase
         return [$owner, $winner, $date];
     }
 
-    private function adminWithAccess(bool $vouchers = false, bool $credits = false): User
+    private function adminWithAccess(bool $vouchers = false, bool $credits = false, bool $manageUsers = false): User
     {
         $admin = User::factory()->create(['role' => 'admin']);
 
@@ -276,6 +313,7 @@ class AdminFinancialsTest extends TestCase
             'admin_id' => $admin->id,
             'can_view_financial_vouchers' => $vouchers,
             'can_view_financial_credits' => $credits,
+            'can_manage_admin_users' => $manageUsers,
         ]);
 
         return $admin;

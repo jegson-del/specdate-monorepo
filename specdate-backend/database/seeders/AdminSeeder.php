@@ -28,6 +28,7 @@ class AdminSeeder extends Seeder
             [
                 'can_view_financial_vouchers' => true,
                 'can_view_financial_credits' => true,
+                'can_manage_admin_users' => true,
             ]
         );
     }

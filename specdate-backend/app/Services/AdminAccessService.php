@@ -4,12 +4,20 @@ namespace App\Services;
 
 use App\Models\AdminAccess;
 use App\Models\User;
+use Illuminate\Support\Facades\Schema;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class AdminAccessService
 {
-    public const FINANCIAL_VOUCHERS = 'financial_vouchers';
-    public const FINANCIAL_CREDITS = 'financial_credits';
+    public const FINANCIAL_VOUCHERS = 'can_view_financial_vouchers';
+    public const FINANCIAL_CREDITS = 'can_view_financial_credits';
+    public const MANAGE_ADMIN_USERS = 'can_manage_admin_users';
+
+    private const LABELS = [
+        self::FINANCIAL_VOUCHERS => 'Voucher financials',
+        self::FINANCIAL_CREDITS => 'Credit financials',
+        self::MANAGE_ADMIN_USERS => 'Admin management',
+    ];
 
     public function assertCan(User $admin, string $permission): void
     {
@@ -34,36 +42,53 @@ class AdminAccessService
             return false;
         }
 
-        return match ($permission) {
-            self::FINANCIAL_VOUCHERS => (bool) $access->can_view_financial_vouchers,
-            self::FINANCIAL_CREDITS => (bool) $access->can_view_financial_credits,
-            default => false,
-        };
+        return in_array($permission, $this->permissionKeys(), true)
+            && (bool) ($access->{$permission} ?? false);
     }
 
     public function accessPayload(?AdminAccess $access): array
     {
-        return [
-            'can_view_financial_vouchers' => (bool) ($access?->can_view_financial_vouchers ?? false),
-            'can_view_financial_credits' => (bool) ($access?->can_view_financial_credits ?? false),
-        ];
+        return collect($this->permissionKeys())
+            ->mapWithKeys(fn (string $key) => [$key => (bool) ($access?->{$key} ?? false)])
+            ->all();
     }
 
-    public function updateFinancialAccess(User $admin, User $targetAdmin, array $data): AdminAccess
+    public function permissionsPayload(): array
+    {
+        return collect($this->permissionKeys())
+            ->map(fn (string $key) => [
+                'key' => $key,
+                'label' => self::LABELS[$key] ?? $this->labelize($key),
+            ])
+            ->values()
+            ->all();
+    }
+
+    public function updateAccess(User $admin, User $targetAdmin, array $data): AdminAccess
     {
         $this->ensureAdmin($admin);
+        $this->assertCan($admin, self::MANAGE_ADMIN_USERS);
 
         if ($targetAdmin->role !== 'admin') {
             throw new HttpException(422, 'Admin access can only be assigned to admin users.');
         }
 
         $access = AdminAccess::firstOrNew(['admin_id' => $targetAdmin->id]);
-        $access->forceFill([
-            'can_view_financial_vouchers' => (bool) ($data['can_view_financial_vouchers'] ?? false),
-            'can_view_financial_credits' => (bool) ($data['can_view_financial_credits'] ?? false),
-        ])->save();
+        $access->forceFill(
+            collect($this->permissionKeys())
+                ->mapWithKeys(fn (string $key) => [$key => (bool) ($data[$key] ?? false)])
+                ->all()
+        )->save();
 
         return $access;
+    }
+
+    public function permissionKeys(): array
+    {
+        return collect(Schema::getColumnListing('admin_accesses'))
+            ->filter(fn (string $column) => str_starts_with($column, 'can_'))
+            ->values()
+            ->all();
     }
 
     private function ensureAdmin(?User $user): void
@@ -78,7 +103,17 @@ class AdminAccessService
         return match ($permission) {
             self::FINANCIAL_VOUCHERS => 'Admin voucher financial access required.',
             self::FINANCIAL_CREDITS => 'Admin credit financial access required.',
+            self::MANAGE_ADMIN_USERS => 'Admin management access required.',
             default => 'Admin access permission required.',
         };
+    }
+
+    private function labelize(string $permission): string
+    {
+        return str($permission)
+            ->replace('can_', '')
+            ->replace('_', ' ')
+            ->title()
+            ->toString();
     }
 }

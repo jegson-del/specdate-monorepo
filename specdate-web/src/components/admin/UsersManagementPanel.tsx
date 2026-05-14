@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import type {
-  AdminAccess,
   AdminManagedUser,
   AdminPagination,
   AdminUserRole,
@@ -14,7 +13,6 @@ type UsersManagementPanelProps = {
   onPageChange: (page: number) => void
   onQueryChange: (query: string) => void
   onRoleChange: (role: AdminUserRole) => void
-  onSaveAdminAccess: (userId: number, access: AdminAccess) => void
   onSaveNote: (userId: number, note: string) => void
   onSelectUser: (userId: number) => void
   onStatusChange: (status: AdminUserStatus) => void
@@ -38,7 +36,6 @@ export function UsersManagementPanel({
   onPageChange,
   onQueryChange,
   onRoleChange,
-  onSaveAdminAccess,
   onSaveNote,
   onSelectUser,
   onStatusChange,
@@ -77,7 +74,6 @@ export function UsersManagementPanel({
             <option value="all">All roles</option>
             <option value="user">Users</option>
             <option value="provider">Providers</option>
-            <option value="admin">Admins</option>
           </select>
           <select
             value={status}
@@ -129,7 +125,6 @@ export function UsersManagementPanel({
         <UserDetailPanel
           isUpdating={Boolean(selectedUserId && actionUserId === selectedUserId)}
           onSaveNote={onSaveNote}
-          onSaveAdminAccess={onSaveAdminAccess}
           onUpdateUserStatus={onUpdateUserStatus}
           user={selectedUser}
         />
@@ -185,31 +180,21 @@ function UserRow({
 
 function UserDetailPanel({
   isUpdating,
-  onSaveAdminAccess,
   onSaveNote,
   onUpdateUserStatus,
   user,
 }: {
   isUpdating: boolean
-  onSaveAdminAccess: (userId: number, access: AdminAccess) => void
   onSaveNote: (userId: number, note: string) => void
   onUpdateUserStatus: UsersManagementPanelProps['onUpdateUserStatus']
   user: AdminManagedUser | null
 }) {
   const [note, setNote] = useState('')
   const [banReason, setBanReason] = useState('')
-  const [adminAccess, setAdminAccess] = useState<AdminAccess>({
-    can_view_financial_credits: false,
-    can_view_financial_vouchers: false,
-  })
 
   useEffect(() => {
     setNote(user?.admin_note ?? '')
     setBanReason(user?.ban_reason ?? '')
-    setAdminAccess({
-      can_view_financial_credits: user?.admin_access?.can_view_financial_credits ?? false,
-      can_view_financial_vouchers: user?.admin_access?.can_view_financial_vouchers ?? false,
-    })
   }, [user])
 
   if (!user) {
@@ -275,44 +260,6 @@ function UserDetailPanel({
         Save note
       </button>
 
-      {user.role === 'admin' && (
-        <div className="mt-5 border-t border-slate-200 pt-5">
-          <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">
-            Finance access
-          </p>
-          <div className="mt-3 space-y-3">
-            <AccessToggle
-              checked={adminAccess.can_view_financial_vouchers}
-              label="Voucher financials"
-              onChange={(checked) =>
-                setAdminAccess((current) => ({
-                  ...current,
-                  can_view_financial_vouchers: checked,
-                }))
-              }
-            />
-            <AccessToggle
-              checked={adminAccess.can_view_financial_credits}
-              label="Credit financials"
-              onChange={(checked) =>
-                setAdminAccess((current) => ({
-                  ...current,
-                  can_view_financial_credits: checked,
-                }))
-              }
-            />
-          </div>
-          <button
-            type="button"
-            disabled={isUpdating}
-            onClick={() => onSaveAdminAccess(user.id, adminAccess)}
-            className="mt-3 h-9 rounded-lg bg-slate-950 px-3 text-xs font-black text-white transition hover:bg-pink-600 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Save access
-          </button>
-        </div>
-      )}
-
       <div className="mt-5 border-t border-slate-200 pt-5">
         <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">
           Enforcement
@@ -359,28 +306,6 @@ function UserDetailPanel({
         )}
       </div>
     </aside>
-  )
-}
-
-function AccessToggle({
-  checked,
-  label,
-  onChange,
-}: {
-  checked: boolean
-  label: string
-  onChange: (checked: boolean) => void
-}) {
-  return (
-    <label className="flex items-center justify-between gap-3 rounded-lg bg-white p-3 text-sm font-bold text-slate-700">
-      <span>{label}</span>
-      <input
-        checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-        type="checkbox"
-        className="h-5 w-5 accent-pink-600"
-      />
-    </label>
   )
 }
 

@@ -3,6 +3,7 @@
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AdminFinancialsController;
+use App\Http\Controllers\AdminManagementController;
 use App\Http\Controllers\AdminMediaModerationController;
 use App\Http\Controllers\AdminModerationCaseController;
 use App\Http\Controllers\AdminModerationStrikeController;
@@ -92,6 +93,9 @@ Route::middleware(['auth:sanctum', 'device.fingerprint'])->group(function () {
     Route::get('/admin/risk/users', [AdminRiskController::class, 'users']);
     Route::get('/admin/risk/ip-events', [AdminRiskController::class, 'ipEvents']);
     Route::get('/admin/users/{user}/risk', [AdminRiskController::class, 'user']);
+    Route::get('/admin/management/admins', [AdminManagementController::class, 'admins']);
+    Route::get('/admin/management/permissions', [AdminManagementController::class, 'permissions']);
+    Route::patch('/admin/management/admins/{admin}/access', [AdminManagementController::class, 'updateAccess']);
     Route::get('/admin/users', [AdminUserController::class, 'index']);
     Route::get('/admin/users/{user}', [AdminUserController::class, 'show']);
     Route::patch('/admin/users/{user}/pause', [AdminUserController::class, 'pause']);
@@ -99,7 +103,6 @@ Route::middleware(['auth:sanctum', 'device.fingerprint'])->group(function () {
     Route::patch('/admin/users/{user}/ban', [AdminUserController::class, 'ban']);
     Route::patch('/admin/users/{user}/unban', [AdminUserController::class, 'unban']);
     Route::patch('/admin/users/{user}/note', [AdminUserController::class, 'updateNote']);
-    Route::patch('/admin/users/{user}/admin-access', [AdminUserController::class, 'updateAdminAccess']);
     Route::get('/admin/providers', [AdminController::class, 'providers']);
     Route::get('/admin/providers/{provider}', [AdminProviderController::class, 'show']);
     Route::patch('/admin/providers/{provider}/approve', [AdminProviderController::class, 'approve']);

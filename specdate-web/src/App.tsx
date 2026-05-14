@@ -1,6 +1,7 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { AlertProvider } from './components/AlertProvider'
 import AdminCreditFinancialsPage from './pages/AdminCreditFinancialsPage'
+import AdminManagementPage from './pages/AdminManagementPage'
 import AdminMediaModerationPage from './pages/AdminMediaModerationPage'
 import AdminFinancialsPage from './pages/AdminFinancialsPage'
 import AdminVoucherFinancialsPage from './pages/AdminVoucherFinancialsPage'
@@ -70,6 +71,7 @@ export default function App() {
           <Route path="/admin/risk" element={<AdminRiskPage />} />
           <Route path="/admin/support" element={<AdminSupportPage />} />
           <Route path="/admin/users" element={<AdminUsersPage />} />
+          <Route path="/admin/admin-management" element={<AdminManagementPage />} />
         </Routes>
       </BrowserRouter>
     </AlertProvider>

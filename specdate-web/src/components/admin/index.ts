@@ -1,6 +1,7 @@
 export { ActivityFeed } from './ActivityFeed'
 export { AdminPaginationBar, AdminPaginationSummary } from './AdminPaginationBar'
 export { AdminLogin } from './AdminLogin'
+export { AdminManagementPanel } from './AdminManagementPanel'
 export { AdminShell } from './AdminShell'
 export { AnalyticsPanels } from './AnalyticsPanels'
 export { MediaModerationQueuePanel } from './MediaModerationQueuePanel'

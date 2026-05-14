@@ -8,10 +8,6 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class AdminUserService
 {
-    public function __construct(private AdminAccessService $adminAccessService)
-    {
-    }
-
     public function index(User $admin, array $filters = [], int $perPage = 25): LengthAwarePaginator
     {
         $this->ensureAdmin($admin);
@@ -22,8 +18,9 @@ class AdminUserService
         $perPage = max(1, min($perPage, 100));
 
         $users = User::query()
-            ->with(['adminAccess', 'providerProfile:id,user_id,company_name,is_verified,rejected_at', 'bannedBy:id,name,email'])
-            ->when($role && in_array($role, ['user', 'provider', 'admin'], true), fn ($q) => $q->where('role', $role))
+            ->with(['providerProfile:id,user_id,company_name,is_verified,rejected_at', 'bannedBy:id,name,email'])
+            ->whereIn('role', ['user', 'provider'])
+            ->when($role && in_array($role, ['user', 'provider'], true), fn ($q) => $q->where('role', $role))
             ->when($status === 'active', fn ($q) => $q->where('is_paused', false)->whereNull('banned_at'))
             ->when($status === 'paused', fn ($q) => $q->where('is_paused', true)->whereNull('banned_at'))
             ->when($status === 'suspended', fn ($q) => $q->whereNotNull('suspended_until')->where('suspended_until', '>', now())->whereNull('banned_at'))
@@ -112,16 +109,6 @@ class AdminUserService
         return $this->userPayload($user->fresh(['providerProfile', 'bannedBy']));
     }
 
-    public function updateAdminAccess(User $admin, int $userId, array $data): array
-    {
-        $this->ensureAdmin($admin);
-
-        $targetAdmin = User::query()->findOrFail($userId);
-        $this->adminAccessService->updateFinancialAccess($admin, $targetAdmin, $data);
-
-        return $this->userPayload($this->userQuery()->findOrFail($userId));
-    }
-
     private function enforceableUser(User $admin, int $userId): User
     {
         $this->ensureAdmin($admin);
@@ -143,9 +130,9 @@ class AdminUserService
     private function userQuery()
     {
         return User::query()
+            ->whereIn('role', ['user', 'provider'])
             ->with([
                 'providerProfile:id,user_id,company_name,is_verified,rejected_at',
-                'adminAccess',
                 'bannedBy:id,name,email',
                 'reporterRiskScore',
             ])
@@ -174,9 +161,6 @@ class AdminUserService
             'ban_reason' => $user->ban_reason,
             'admin_note' => $user->admin_note,
             'created_at' => $user->created_at,
-            'admin_access' => $user->role === 'admin'
-                ? $this->adminAccessService->accessPayload($user->adminAccess)
-                : null,
             'provider_profile' => $user->providerProfile ? [
                 'id' => $user->providerProfile->id,
                 'company_name' => $user->providerProfile->company_name,

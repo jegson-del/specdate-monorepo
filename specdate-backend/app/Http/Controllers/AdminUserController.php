@@ -80,19 +80,6 @@ class AdminUserController extends Controller
         );
     }
 
-    public function updateAdminAccess(Request $request, int $user): JsonResponse
-    {
-        $data = $request->validate([
-            'can_view_financial_vouchers' => 'required|boolean',
-            'can_view_financial_credits' => 'required|boolean',
-        ]);
-
-        return $this->runAction(
-            fn () => $this->users->updateAdminAccess($request->user(), $user, $data),
-            'Admin access updated.'
-        );
-    }
-
     private function runAction(callable $action, string $message): JsonResponse
     {
         try {

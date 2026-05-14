@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom'
 import type { AdminUser } from '../../types/admin'
 
 type NavItem = {
-  accessKey?: 'can_view_financial_credits' | 'can_view_financial_vouchers'
+  accessKey?: 'can_manage_admin_users' | 'can_view_financial_credits' | 'can_view_financial_vouchers'
   badgeKey?: string
   enabled: boolean
   href?: string
@@ -34,6 +34,12 @@ const navItems: NavItem[] = [
     to: '/admin/financials/credits',
     enabled: true,
     accessKey: 'can_view_financial_credits',
+  },
+  {
+    label: 'Admin management',
+    to: '/admin/admin-management',
+    enabled: true,
+    accessKey: 'can_manage_admin_users',
   },
 ] as const
 
@@ -141,7 +147,7 @@ function moderationAttentionCount(stats: Record<string, number>) {
 
 function canUseNavItem(
   admin: AdminUser | null,
-  accessKey?: 'can_view_financial_credits' | 'can_view_financial_vouchers',
+  accessKey?: 'can_manage_admin_users' | 'can_view_financial_credits' | 'can_view_financial_vouchers',
 ) {
   if (!accessKey) return true
 

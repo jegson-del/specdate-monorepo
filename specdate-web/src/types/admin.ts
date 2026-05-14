@@ -7,8 +7,12 @@ export type AdminUser = {
 }
 
 export type AdminAccess = {
-  can_view_financial_vouchers: boolean
-  can_view_financial_credits: boolean
+  [key: string]: boolean
+}
+
+export type AdminAccessPermission = {
+  key: string
+  label: string
 }
 
 export type ProviderApplicationStatus = 'all' | 'pending' | 'approved' | 'rejected'
@@ -404,10 +408,9 @@ export type AdminSupportTicketDetail = {
 
 export type AdminUserStatus = 'all' | 'active' | 'paused' | 'suspended' | 'banned'
 
-export type AdminUserRole = 'all' | 'user' | 'provider' | 'admin'
+export type AdminUserRole = 'all' | 'user' | 'provider'
 
 export type AdminManagedUser = {
-  admin_access?: AdminAccess | null
   id: number
   name: string
   username: string
@@ -447,6 +450,16 @@ export type AdminManagedUser = {
     last_false_report_at: string | null
     last_valid_report_at: string | null
   }
+}
+
+export type AdminManagedAdmin = {
+  id: number
+  name: string
+  username: string | null
+  email: string
+  role: 'admin'
+  created_at: string
+  admin_access: AdminAccess
 }
 
 export type AdminFinancialPeriod = 'all' | 'day' | 'week' | 'month' | 'custom'
