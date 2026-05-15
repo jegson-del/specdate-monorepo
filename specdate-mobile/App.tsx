@@ -11,6 +11,7 @@ import { theme } from './src/theme';
 import { api, bootstrapAuthToken, getAuthToken, setAuthToken } from './src/services/api';
 import { registerExpoPushToken } from './src/utils/registerExpoPushToken';
 import { clearMediaUploadLimitsCache, prefetchMediaUploadLimits } from './src/services/media';
+import { configureRevenueCatForUser } from './src/services/revenueCat';
 import LandingScreen from './src/features/auth/LandingScreen';
 import RegisterScreen from './src/features/auth/RegisterScreen';
 import OtpVerificationScreen from './src/features/auth/OtpVerificationScreen';
@@ -18,6 +19,7 @@ import LoginScreen from './src/features/auth/LoginScreen';
 import ProfileScreen from './src/features/profile/ProfileScreen';
 import ProfileViewerScreen from './src/features/profile/ProfileViewerScreen';
 import SettingsScreen from './src/features/profile/SettingsScreen';
+import TopUpCreditsScreen from './src/features/profile/TopUpCreditsScreen';
 import HomeScreen from './src/features/home/HomeScreen';
 import ProvidersScreen from './src/features/providers/ProvidersScreen';
 import ProviderDetailScreen from './src/features/providers/ProviderDetailScreen';
@@ -75,6 +77,7 @@ export default function App() {
             const isComplete = user.profile_complete === true;
             const isProvider = user.role === 'provider';
             if (mounted) setInitialRoute(isProvider ? 'ProviderDashboard' : (isComplete ? 'Home' : 'Profile'));
+            void configureRevenueCatForUser(user.id);
             void prefetchMediaUploadLimits();
           } catch (err: any) {
             const status = err?.response?.status;
@@ -164,6 +167,7 @@ export default function App() {
               <Stack.Screen name="Profile" component={ProfileScreen} />
               <Stack.Screen name="ProfileViewer" component={ProfileViewerScreen} />
               <Stack.Screen name="Settings" component={SettingsScreen} />
+              <Stack.Screen name="TopUpCredits" component={TopUpCreditsScreen} />
               <Stack.Screen name="Home" component={HomeScreen} />
               <Stack.Screen name="Providers" component={ProvidersScreen} />
               <Stack.Screen name="ProviderDetail" component={ProviderDetailScreen} />

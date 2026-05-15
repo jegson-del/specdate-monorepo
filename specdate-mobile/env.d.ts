@@ -3,6 +3,9 @@ declare namespace NodeJS {
         EXPO_PUBLIC_API_URL?: string;
         EXPO_PUBLIC_API_URL_DEV?: string;
         EXPO_PUBLIC_API_URL_PRODUCTION?: string;
+        EXPO_PUBLIC_REVENUECAT_TEST_API_KEY?: string;
+        EXPO_PUBLIC_REVENUECAT_IOS_API_KEY?: string;
+        EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY?: string;
         EXPO_PUBLIC_PUSHER_APP_KEY: string;
         EXPO_PUBLIC_PUSHER_APP_CLUSTER: string;
     }

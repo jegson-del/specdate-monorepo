@@ -13,9 +13,10 @@ class CreditProductSeeder extends Seeder
     public function run(): void
     {
         $products = [
-            ['product_id' => 'specdate_credits_3',  'quantity' => 3,  'name' => '3 Credits',  'sort_order' => 1],
-            ['product_id' => 'specdate_credits_5',  'quantity' => 5,  'name' => '5 Credits',  'sort_order' => 2],
-            ['product_id' => 'specdate_credits_10', 'quantity' => 10, 'name' => '10 Credits', 'sort_order' => 3],
+            ['product_id' => 'specdate_credits_1',  'quantity' => 1,  'name' => '1 Credit',   'sort_order' => 1],
+            ['product_id' => 'specdate_credits_3',  'quantity' => 3,  'name' => '3 Credits',  'sort_order' => 2],
+            ['product_id' => 'specdate_credits_5',  'quantity' => 5,  'name' => '5 Credits',  'sort_order' => 3],
+            ['product_id' => 'specdate_credits_10', 'quantity' => 10, 'name' => '10 Credits', 'sort_order' => 4],
         ];
 
         foreach ($products as $p) {

@@ -1,6 +1,6 @@
 # RevenueCat, Store Launch, And Remaining Pre-Submission TODOs
 
-Last updated: 2026-05-14
+Last updated: 2026-05-15
 
 ## Current Status
 
@@ -26,12 +26,66 @@ The biggest remaining launch areas are:
 - Web Contact Us page.
 - Real provider-facing public web polish and aesthetics.
 
+## Aligned Execution Board
+
+Work through these phases in order. Items marked **External** need dashboard/store access and cannot be completed purely from the repo. Items marked **Repo** can be implemented here.
+
+### Phase 1 - RevenueCat Purchase Path
+
+- [x] **Repo:** Install and configure `react-native-purchases` in the mobile app.
+- [x] **Repo:** Add public RevenueCat SDK env values for iOS and Android mobile builds.
+- [x] **Repo:** Initialize RevenueCat after auth/app boot using the logged-in backend user id.
+- [x] **Repo:** Add mobile API helpers for `GET /api/credits/products`, `POST /api/credits/grant`, and balance refresh.
+- [x] **Repo:** Build the Top Up Credits UI from backend credit products plus RevenueCat offerings.
+- [x] **Repo:** Wire successful purchases to backend credit granting with idempotency handling.
+- [x] **Repo:** Add restore purchases and purchase error states.
+- [ ] **External:** Create/import matching RevenueCat products and offerings.
+- [ ] **External:** Confirm iOS and Android RevenueCat public SDK keys.
+
+### Phase 2 - Store Product Setup
+
+- [ ] **External:** Create iOS consumable IAPs in App Store Connect.
+- [ ] **External:** Create Android one-time products in Google Play Console.
+- [ ] **External:** Connect App Store Connect and Google Play products to RevenueCat.
+- [ ] **External:** Confirm offerings return products on sandbox/TestFlight/internal testing builds.
+
+### Phase 3 - Backend Purchase Hardening
+
+- [ ] **Repo:** Add backend tests for credit product lookup, invalid product ids, duplicate transaction ids, and missing balance recovery.
+- [ ] **Repo:** Decide and enforce transaction id uniqueness scope.
+- [ ] **Repo:** Store richer RevenueCat metadata on credit transactions.
+- [ ] **Repo:** Verify purchase ownership server-side if RevenueCat API access is available.
+- [ ] **Repo optional:** Add RevenueCat webhook fallback on `dateusher.org` only.
+
+### Phase 4 - Auth And Account Integrity
+
+- [ ] **Repo:** Add email OTP step to admin login.
+- [ ] **Repo:** Move mobile registration to phone-first OTP.
+- [ ] **Repo:** Keep provider web registration on email OTP.
+- [ ] **Repo:** Add duplicate account controls for phone/device/IP risk.
+- [ ] **Repo:** Add auth/account integrity tests.
+
+### Phase 5 - Web Launch Polish
+
+- [ ] **Repo:** Add Contact Us page with support and provider inquiry paths.
+- [ ] **Repo:** Improve public provider browse/detail pages using real backend provider data.
+- [ ] **Repo:** Polish public web visuals and app download CTAs.
+
+### Phase 6 - Final Release QA
+
+- [ ] **Manual QA:** Sandbox purchase happy path and duplicate grant path.
+- [ ] **Manual QA:** Moderation, appeals, account status, and notification routes on device.
+- [ ] **Manual QA:** Provider dashboard media upload/edit flows.
+- [ ] **Manual QA:** Admin dashboard reports, cases, appeals, media moderation, financials, and admin management.
+- [ ] **Manual QA:** Prepare App Store / Play Store review notes and test accounts.
+
 ## RevenueCat Product IDs
 
 Use the backend-seeded product IDs everywhere:
 
 | Product ID | Credits |
 | --- | ---: |
+| `specdate_credits_1` | 1 |
 | `specdate_credits_3` | 3 |
 | `specdate_credits_5` | 5 |
 | `specdate_credits_10` | 10 |
@@ -53,6 +107,7 @@ These IDs must match exactly in:
    - Android key for Android builds
 4. Do not put RevenueCat secret keys in the mobile app.
 5. Add/import the products:
+   - `specdate_credits_1`
    - `specdate_credits_3`
    - `specdate_credits_5`
    - `specdate_credits_10`
@@ -75,6 +130,7 @@ Official references:
 2. Confirm Apple Paid Applications Agreement, tax, and banking are complete.
 3. Enable In-App Purchase capability in the iOS app target/build setup.
 4. In App Store Connect, create consumable in-app purchases:
+   - `specdate_credits_1`
    - `specdate_credits_3`
    - `specdate_credits_5`
    - `specdate_credits_10`
@@ -93,6 +149,7 @@ Official reference:
 1. Confirm Android package name matches the Android app configured in RevenueCat.
 2. Add Google Play billing permission/build support if not already present.
 3. In Google Play Console, create one-time products/managed products:
+   - `specdate_credits_1`
    - `specdate_credits_3`
    - `specdate_credits_5`
    - `specdate_credits_10`
@@ -114,8 +171,8 @@ Current mobile profile credit purchase path still appears placeholder-ish. Imple
 
 1. Install/configure `react-native-purchases` if not already installed.
 2. Add environment/config values:
-   - `REVENUECAT_IOS_API_KEY`
-   - `REVENUECAT_ANDROID_API_KEY`
+   - `EXPO_PUBLIC_REVENUECAT_IOS_API_KEY`
+   - `EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY`
 3. Initialize RevenueCat once after auth/app boot with the platform-specific public SDK key.
 4. Use the app user ID as RevenueCat app user ID so purchases map to the backend user.
 5. Fetch backend products from `GET /api/credits/products`.
@@ -144,7 +201,7 @@ Current mobile profile credit purchase path still appears placeholder-ish. Imple
 
 The backend base is good, but before production we should harden:
 
-1. Add a RevenueCat webhook endpoint as a fallback for purchase events.
+1. Optional: add a RevenueCat webhook endpoint as a fallback for purchase events. If enabled, configure the RevenueCat dashboard webhook URL to the backend/API domain, for example `https://dateusher.org/api/...`, not the frontend domain.
 2. Verify purchase ownership server-side if possible before granting credits.
 3. Store more RevenueCat metadata on `user_transactions.metadata`:
    - store/platform
@@ -234,15 +291,10 @@ Before launch, tighten registration and admin access flows:
 
 ## Suggested Next Work Order
 
-1. Finish RevenueCat mobile integration.
-2. Configure iOS products in App Store Connect.
-3. Configure Android products in Google Play Console.
-4. Import/map products in RevenueCat.
-5. Test sandbox purchases end to end.
-6. Add RevenueCat webhook fallback.
-7. Add admin login email OTP.
-8. Move mobile user registration to phone-first OTP and remove email OTP from that flow.
-9. Add duplicate-account risk controls for phone/device/IP.
-10. Add Contact Us web page.
-11. Polish real provider public web pages.
-12. Do final App Store/Play Store pre-submission pass.
+1. Complete Phase 1 repo work until a sandbox purchase can call `POST /api/credits/grant`.
+2. Complete Phase 2 external store/RevenueCat setup.
+3. Run sandbox purchases end to end on iOS and Android.
+4. Complete Phase 3 backend hardening before launch traffic.
+5. Complete Phase 4 account integrity work.
+6. Complete Phase 5 public web launch polish.
+7. Complete Phase 6 final release QA and review notes.

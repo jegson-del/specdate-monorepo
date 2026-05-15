@@ -22,7 +22,7 @@ Stores **product_id** and **quantity** so they match RevenueCat. When RevenueCat
 | timestamps  |         | created_at, updated_at |
 
 - **Model:** `App\Models\CreditProduct`
-- **Seeder:** `CreditProductSeeder` seeds `specdate_credits_3` (3), `specdate_credits_5` (5), `specdate_credits_10` (10).
+- **Seeder:** `CreditProductSeeder` seeds `specdate_credits_1` (1), `specdate_credits_3` (3), `specdate_credits_5` (5), `specdate_credits_10` (10).
 - **GET /api/credits/products** returns the list so the app can show packs and use `product_id` with RevenueCat. When a purchase completes, app sends **product_id** to **POST /api/credits/grant**; backend gets quantity from `credit_products` and applies it.
 
 ### `user_balances`
@@ -72,7 +72,7 @@ No. **RevenueCat does not send the purchase to your backend.** Flow:
 
 1. User pays in the app → Apple/Google process payment → **RevenueCat** gets the result.
 2. **RevenueCat SDK** notifies **your app** (listener/callback): e.g. "Purchase success: product_id = specdate_credits_5, transaction_id = abc123".
-3. **Your app** then calls **your backend**: POST /api/credits/grant with `quantity`, `revenue_cat_transaction_id`, `product_id`.
+3. **Your app** then calls **your backend**: POST /api/credits/grant with `revenue_cat_transaction_id` and `product_id`.
 4. Backend creates the CREDIT transaction row and adds to `user_balances.credits`.
 
 So: **RevenueCat tells the app**; **the app tells your backend**.
@@ -83,7 +83,7 @@ So: **RevenueCat tells the app**; **the app tells your backend**.
 
 RevenueCat only gives the app a **product_id** (e.g. `specdate_credits_5`). You decide the **quantity** (5):
 
-- **In the app:** Keep a map: `specdate_credits_3` → 3, `specdate_credits_5` → 5, `specdate_credits_10` → 10. When purchase succeeds, read product_id, get quantity, call backend with quantity + product_id + revenue_cat_transaction_id.
+- **In the app:** Fetch products from `GET /api/credits/products`; the backend owns the product_id → quantity mapping. When purchase succeeds, call the backend with product_id + revenue_cat_transaction_id.
 - **In the backend (optional):** Backend can also have this map and derive quantity from product_id (so you don't trust client-sent quantity).
 
 The **transaction row** stores `quantity` and `metadata.product_id`, so the history shows e.g. "Purchased (RevenueCat)" with +5 and product_id `specdate_credits_5`.
@@ -95,11 +95,25 @@ The **transaction row** stores `quantity` and `metadata.product_id`, so the hist
 1. **Mobile:** User taps “Top up” → RevenueCat SDK shows products → user completes purchase.
 2. **Mobile:** On successful purchase, app calls backend **POST /api/credits/grant** with:
    - `product_id` (e.g. `specdate_credits_5`)
-   - `quantity` (e.g. 5)
    - `revenue_cat_transaction_id` (or `transaction_id`) for idempotency
    - Optionally `platform`, `currency`, `price` for records.
 3. **Backend:** If `revenue_cat_transaction_id` already exists in a CREDIT transaction for this user → return 200 without adding credits (idempotent). Otherwise create CREDIT transaction and increment `user_balances.credits`.
-4. **Optional:** RevenueCat webhooks (Server Notifications) can call the same grant logic so credits are granted even if the app is closed after purchase.
+4. **Optional:** RevenueCat webhooks (Server Notifications) can call a backend webhook endpoint so credits are granted even if the app is closed after purchase. This would require a public backend URL, for example `https://dateusher.org/api/...`, because webhooks are server-to-server calls.
+
+---
+
+## Production URL Split
+
+- **Frontend/browser URL:** `https://dateusher.com`
+  - Used for public web pages, admin/provider web pages, and email links like `/provider/setup-password`.
+  - Set this in the backend as `FRONTEND_URL=https://dateusher.com`.
+- **Backend/API URL:** `https://dateusher.org`
+  - Used by mobile and web clients for `/api/...` calls.
+  - Set this in the backend as `APP_URL=https://dateusher.org`.
+  - Set this in the web app as `VITE_API_URL=https://dateusher.org`.
+  - Set this in the mobile app as `EXPO_PUBLIC_API_URL_PRODUCTION=https://dateusher.org`.
+
+The current RevenueCat purchase flow does **not** require a RevenueCat dashboard webhook URL. The mobile app receives the purchase result from the RevenueCat SDK, then calls the backend `POST /api/credits/grant`. If a RevenueCat webhook fallback is added later, the webhook URL must point to the backend domain, not the frontend domain.
 
 ---
 
@@ -109,6 +123,7 @@ Backend stores these in the **credit_products** table (see above). product_id = 
 
 | product_id (RevenueCat + item_type for CREDIT) | quantity |
 |------------------------------------------------|----------|
+| specdate_credits_1                              | 1        |
 | specdate_credits_3                              | 3        |
 | specdate_credits_5                              | 5        |
 | specdate_credits_10                             | 10       |

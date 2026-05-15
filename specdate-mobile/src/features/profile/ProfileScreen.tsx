@@ -541,7 +541,7 @@ export default function ProfileScreen({ navigation }: any) {
                                 </Text>
                             </TouchableOpacity>
                             <TouchableOpacity
-                                onPress={() => Alert.alert('Buy credits', 'RevenueCat in-app purchase will be available here. You can buy credit packs to create more specs. Joining specs is free.')}
+                                onPress={() => navigation.navigate('TopUpCredits')}
                                 style={[styles.walletTopUp, { backgroundColor: theme.colors.primaryContainer }]}
                                 activeOpacity={0.8}
                             >
