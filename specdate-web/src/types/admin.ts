@@ -366,7 +366,9 @@ export type AdminSupportTicketStatus =
 
 export type AdminSupportTicket = {
   id: number
-  user_id: number
+  user_id: number | null
+  contact_name: string | null
+  contact_email: string | null
   category: string
   subject: string
   status: Exclude<AdminSupportTicketStatus, 'all'>
@@ -378,6 +380,7 @@ export type AdminSupportTicket = {
     id: number
     name: string
     username: string
+    email?: string
   } | null
 }
 
@@ -385,7 +388,7 @@ export type AdminSupportMessage = {
   id: number
   support_ticket_id: number
   sender_id: number | null
-  sender_role: 'admin' | 'user'
+  sender_role: 'admin' | 'user' | 'guest'
   body: string
   read_at: string | null
   created_at: string
@@ -404,6 +407,39 @@ export type AdminSupportTicketDetail = {
     next_before_id: number | null
     per_page: number
   }
+}
+
+export type AdminContactTicket = {
+  id: number
+  contact_name: string | null
+  contact_email: string | null
+  category: string
+  subject: string
+  status: Exclude<AdminSupportTicketStatus, 'all'>
+  last_message_at: string | null
+  resolved_at: string | null
+  unread_count: number
+  created_at: string
+}
+
+export type AdminContactMessage = {
+  id: number
+  support_ticket_id: number
+  sender_id: number | null
+  sender_role: 'admin' | 'guest'
+  body: string
+  read_at: string | null
+  created_at: string
+  sender: {
+    id: number
+    name: string
+    username: string
+  } | null
+}
+
+export type AdminContactThread = {
+  ticket: AdminContactTicket
+  messages: AdminContactMessage[]
 }
 
 export type AdminUserStatus = 'all' | 'active' | 'paused' | 'suspended' | 'banned'

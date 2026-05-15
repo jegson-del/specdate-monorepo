@@ -58,7 +58,7 @@ class AdminManagementService
     public function accessValidationRules(): array
     {
         return collect($this->adminAccessService->permissionKeys())
-            ->mapWithKeys(fn (string $key) => [$key => 'required|boolean'])
+            ->mapWithKeys(fn (string $key) => [$key => 'sometimes|boolean'])
             ->all();
     }
 

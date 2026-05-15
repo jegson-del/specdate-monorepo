@@ -10,3 +10,7 @@ Artisan::command('inspire', function () {
 
 Schedule::command('specs:send-start-reminders')->dailyAt('08:00');
 Schedule::command('chats:prune-old-messages --days=180')->dailyAt('03:30');
+Schedule::command('contact-mail:import-replies')
+    ->everyFiveMinutes()
+    ->withoutOverlapping()
+    ->when(fn () => (bool) config('inbound_mail.enabled') && extension_loaded('imap'));

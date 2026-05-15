@@ -26,6 +26,24 @@ class AdminController extends Controller
         try {
             return $this->sendResponse(
                 $this->adminService->login($credentials),
+                'Admin verification code sent.'
+            );
+        } catch (HttpException $e) {
+            return $this->sendError($e->getMessage(), [], $e->getStatusCode());
+        }
+    }
+
+    public function verifyLoginOtp(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'email' => 'required|email',
+            'login_challenge' => 'required|string',
+            'otp_code' => 'required|string|size:6',
+        ]);
+
+        try {
+            return $this->sendResponse(
+                $this->adminService->verifyLoginOtp($data),
                 'Admin logged in successfully.'
             );
         } catch (HttpException $e) {

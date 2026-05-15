@@ -37,6 +37,7 @@ class User extends Authenticatable
         'suspended_until',
         'terms_accepted',
         'expo_push_token',
+        'registration_ip_address',
     ];
 
     /**

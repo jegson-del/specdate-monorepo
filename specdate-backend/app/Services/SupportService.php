@@ -10,7 +10,10 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class SupportService
 {
-    public function __construct(private NotificationService $notificationService)
+    public function __construct(
+        private NotificationService $notificationService,
+        private EmailService $emailService,
+    )
     {
     }
 
@@ -19,10 +22,11 @@ class SupportService
         $perPage = max(1, min($perPage, 100));
 
         $query = SupportTicket::query()
-            ->with('user:id,name,username')
+            ->with('user:id,name,username,email')
+            ->whereNotNull('user_id')
             ->withCount(['messages as unread_count' => function ($q) use ($user) {
                 if ($user->role === 'admin') {
-                    $q->where('sender_role', 'user')->whereNull('read_at');
+                    $q->where('sender_role', '!=', 'admin')->whereNull('read_at');
                 } else {
                     $q->where('sender_role', 'admin')->whereNull('read_at');
                 }
@@ -62,12 +66,50 @@ class SupportService
 
         $this->notifyAdmins($ticket, 'New support ticket', "{$user->name} opened a support ticket.");
 
-        return $ticket->fresh(['user:id,name,username', 'messages.sender:id,name,username']);
+        return $ticket->fresh(['user:id,name,username,email', 'messages.sender:id,name,username']);
+    }
+
+    public function createPublicContactTicket(array $data, string $ipAddress, ?string $userAgent = null): SupportTicket
+    {
+        $messageBody = trim($data['message']);
+        $ticket = DB::transaction(function () use ($data, $ipAddress, $messageBody, $userAgent) {
+            $ticket = SupportTicket::create([
+                'user_id' => null,
+                'contact_name' => trim($data['name']),
+                'contact_email' => strtolower(trim($data['email'])),
+                'contact_ip_address' => $ipAddress,
+                'category' => $data['category'],
+                'subject' => trim($data['subject']),
+                'status' => 'pending_admin',
+                'last_message_at' => now(),
+            ]);
+
+            $ticket->messages()->create([
+                'sender_id' => null,
+                'sender_role' => 'guest',
+                'body' => implode("\n", array_filter([
+                    'Public contact form submission',
+                    'Name: ' . trim($data['name']),
+                    'Email: ' . strtolower(trim($data['email'])),
+                    'IP: ' . $ipAddress,
+                    $userAgent ? 'User-Agent: ' . substr($userAgent, 0, 300) : null,
+                    '',
+                    $messageBody,
+                ])),
+            ]);
+
+            return $ticket;
+        });
+
+        $this->emailService->sendContactFormSubmitted($ticket, $messageBody);
+        $this->notifyAdmins($ticket, 'New public contact message', "{$ticket->contact_name} submitted the website contact form.");
+
+        return $ticket->fresh(['user:id,name,username,email', 'messages.sender:id,name,username']);
     }
 
     public function getTicket(User $user, int $ticketId, ?int $beforeId = null, int $perPage = 25): array
     {
-        $ticket = SupportTicket::with(['user:id,name,username'])->findOrFail($ticketId);
+        $ticket = SupportTicket::with(['user:id,name,username,email'])->findOrFail($ticketId);
         $this->authorizeTicket($user, $ticket);
 
         $perPage = max(1, min($perPage, 50));
@@ -135,6 +177,8 @@ class SupportService
                     'Support replied',
                     'The DateUsher support team replied to your ticket.'
                 );
+            } elseif ($ticket->contact_email) {
+                $this->emailService->sendContactTicketReply($ticket, trim($body));
             }
         } else {
             $this->notifyAdmins($ticket, 'Support message', "{$user->name} replied to a support ticket.");
@@ -148,11 +192,15 @@ class SupportService
         $ticket = SupportTicket::findOrFail($ticketId);
         $this->authorizeTicket($user, $ticket);
 
-        $senderRole = $user->role === 'admin' ? 'user' : 'admin';
-        $ticket->messages()
-            ->where('sender_role', $senderRole)
-            ->whereNull('read_at')
-            ->update(['read_at' => now()]);
+        $query = $ticket->messages()->whereNull('read_at');
+
+        if ($user->role === 'admin') {
+            $query->where('sender_role', '!=', 'admin');
+        } else {
+            $query->where('sender_role', 'admin');
+        }
+
+        $query->update(['read_at' => now()]);
     }
 
     public function updateStatus(User $admin, int $ticketId, string $status): SupportTicket
@@ -167,7 +215,7 @@ class SupportService
             'resolved_at' => in_array($status, ['resolved', 'closed'], true) ? now() : null,
         ]);
 
-        return $ticket->fresh(['user:id,name,username']);
+        return $ticket->fresh(['user:id,name,username,email']);
     }
 
     public function ticketPayload(SupportTicket $ticket, User $viewer): array
@@ -180,6 +228,8 @@ class SupportService
         return [
             'id' => $ticket->id,
             'user_id' => $ticket->user_id,
+            'contact_name' => $ticket->contact_name,
+            'contact_email' => $ticket->contact_email,
             'category' => $ticket->category,
             'subject' => $ticket->subject,
             'status' => $ticket->status,
@@ -191,6 +241,7 @@ class SupportService
                 'id' => $ticket->user->id,
                 'name' => $ticket->user->name,
                 'username' => $ticket->user->username,
+                'email' => $ticket->user->email,
             ] : null,
         ];
     }

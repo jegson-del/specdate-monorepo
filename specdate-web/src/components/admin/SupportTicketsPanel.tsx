@@ -130,7 +130,12 @@ function SupportTicketRow({
       </div>
       <h3 className="mt-3 text-base font-black">{ticket.subject}</h3>
       <p className="mt-1 text-sm text-slate-500">
-        {ticket.user?.username || ticket.user?.name || `User #${ticket.user_id}`} - last activity{' '}
+        {ticket.user?.username ||
+          ticket.user?.name ||
+          ticket.contact_name ||
+          ticket.contact_email ||
+          'Public contact'}{' '}
+        - last activity{' '}
         {formatDate(ticket.last_message_at || ticket.created_at)}
       </p>
       <div className="mt-4 flex flex-wrap gap-2">
@@ -210,7 +215,9 @@ function SupportThreadPanel({
               <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">
                 {message.sender_role === 'admin'
                   ? 'Admin'
-                  : message.sender?.username || message.sender?.name || 'User'}
+                  : message.sender_role === 'guest'
+                    ? 'Public contact'
+                    : message.sender?.username || message.sender?.name || 'User'}
               </p>
               <p className="shrink-0 text-xs font-bold text-slate-400">
                 {formatDate(message.created_at)}

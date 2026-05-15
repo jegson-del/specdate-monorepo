@@ -2,15 +2,102 @@
 
 namespace Tests\Feature;
 
+use App\Mail\ContactFormSubmittedMail;
+use App\Mail\ContactTicketReplyMail;
 use App\Models\SupportTicket;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Mail;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class SupportTicketsTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_public_contact_form_creates_admin_support_ticket_and_queues_email(): void
+    {
+        Mail::fake();
+        config(['mail.contact_address' => 'hello@dateusher.com']);
+        User::factory()->create(['role' => 'admin']);
+
+        $ticketId = $this->postJson('/api/public/contact', [
+            'name' => 'Ada Visitor',
+            'email' => 'ada@example.com',
+            'category' => 'provider',
+            'subject' => 'Provider partnership',
+            'message' => 'I would like to speak to DateUsher about becoming a provider.',
+            'captcha_a' => 4,
+            'captcha_b' => 7,
+            'captcha_answer' => 11,
+            'website' => '',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('message', 'Message sent. The DateUsher team will review it from the admin support inbox.')
+            ->json('data.ticket_id');
+
+        $this->assertDatabaseHas('support_tickets', [
+            'id' => $ticketId,
+            'user_id' => null,
+            'contact_name' => 'Ada Visitor',
+            'contact_email' => 'ada@example.com',
+            'category' => 'provider',
+            'status' => 'pending_admin',
+        ]);
+        $this->assertDatabaseHas('support_messages', [
+            'support_ticket_id' => $ticketId,
+            'sender_id' => null,
+            'sender_role' => 'guest',
+        ]);
+
+        Mail::assertQueued(ContactFormSubmittedMail::class, fn ($mail) => $mail->hasTo('hello@dateusher.com'));
+    }
+
+    public function test_public_contact_form_rejects_wrong_anti_spam_answer(): void
+    {
+        Mail::fake();
+
+        $this->postJson('/api/public/contact', [
+            'name' => 'Ada Visitor',
+            'email' => 'ada@example.com',
+            'category' => 'account',
+            'subject' => 'Account question',
+            'message' => 'I need help with my DateUsher account access.',
+            'captcha_a' => 4,
+            'captcha_b' => 7,
+            'captcha_answer' => 12,
+            'website' => '',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('data.errors.captcha_answer.0', 'The anti-spam answer is incorrect.');
+
+        $this->assertDatabaseCount('support_tickets', 0);
+        Mail::assertNothingQueued();
+    }
+
+    public function test_admin_reply_to_public_contact_ticket_emails_visitor(): void
+    {
+        Mail::fake();
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $ticket = SupportTicket::create([
+            'user_id' => null,
+            'contact_name' => 'Ada Visitor',
+            'contact_email' => 'ada@example.com',
+            'category' => 'account',
+            'subject' => 'Account help',
+            'status' => 'pending_admin',
+            'last_message_at' => now(),
+        ]);
+
+        Sanctum::actingAs($admin);
+        $this->postJson("/api/support/tickets/{$ticket->id}/messages", [
+            'body' => 'Thanks, we can help with this.',
+        ])->assertCreated()
+            ->assertJsonPath('data.sender_role', 'admin');
+
+        Mail::assertQueued(ContactTicketReplyMail::class, fn ($mail) => $mail->hasTo('ada@example.com'));
+    }
 
     public function test_user_can_create_and_reply_to_support_ticket(): void
     {

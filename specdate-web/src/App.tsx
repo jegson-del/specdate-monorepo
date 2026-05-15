@@ -1,5 +1,6 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { AlertProvider } from './components/AlertProvider'
+import AdminContactPage from './pages/AdminContactPage'
 import AdminCreditFinancialsPage from './pages/AdminCreditFinancialsPage'
 import AdminManagementPage from './pages/AdminManagementPage'
 import AdminMediaModerationPage from './pages/AdminMediaModerationPage'
@@ -12,6 +13,7 @@ import AdminProvidersPage from './pages/AdminProvidersPage'
 import AdminRiskPage from './pages/AdminRiskPage'
 import AdminSupportPage from './pages/AdminSupportPage'
 import AdminUsersPage from './pages/AdminUsersPage'
+import ContactPage from './pages/ContactPage'
 import {
   consumerHealthDataPrivacyPolicy,
   cookiePolicy,
@@ -24,6 +26,7 @@ import {
 import GetStartedPage from './pages/GetStartedPage'
 import HomePage from './pages/HomePage'
 import LegalArticlePage from './pages/LegalArticlePage'
+import ProviderDetailPage from './pages/ProviderDetailPage'
 import ProvidersBrowsePage from './pages/ProvidersBrowsePage'
 import ProviderPasswordSetupPage from './pages/ProviderPasswordSetupPage'
 import ProviderRegistrationOtpPage, {
@@ -38,6 +41,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/get-started" element={<GetStartedPage />} />
+          <Route path="/contact" element={<ContactPage />} />
           <Route path="/terms" element={<LegalArticlePage page={termsOfUse} />} />
           <Route path="/privacy" element={<LegalArticlePage page={privacyPolicy} />} />
           <Route path="/cookie-policy" element={<LegalArticlePage page={cookiePolicy} />} />
@@ -55,6 +59,7 @@ export default function App() {
             element={<LegalArticlePage page={privacyRequest} />}
           />
           <Route path="/providers" element={<ProvidersBrowsePage />} />
+          <Route path="/providers/:providerId" element={<ProviderDetailPage />} />
           <Route path="/register/provider" element={<ProviderRegisterPage />} />
           <Route path="/register/provider/verify" element={<ProviderRegistrationOtpPage />} />
           <Route path="/register/provider/success" element={<ProviderRegistrationSuccessPage />} />
@@ -70,6 +75,7 @@ export default function App() {
           <Route path="/admin/moderation/appeals" element={<AdminModerationPage />} />
           <Route path="/admin/risk" element={<AdminRiskPage />} />
           <Route path="/admin/support" element={<AdminSupportPage />} />
+          <Route path="/admin/contact" element={<AdminContactPage />} />
           <Route path="/admin/users" element={<AdminUsersPage />} />
           <Route path="/admin/admin-management" element={<AdminManagementPage />} />
         </Routes>

@@ -39,7 +39,7 @@ Work through these phases in order. Items marked **External** need dashboard/sto
 - [x] **Repo:** Build the Top Up Credits UI from backend credit products plus RevenueCat offerings.
 - [x] **Repo:** Wire successful purchases to backend credit granting with idempotency handling.
 - [x] **Repo:** Add restore purchases and purchase error states.
-- [ ] **External:** Create/import matching RevenueCat products and offerings.
+- [x] **External:** Create/import matching RevenueCat Test Store products and offering.
 - [ ] **External:** Confirm iOS and Android RevenueCat public SDK keys.
 
 ### Phase 2 - Store Product Setup
@@ -51,24 +51,24 @@ Work through these phases in order. Items marked **External** need dashboard/sto
 
 ### Phase 3 - Backend Purchase Hardening
 
-- [ ] **Repo:** Add backend tests for credit product lookup, invalid product ids, duplicate transaction ids, and missing balance recovery.
-- [ ] **Repo:** Decide and enforce transaction id uniqueness scope.
-- [ ] **Repo:** Store richer RevenueCat metadata on credit transactions.
-- [ ] **Repo:** Verify purchase ownership server-side if RevenueCat API access is available.
+- [x] **Repo:** Add backend tests for credit product lookup, invalid product ids, duplicate transaction ids, and missing balance recovery.
+- [x] **Repo:** Decide and enforce transaction id uniqueness scope.
+- [x] **Repo:** Store richer RevenueCat metadata on credit transactions.
+- [ ] **Repo deferred:** Verify purchase ownership server-side after RevenueCat platform/API credentials are available.
 - [ ] **Repo optional:** Add RevenueCat webhook fallback on `dateusher.org` only.
 
 ### Phase 4 - Auth And Account Integrity
 
-- [ ] **Repo:** Add email OTP step to admin login.
-- [ ] **Repo:** Move mobile registration to phone-first OTP.
-- [ ] **Repo:** Keep provider web registration on email OTP.
-- [ ] **Repo:** Add duplicate account controls for phone/device/IP risk.
-- [ ] **Repo:** Add auth/account integrity tests.
+- [x] **Repo:** Add email OTP step to admin login.
+- [x] **Repo:** Move mobile registration to phone-first OTP.
+- [x] **Repo:** Keep provider web registration on email OTP.
+- [x] **Repo:** Add duplicate account controls for phone/device/IP risk.
+- [x] **Repo:** Add auth/account integrity tests.
 
 ### Phase 5 - Web Launch Polish
 
-- [ ] **Repo:** Add Contact Us page with support and provider inquiry paths.
-- [ ] **Repo:** Improve public provider browse/detail pages using real backend provider data.
+- [x] **Repo:** Add Contact Us page with support and provider inquiry paths.
+- [x] **Repo:** Improve public provider browse/detail pages using real backend provider data.
 - [ ] **Repo:** Polish public web visuals and app download CTAs.
 
 ### Phase 6 - Final Release QA
@@ -123,6 +123,15 @@ Official references:
 - RevenueCat SDK configuration: https://www.revenuecat.com/docs/getting-started/configuring-sdk
 - RevenueCat API keys: https://www.revenuecat.com/docs/projects/authentication
 - RevenueCat React Native SDK: https://www.revenuecat.com/docs/getting-started/installation/reactnative
+
+## RevenueCat Key Rules
+
+- Local Expo/dev testing -> `EXPO_PUBLIC_REVENUECAT_TEST_API_KEY=test_...`
+- TestFlight iOS testing -> `EXPO_PUBLIC_REVENUECAT_IOS_API_KEY=appl_...`
+- Google Play internal testing -> `EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY=goog_...`
+- App Review / production -> `appl_...` for iOS and `goog_...` for Android
+
+Never submit a TestFlight, Google Play, App Review, or production build with the Test Store `test_...` key. The mobile code only uses the Test Store key while `__DEV__` is true; release builds require the platform-specific keys.
 
 ## iOS App Store Connect Setup
 
@@ -215,6 +224,14 @@ The backend base is good, but before production we should harden:
    - webhook idempotency once added
 5. Confirm `revenue_cat_transaction_id` has a DB uniqueness strategy if product flow requires global idempotency.
 
+Completed repo hardening:
+
+- `revenue_cat_transaction_id` is globally unique for non-null purchase rows.
+- Same-user duplicate grants are idempotent.
+- Cross-user duplicate grants are blocked.
+- Credit grants recover missing balance rows.
+- Credit grant metadata now stores product, platform, store, store transaction id, RevenueCat app user id, environment, and sandbox flag when provided.
+
 ## App Store Readiness TODO
 
 1. Run through moderation flows on device:
@@ -243,46 +260,50 @@ The backend base is good, but before production we should harden:
 Before launch, tighten registration and admin access flows:
 
 1. Add email OTP to admin login:
-   - admin enters email/password
-   - backend verifies credentials
-   - backend sends email OTP
-   - admin submits OTP before receiving dashboard token/session
-   - rate-limit OTP requests and attempts
-   - expire OTPs quickly
-   - log failed attempts for risk review
+   - [x] admin enters email/password
+   - [x] backend verifies credentials
+   - [x] backend sends email OTP
+   - [x] admin submits OTP before receiving dashboard token/session
+   - [x] rate-limit OTP requests and attempts
+   - [x] expire OTPs quickly
+   - [x] log failed attempts for risk review
 2. Remove email OTP from mobile user registration:
-   - mobile registration should be phone-first
-   - phone OTP becomes the primary verification path
-   - email can remain optional or later verified from profile/settings
+   - [x] mobile registration should be phone-first
+   - [x] phone OTP becomes the primary verification path
+   - [x] email is still collected, but no longer used as the mobile registration OTP path
 3. Limit one user creating many accounts:
-   - enforce unique phone numbers
-   - reject blacklisted phone numbers
-   - keep device fingerprint capture active
-   - flag repeated registrations from the same device/IP
-   - route suspicious patterns into admin risk review
+   - [x] enforce unique phone numbers
+   - [x] reject blacklisted phone numbers
+   - [x] keep device fingerprint capture active
+   - [x] flag repeated registrations from the same device/IP
+   - [x] route suspicious patterns into admin risk review
 4. Keep provider web registration separate:
-   - provider registration can continue using email OTP because it starts from web/business onboarding
-   - provider approval still sends password setup email after admin review
+   - [x] provider registration can continue using email OTP because it starts from web/business onboarding
+   - [x] provider approval still sends password setup email after admin review
 5. Add tests:
-   - admin cannot log in without OTP
-   - admin OTP expires
-   - wrong admin OTP is rejected
-   - user mobile registration requires phone OTP
-   - duplicate phone registration is blocked
-   - suspicious duplicate device/IP registrations create a risk signal
+   - [x] admin cannot log in without OTP
+   - [x] admin OTP expires
+   - [x] wrong admin OTP is rejected
+   - [x] user mobile registration requires phone OTP
+   - [x] email OTP is rejected for mobile user registration
+   - [x] provider web registration still requires valid email OTP
+   - [x] duplicate phone registration is blocked
+   - [x] suspicious duplicate device/IP registrations create a risk signal
 
 ## Web TODO
 
 1. Add Contact Us page:
-   - contact form
-   - support email
-   - provider inquiry path
-   - privacy/safety links
+   - [x] contact form
+   - [x] support email
+   - [x] provider inquiry path
+   - [x] privacy/safety links
+   - [x] backend public contact endpoint with anti-spam challenge
+   - [x] admin contact management module with access control, pagination, thread replies, and delete
 2. Improve public provider pages:
-   - real provider imagery
-   - polished city/category layout
-   - clearer voucher/date value proposition
-   - stronger mobile responsive design
+   - [x] real provider imagery
+   - [x] polished city/category layout
+   - [x] clearer voucher/date value proposition
+   - [x] stronger mobile responsive design
 3. Add stronger production web aesthetics:
    - less placeholder feel
    - real provider cards

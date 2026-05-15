@@ -3,7 +3,11 @@ import { NavLink } from 'react-router-dom'
 import type { AdminUser } from '../../types/admin'
 
 type NavItem = {
-  accessKey?: 'can_manage_admin_users' | 'can_view_financial_credits' | 'can_view_financial_vouchers'
+  accessKey?:
+    | 'can_manage_admin_users'
+    | 'can_manage_contact_messages'
+    | 'can_view_financial_credits'
+    | 'can_view_financial_vouchers'
   badgeKey?: string
   enabled: boolean
   href?: string
@@ -22,6 +26,13 @@ const navItems: NavItem[] = [
   { label: 'Appeals', to: '/admin/moderation/appeals', enabled: true },
   { label: 'Risk', to: '/admin/risk', enabled: true },
   { label: 'Support', to: '/admin/support', enabled: true, badgeKey: 'support_needs_admin' },
+  {
+    label: 'Contact',
+    to: '/admin/contact',
+    enabled: true,
+    accessKey: 'can_manage_contact_messages',
+    badgeKey: 'contact_needs_admin',
+  },
   { label: 'Financials', enabled: true, section: true },
   {
     label: 'Vouchers',
@@ -107,6 +118,7 @@ export function AdminShell({
                 <TopbarCounter label="Providers" value={stats.providers_pending ?? 0} />
                 <TopbarCounter label="Moderation" value={moderationAttentionCount(stats)} />
                 <TopbarCounter label="Support" value={stats.support_needs_admin ?? 0} />
+                <TopbarCounter label="Contact" value={stats.contact_needs_admin ?? 0} />
                 <button
                   type="button"
                   aria-label="Admin activity feed"
@@ -117,7 +129,8 @@ export function AdminShell({
                     value={
                       (stats.providers_pending ?? 0) +
                       moderationAttentionCount(stats) +
-                      (stats.support_needs_admin ?? 0)
+                      (stats.support_needs_admin ?? 0) +
+                      (stats.contact_needs_admin ?? 0)
                     }
                   />
                 </button>
@@ -147,7 +160,11 @@ function moderationAttentionCount(stats: Record<string, number>) {
 
 function canUseNavItem(
   admin: AdminUser | null,
-  accessKey?: 'can_manage_admin_users' | 'can_view_financial_credits' | 'can_view_financial_vouchers',
+  accessKey?:
+    | 'can_manage_admin_users'
+    | 'can_manage_contact_messages'
+    | 'can_view_financial_credits'
+    | 'can_view_financial_vouchers',
 ) {
   if (!accessKey) return true
 

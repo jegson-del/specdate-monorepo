@@ -12,11 +12,13 @@ class AdminAccessService
     public const FINANCIAL_VOUCHERS = 'can_view_financial_vouchers';
     public const FINANCIAL_CREDITS = 'can_view_financial_credits';
     public const MANAGE_ADMIN_USERS = 'can_manage_admin_users';
+    public const MANAGE_CONTACT_MESSAGES = 'can_manage_contact_messages';
 
     private const LABELS = [
         self::FINANCIAL_VOUCHERS => 'Voucher financials',
         self::FINANCIAL_CREDITS => 'Credit financials',
         self::MANAGE_ADMIN_USERS => 'Admin management',
+        self::MANAGE_CONTACT_MESSAGES => 'Contact messages',
     ];
 
     public function assertCan(User $admin, string $permission): void
@@ -76,6 +78,7 @@ class AdminAccessService
         $access = AdminAccess::firstOrNew(['admin_id' => $targetAdmin->id]);
         $access->forceFill(
             collect($this->permissionKeys())
+                ->filter(fn (string $key) => array_key_exists($key, $data))
                 ->mapWithKeys(fn (string $key) => [$key => (bool) ($data[$key] ?? false)])
                 ->all()
         )->save();
@@ -104,6 +107,7 @@ class AdminAccessService
             self::FINANCIAL_VOUCHERS => 'Admin voucher financial access required.',
             self::FINANCIAL_CREDITS => 'Admin credit financial access required.',
             self::MANAGE_ADMIN_USERS => 'Admin management access required.',
+            self::MANAGE_CONTACT_MESSAGES => 'Admin contact message access required.',
             default => 'Admin access permission required.',
         };
     }

@@ -12,6 +12,11 @@ export type GrantCreditsPayload = {
     product_id: string;
     revenue_cat_transaction_id: string;
     platform?: string | null;
+    store?: string | null;
+    store_transaction_id?: string | null;
+    revenue_cat_app_user_id?: string | null;
+    environment?: string | null;
+    is_sandbox?: boolean | null;
     currency?: string | null;
     amount?: number | null;
 };

@@ -63,7 +63,9 @@ class IpRiskService
         return match ($eventType) {
             IpRiskEvent::EVENT_REPORT_RATE_LIMIT,
             IpRiskEvent::EVENT_APPEAL_RATE_LIMIT,
-            IpRiskEvent::EVENT_FALSE_REPORT_PATTERN => IpRiskEvent::SEVERITY_MEDIUM,
+            IpRiskEvent::EVENT_FALSE_REPORT_PATTERN,
+            IpRiskEvent::EVENT_REGISTRATION_IP_CLUSTER => IpRiskEvent::SEVERITY_MEDIUM,
+            IpRiskEvent::EVENT_DUPLICATE_DEVICE_REGISTRATION => IpRiskEvent::SEVERITY_HIGH,
             default => IpRiskEvent::SEVERITY_LOW,
         };
     }
@@ -74,6 +76,8 @@ class IpRiskService
             IpRiskEvent::EVENT_REPORT_RATE_LIMIT => 5,
             IpRiskEvent::EVENT_APPEAL_RATE_LIMIT => 4,
             IpRiskEvent::EVENT_FALSE_REPORT_PATTERN => 6,
+            IpRiskEvent::EVENT_DUPLICATE_DEVICE_REGISTRATION => 8,
+            IpRiskEvent::EVENT_REGISTRATION_IP_CLUSTER => 5,
             default => 1,
         };
     }

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, ScrollView, Alert, Image as RNImage, Platform, TouchableOpacity } from 'react-native';
-import { Text, TextInput, Button, IconButton, useTheme, RadioButton, SegmentedButtons, Checkbox } from 'react-native-paper';
+import { Text, TextInput, Button, IconButton, useTheme, Checkbox } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MotiView } from 'moti';
 import { z } from 'zod';
@@ -69,7 +69,7 @@ export default function RegisterScreen({ navigation }: any) {
     const theme = useTheme();
     const insets = useSafeAreaInsets();
 
-    const [step, setStep] = useState(1); // 1: Details, 2: OTP Channel
+    const [step, setStep] = useState(1); // 1: Details, 2: Phone verification
     const [loading, setLoading] = useState(false);
     const [termsAccepted, setTermsAccepted] = useState(false);
     const [showDobPicker, setShowDobPicker] = useState(false);
@@ -90,7 +90,6 @@ export default function RegisterScreen({ navigation }: any) {
         continent: '',
     });
 
-    const [otpChannel, setOtpChannel] = useState('email');
     const [locLoading, setLocLoading] = useState(false);
     const [locHint, setLocHint] = useState<string | null>(null);
     const adultDobLimit = latestAdultDob();
@@ -211,11 +210,11 @@ export default function RegisterScreen({ navigation }: any) {
     const handleSubmit = async () => {
         setLoading(true);
         try {
-            const target = otpChannel === 'email' ? form.email : form.mobile;
-            await AuthService.sendOtp(otpChannel as 'email' | 'mobile', target);
+            const target = form.mobile.trim();
+            await AuthService.sendOtp('mobile', target);
             navigation.navigate('OtpVerification', {
                 formData: { ...form, name: form.username, terms_accepted: true },
-                channel: otpChannel,
+                channel: 'mobile',
                 target,
             });
         } catch (error: any) {
@@ -263,7 +262,7 @@ export default function RegisterScreen({ navigation }: any) {
                 >
 
                     <Text variant="bodyMedium" style={{ color: theme.colors.onBackground, textAlign: 'center', marginBottom: 10 }}>
-                        {step === 1 ? "Join the quest for your perfect spec." : "Where should we send your code?"}
+                        {step === 1 ? "Join the quest for your perfect spec." : "Verify your phone number"}
                     </Text>
                 </MotiView>
 
@@ -381,24 +380,8 @@ export default function RegisterScreen({ navigation }: any) {
 
                     {step === 2 && (
                         <View style={styles.channelSelect}>
-                            <SegmentedButtons
-                                value={otpChannel}
-                                onValueChange={setOtpChannel}
-                                buttons={[
-                                    {
-                                        value: 'email',
-                                        label: 'Email',
-                                        icon: 'email',
-                                    },
-                                    {
-                                        value: 'mobile',
-                                        label: 'SMS',
-                                        icon: 'message-processing',
-                                    },
-                                ]}
-                            />
                             <Text style={{ marginTop: 20, textAlign: 'center', color: theme.colors.onSurface }}>
-                                We will send a 6-digit code to: {otpChannel === 'email' ? form.email : form.mobile}
+                                We will send a 6-digit SMS code to {form.mobile}.
                             </Text>
 
                             <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 24, paddingHorizontal: 4 }}>

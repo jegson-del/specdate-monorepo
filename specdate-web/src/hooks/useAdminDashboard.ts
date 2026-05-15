@@ -26,7 +26,9 @@ import {
   updateAdminModerationCase,
   updateAdminReport,
   updateAdminSupportTicketStatus,
+  verifyAdminLoginOtp,
 } from '../lib/adminApi'
+import type { AdminLoginResult } from '../lib/adminApi'
 import type {
   AdminMediaModerationStatus,
   AdminModerationAppealStatus,
@@ -64,6 +66,13 @@ type ReportUpdatePayload = {
 type CaseUpdatePayload = {
   note?: string
   status: Exclude<AdminModerationCaseStatus, 'all' | 'open' | 'appealed'>
+}
+
+type AdminLoginVariables = {
+  email: string
+  loginChallenge?: string
+  otpCode?: string
+  password: string
 }
 
 const adminQueryKeys = {
@@ -313,17 +322,33 @@ export function useAdminDashboard({
     queryClient.invalidateQueries({ queryKey: ['admin', 'support'] })
   }, [queryClient])
 
-  const loginMutation = useMutation({
-    mutationFn: ({ email, password }: { email: string; password: string }) =>
-      adminLogin(email, password),
+  const loginMutation = useMutation<AdminLoginResult, Error, AdminLoginVariables>({
+    mutationFn: ({
+      email,
+      loginChallenge,
+      otpCode,
+      password,
+    }) =>
+      loginChallenge && otpCode
+        ? verifyAdminLoginOtp(email, loginChallenge, otpCode)
+        : adminLogin(email, password),
     onError: (error) => {
       showAlert({
         tone: 'error',
         title: 'Admin login failed',
-        message: error instanceof Error ? error.message : 'Check the admin email and password.',
+        message: error instanceof Error ? error.message : 'Check the admin login details.',
       })
     },
     onSuccess: (result) => {
+      if ('requires_otp' in result) {
+        showAlert({
+          tone: 'success',
+          title: 'Check your email',
+          message: 'Enter the admin verification code to finish signing in.',
+        })
+        return
+      }
+
       localStorage.setItem(adminTokenKey, result.token)
       setToken(result.token)
       queryClient.setQueryData(adminQueryKeys.me, result.user)
@@ -647,7 +672,12 @@ export function useAdminDashboard({
       reportsQuery.isFetching ||
       supportQuery.isFetching,
     isLoggingIn: loginMutation.isPending,
-    login: (email: string, password: string) => loginMutation.mutate({ email, password }),
+    login: (
+      email: string,
+      password: string,
+      otpCode?: string,
+      loginChallenge?: string,
+    ) => loginMutation.mutateAsync({ email, loginChallenge, otpCode, password }),
     approveMedia: (mediaId: number) => approveMediaMutation.mutate(mediaId),
     approvingMediaId: approveMediaMutation.isPending ? approveMediaMutation.variables : null,
     mediaModerationItems: mediaModerationQuery.data?.items ?? [],

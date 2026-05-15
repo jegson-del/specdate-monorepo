@@ -56,6 +56,7 @@ const defaultSocialLinks: SocialLink[] = [
 
 const legalLinks = [
   { label: 'Terms', href: '/terms' },
+  { label: 'Contact', href: '/contact' },
   { label: 'Privacy', href: '/privacy' },
   { label: 'Cookie Policy', href: '/cookie-policy' },
   { label: 'Trust and Safety', href: '/trustandsafety' },

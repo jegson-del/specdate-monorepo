@@ -22,8 +22,6 @@ export default function OtpVerificationScreen({ navigation, route }: any) {
     }, [code]);
 
     const handleVerify = async () => {
-        // TEMP BYPASS:
-        // Until OTP is implemented, accept any code and just register.
         if (!formData) {
             Alert.alert("Error", "Missing registration data. Please restart registration.");
             return;
@@ -151,6 +149,7 @@ export default function OtpVerificationScreen({ navigation, route }: any) {
                     mode="contained"
                     onPress={handleVerify}
                     loading={loading}
+                    disabled={loading || code.trim().length !== 6}
                     style={styles.button}
                     contentStyle={{ height: 50 }}
                 >

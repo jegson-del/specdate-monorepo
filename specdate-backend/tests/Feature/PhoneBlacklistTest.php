@@ -23,6 +23,9 @@ class PhoneBlacklistTest extends TestCase
             'mobile' => '+44 7700 900999',
             'dob' => now()->subYears(25)->toDateString(),
             'password' => 'Password123!',
+            'otp_code' => '123456',
+            'channel' => 'mobile',
+            'target' => '+44 7700 900999',
             'terms_accepted' => true,
         ])->assertUnprocessable()
             ->assertJsonPath('message', 'This phone number cannot be used on DateUsher.')
@@ -72,6 +75,8 @@ class PhoneBlacklistTest extends TestCase
 
     public function test_expired_blacklist_entry_does_not_block_registration(): void
     {
+        Cache::put('otp:mobile:+447700900997', '123456', 600);
+
         PhoneBlacklistEntry::create([
             'phone' => '+447700900997',
             'normalized_phone' => '+447700900997',
@@ -86,6 +91,9 @@ class PhoneBlacklistTest extends TestCase
             'mobile' => '+447700900997',
             'dob' => now()->subYears(25)->toDateString(),
             'password' => 'Password123!',
+            'otp_code' => '123456',
+            'channel' => 'mobile',
+            'target' => '+447700900997',
             'terms_accepted' => true,
         ])->assertCreated();
 

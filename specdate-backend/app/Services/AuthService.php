@@ -158,22 +158,28 @@ class AuthService
             );
         }
 
-        $otpCode = isset($data['otp_code'], $data['channel'], $data['target'])
-            ? trim((string) $data['otp_code'])
-            : null;
-        $channel = $data['channel'] ?? null;
-        $target = isset($data['target']) ? trim((string) $data['target']) : null;
+        $otpCode = trim((string) $data['otp_code']);
+        $channel = (string) $data['channel'];
+        $target = trim((string) $data['target']);
 
-        if ($otpCode !== null && $channel && $target) {
-            if (!$this->verifyOtp($channel, $target, $otpCode)) {
-                throw new HttpResponseException(
-                    response()->json([
-                        'success' => false,
-                        'message' => 'Invalid or expired verification code.',
-                        'data' => ['errors' => ['otp_code' => ['Invalid or expired code.']]],
-                    ], 422, [], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)
-                );
-            }
+        if ($channel !== 'mobile' || $this->normalizedPhone($target) !== $this->normalizedPhone((string) $data['mobile'])) {
+            throw new HttpResponseException(
+                response()->json([
+                    'success' => false,
+                    'message' => 'Phone verification must match the mobile number on the account.',
+                    'data' => ['errors' => ['target' => ['Phone verification must match the mobile number.']]],
+                ], 422, [], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)
+            );
+        }
+
+        if (!$this->verifyOtp($channel, $target, $otpCode)) {
+            throw new HttpResponseException(
+                response()->json([
+                    'success' => false,
+                    'message' => 'Invalid or expired verification code.',
+                    'data' => ['errors' => ['otp_code' => ['Invalid or expired code.']]],
+                ], 422, [], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)
+            );
         }
 
         $name = $data['name'] ?? $data['username'];
@@ -248,5 +254,10 @@ class AuthService
             'user' => $user,
             'token' => $token
         ];
+    }
+
+    private function normalizedPhone(string $phone): string
+    {
+        return preg_replace('/\s+/', '', trim($phone)) ?? trim($phone);
     }
 }

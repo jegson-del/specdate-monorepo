@@ -64,6 +64,32 @@ class ProviderMarketplaceTest extends TestCase
             ->assertJsonPath('data.data.0.isVerified', true);
     }
 
+    public function test_public_web_can_list_verified_provider_profiles_without_auth(): void
+    {
+        $provider = User::factory()->create(['role' => 'provider', 'name' => 'Provider Owner']);
+        $category = ProviderCategory::create(['name' => 'Restaurant', 'slug' => 'restaurant']);
+        $profile = ProviderProfile::create([
+            'user_id' => $provider->id,
+            'company_name' => 'Public Table',
+            'city' => 'London',
+            'country' => 'United Kingdom',
+            'discount_percentage' => 15,
+            'is_verified' => true,
+        ]);
+        $profile->categories()->attach($category->id);
+
+        $this->getJson('/api/public/providers')
+            ->assertOk()
+            ->assertJsonPath('data.data.0.id', $profile->id)
+            ->assertJsonPath('data.data.0.name', 'Public Table')
+            ->assertJsonPath('data.data.0.category', 'Restaurant');
+
+        $this->getJson("/api/public/providers/{$profile->id}")
+            ->assertOk()
+            ->assertJsonPath('data.id', $profile->id)
+            ->assertJsonPath('data.name', 'Public Table');
+    }
+
     public function test_provider_detail_returns_gallery_and_voucher_ready_ids(): void
     {
         $dater = User::factory()->create();
@@ -171,6 +197,9 @@ class ProviderMarketplaceTest extends TestCase
             'role' => 'provider',
             'dob' => now()->subYears(25)->toDateString(),
             'password' => 'Password123!',
+            'otp_code' => '123456',
+            'channel' => 'mobile',
+            'target' => '+447700900123',
             'terms_accepted' => true,
         ])
             ->assertUnprocessable()

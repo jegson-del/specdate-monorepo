@@ -3,12 +3,15 @@
 namespace App\Services;
 
 use App\Mail\NewProviderAdminNotificationMail;
+use App\Mail\ContactFormSubmittedMail;
+use App\Mail\ContactTicketReplyMail;
 use App\Mail\OtpMail;
 use App\Mail\ProviderApprovedMail;
 use App\Mail\SpecReminderMail;
 use App\Mail\WelcomeProviderMail;
 use App\Mail\WelcomeUserMail;
 use App\Models\Spec;
+use App\Models\SupportTicket;
 use App\Models\User;
 use Illuminate\Mail\Mailable;
 use Illuminate\Support\Facades\Log;
@@ -84,6 +87,39 @@ class EmailService
                 'user_id' => $user->id,
                 'spec_id' => $spec->id,
                 'timing' => $timing,
+            ]
+        );
+    }
+
+    public function sendContactFormSubmitted(SupportTicket $ticket, string $messageBody): bool
+    {
+        $contactEmail = config('mail.contact_address') ?: config('mail.admin_address') ?: config('mail.from.address');
+
+        return $this->dispatch(
+            $contactEmail,
+            new ContactFormSubmittedMail($ticket, $messageBody),
+            'Contact form notification email queue failed',
+            [
+                'ticket_id' => $ticket->id,
+                'contact_email' => $ticket->contact_email,
+                'recipient' => $contactEmail,
+            ]
+        );
+    }
+
+    public function sendContactTicketReply(SupportTicket $ticket, string $replyBody): bool
+    {
+        if (!$ticket->contact_email) {
+            return false;
+        }
+
+        return $this->dispatch(
+            $ticket->contact_email,
+            new ContactTicketReplyMail($ticket, $replyBody),
+            'Contact ticket reply email queue failed',
+            [
+                'ticket_id' => $ticket->id,
+                'contact_email' => $ticket->contact_email,
             ]
         );
     }

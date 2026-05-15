@@ -13,6 +13,7 @@ import {
 const NAV_LINKS = [
   { label: 'How it works', href: '#how-it-works' },
   { label: 'Success stories', href: '#success-stories' },
+  { label: 'Contact', href: '/contact' },
   { label: 'Register as provider', href: '/register/provider' },
 ] as const
 

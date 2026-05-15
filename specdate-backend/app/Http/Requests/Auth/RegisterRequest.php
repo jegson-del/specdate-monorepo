@@ -25,10 +25,10 @@ class RegisterRequest extends ApiFormRequest
             'state' => 'nullable|string|max:255',
             'country' => 'nullable|string|max:255',
             'continent' => 'nullable|string|max:255',
-            // OTP verification (required when using OTP flow; send via send-otp first)
-            'otp_code' => 'nullable|string|size:6',
-            'channel' => 'nullable|string|in:email,mobile',
-            'target' => 'nullable|string|max:255',
+            // Mobile user registration is phone-first; provider web onboarding uses a separate route.
+            'otp_code' => 'required|string|size:6',
+            'channel' => 'required|string|in:mobile',
+            'target' => 'required|string|max:255',
             'terms_accepted' => 'required|accepted',
         ];
     }
@@ -38,6 +38,8 @@ class RegisterRequest extends ApiFormRequest
         return [
             'dob.required' => 'Date of birth is required.',
             'dob.before_or_equal' => 'You must be 18 or older to use DateUsher.',
+            'otp_code.required' => 'Phone verification code is required.',
+            'channel.in' => 'Mobile phone verification is required for registration.',
         ];
     }
 }

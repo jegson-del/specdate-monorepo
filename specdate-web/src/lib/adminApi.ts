@@ -12,6 +12,9 @@ import type {
   AdminFinancialVoucherSummary,
   AdminAccess,
   AdminAccessPermission,
+  AdminContactMessage,
+  AdminContactThread,
+  AdminContactTicket,
   AdminManagedAdmin,
   AdminMediaModerationItem,
   AdminMediaModerationStatus,
@@ -56,6 +59,20 @@ type Paginated<T> = {
   to?: number | null
   total?: number
 }
+
+export type AdminLoginChallenge = {
+  email: string
+  expires_in: number
+  login_challenge: string
+  requires_otp: true
+}
+
+export type AdminLoginSession = {
+  user: AdminUser
+  token: string
+}
+
+export type AdminLoginResult = AdminLoginChallenge | AdminLoginSession
 
 export type AdminFinancialVoucherFilters = {
   date?: string
@@ -105,13 +122,36 @@ export async function adminLogin(email: string, password: string) {
     },
     body: JSON.stringify({ email, password }),
   })
-  const result = (await parseJson(response)) as ApiEnvelope<{
-    user: AdminUser
-    token: string
-  }> | null
+  const result = (await parseJson(response)) as ApiEnvelope<AdminLoginChallenge> | null
 
   if (!response.ok || !result) {
     throw new Error(pickApiError(result, 'Check the admin email and password.'))
+  }
+
+  return result.data
+}
+
+export async function verifyAdminLoginOtp(
+  email: string,
+  loginChallenge: string,
+  otpCode: string,
+) {
+  const response = await fetch(`${getApiBase()}/api/admin/login/verify-otp`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      email,
+      login_challenge: loginChallenge,
+      otp_code: otpCode,
+    }),
+  })
+  const result = (await parseJson(response)) as ApiEnvelope<AdminLoginSession> | null
+
+  if (!response.ok || !result) {
+    throw new Error(pickApiError(result, 'Check the admin verification code.'))
   }
 
   return result.data
@@ -678,6 +718,96 @@ export async function getAdminSupportTickets(
   }
 
   return paginatedResult(result.data, page, perPage)
+}
+
+export async function getAdminContactTickets(
+  token: string,
+  status: AdminSupportTicketStatus,
+  page = 1,
+  perPage = 25,
+) {
+  const query = new URLSearchParams({ page: String(page), per_page: String(perPage) })
+  if (status !== 'all') {
+    query.set('status', status)
+  }
+
+  const response = await fetch(`${getApiBase()}/api/admin/contact?${query.toString()}`, {
+    headers: adminHeaders(token),
+  })
+  const result = (await parseJson(response)) as ApiEnvelope<Paginated<AdminContactTicket>> | null
+
+  if (!response.ok || !result) {
+    throw new Error(pickApiError(result, 'Contact messages could not be loaded.'))
+  }
+
+  return paginatedResult(result.data, page, perPage)
+}
+
+export async function getAdminContactThread(token: string, ticketId: number) {
+  const response = await fetch(`${getApiBase()}/api/admin/contact/${ticketId}`, {
+    headers: adminHeaders(token),
+  })
+  const result = (await parseJson(response)) as ApiEnvelope<AdminContactThread> | null
+
+  if (!response.ok || !result) {
+    throw new Error(pickApiError(result, 'Contact thread could not be loaded.'))
+  }
+
+  return result.data
+}
+
+export async function replyAdminContact(token: string, ticketId: number, body: string) {
+  const response = await fetch(`${getApiBase()}/api/admin/contact/${ticketId}/reply`, {
+    method: 'POST',
+    headers: {
+      ...adminHeaders(token),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ body }),
+  })
+  const result = (await parseJson(response)) as ApiEnvelope<AdminContactMessage> | null
+
+  if (!response.ok || !result) {
+    throw new Error(pickApiError(result, 'Contact reply could not be sent.'))
+  }
+
+  return result.data
+}
+
+export async function updateAdminContactStatus(
+  token: string,
+  ticketId: number,
+  status: Exclude<AdminSupportTicketStatus, 'all'>,
+) {
+  const response = await fetch(`${getApiBase()}/api/admin/contact/${ticketId}`, {
+    method: 'PATCH',
+    headers: {
+      ...adminHeaders(token),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ status }),
+  })
+  const result = (await parseJson(response)) as ApiEnvelope<AdminContactTicket> | null
+
+  if (!response.ok || !result) {
+    throw new Error(pickApiError(result, 'Contact status could not be updated.'))
+  }
+
+  return result.data
+}
+
+export async function deleteAdminContact(token: string, ticketId: number) {
+  const response = await fetch(`${getApiBase()}/api/admin/contact/${ticketId}`, {
+    method: 'DELETE',
+    headers: adminHeaders(token),
+  })
+  const result = (await parseJson(response)) as { message?: string } | null
+
+  if (!response.ok) {
+    throw new Error(pickApiError(result, 'Contact message could not be deleted.'))
+  }
+
+  return result?.message || 'Contact message deleted.'
 }
 
 export async function getAdminSupportTicket(token: string, ticketId: number) {

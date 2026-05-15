@@ -13,6 +13,7 @@ class SupportTicket extends Model
         'moderation',
         'privacy',
         'technical',
+        'provider',
         'other',
     ];
 
@@ -26,6 +27,9 @@ class SupportTicket extends Model
 
     protected $fillable = [
         'user_id',
+        'contact_name',
+        'contact_email',
+        'contact_ip_address',
         'category',
         'subject',
         'status',

@@ -8,6 +8,7 @@ use App\Models\UserBalance;
 use App\Models\UserTransaction;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -38,6 +39,11 @@ class CreditsController extends Controller
             'platform' => 'nullable|string|max:32',
             'currency' => 'nullable|string|size:3',  // From RevenueCat, ISO 4217 (e.g. USD, GBP, EUR)
             'amount' => 'nullable|numeric|min:0',   // Price paid from RevenueCat for tracking
+            'store' => 'nullable|string|max:64',
+            'store_transaction_id' => 'nullable|string|max:255',
+            'revenue_cat_app_user_id' => 'nullable|string|max:255',
+            'environment' => 'nullable|string|max:32',
+            'is_sandbox' => 'nullable|boolean',
         ]);
 
         $user = $request->user();
@@ -51,11 +57,15 @@ class CreditsController extends Controller
         }
         $quantity = $product->quantity;
 
-        // Idempotency: already granted for this RevenueCat transaction?
-        $existing = UserTransaction::where('user_id', $user->id)
+        // Idempotency: a RevenueCat/store transaction can only fund one backend user.
+        $existing = UserTransaction::whereNotNull('revenue_cat_transaction_id')
             ->where('type', 'CREDIT')
             ->where('revenue_cat_transaction_id', $txId)
-            ->exists();
+            ->first();
+
+        if ($existing && (int) $existing->user_id !== (int) $user->id) {
+            throw new HttpException(409, 'This purchase transaction has already been used by another account.');
+        }
 
         if ($existing) {
             $balance = $user->balance;
@@ -65,14 +75,10 @@ class CreditsController extends Controller
             ], 200);
         }
 
-        $balance = $user->balance;
-        if (!$balance) {
-            $balance = UserBalance::create(['user_id' => $user->id, 'credits' => 0]);
-        }
+        $balance = $user->balance ?: UserBalance::create(['user_id' => $user->id, 'credits' => 0]);
 
         DB::transaction(function () use ($user, $balance, $quantity, $productId, $validated, $txId) {
             $balance->increment('credits', $quantity);
-            // Store RevenueCat transaction id and currency on the row for proper tracking
             $user->transactions()->create([
                 'type' => 'CREDIT',
                 'item_type' => $productId,
@@ -81,10 +87,15 @@ class CreditsController extends Controller
                 'currency' => $validated['currency'] ?? null,
                 'purpose' => 'Purchased (RevenueCat)',
                 'revenue_cat_transaction_id' => $txId,
-                'metadata' => [
+                'metadata' => array_filter([
                     'product_id' => $productId,
                     'platform' => $validated['platform'] ?? null,
-                ],
+                    'store' => $validated['store'] ?? null,
+                    'store_transaction_id' => $validated['store_transaction_id'] ?? null,
+                    'revenue_cat_app_user_id' => $validated['revenue_cat_app_user_id'] ?? null,
+                    'environment' => $validated['environment'] ?? null,
+                    'is_sandbox' => Arr::exists($validated, 'is_sandbox') ? (bool) $validated['is_sandbox'] : null,
+                ], fn ($value) => $value !== null),
             ]);
         });
 

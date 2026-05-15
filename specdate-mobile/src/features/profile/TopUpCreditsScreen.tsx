@@ -106,6 +106,11 @@ export default function TopUpCreditsScreen() {
         product_id: transaction.productIdentifier,
         revenue_cat_transaction_id: transaction.transactionIdentifier,
         platform: Platform.OS,
+        store: Platform.OS,
+        store_transaction_id: transaction.transactionIdentifier,
+        revenue_cat_app_user_id: user?.id != null ? String(user.id) : null,
+        environment: __DEV__ ? 'development' : 'production',
+        is_sandbox: __DEV__,
         currency: rcPackage?.product.currencyCode ?? null,
         amount: rcPackage?.product.price ?? null,
       });
@@ -141,6 +146,11 @@ export default function TopUpCreditsScreen() {
         product_id: row.product.product_id,
         revenue_cat_transaction_id: transactionId,
         platform: Platform.OS,
+        store: Platform.OS,
+        store_transaction_id: transactionId,
+        revenue_cat_app_user_id: user?.id != null ? String(user.id) : null,
+        environment: __DEV__ ? 'development' : 'production',
+        is_sandbox: __DEV__,
         currency: product.currencyCode,
         amount: product.price,
       });

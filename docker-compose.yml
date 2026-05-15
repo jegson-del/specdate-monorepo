@@ -33,6 +33,32 @@ services:
       && php artisan storage:link 2>/dev/null || true
       && php artisan serve --host=0.0.0.0 --port=8000"
 
+  specdate-scheduler:
+    build:
+      context: ./specdate-backend
+      dockerfile: Dockerfile
+    container_name: specdate-scheduler
+    working_dir: /var/www
+    env_file:
+      - ./specdate-backend/.env
+    environment:
+      APP_URL: http://localhost:8001
+      DB_CONNECTION: mysql
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_DATABASE: specdate
+      DB_USERNAME: root
+      DB_PASSWORD: root
+    volumes:
+      - ./specdate-backend:/var/www
+      - specdate_backend_vendor:/var/www/vendor
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      sh -lc "composer install --no-interaction --prefer-dist
+      && php artisan schedule:work"
+
   db:
     image: mysql:8.0
     container_name: specdate-mysql
@@ -66,4 +92,3 @@ services:
 volumes:
   specdate_mysql:
   specdate_backend_vendor:
-

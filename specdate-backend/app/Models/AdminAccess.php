@@ -11,12 +11,14 @@ class AdminAccess extends Model
         'can_view_financial_vouchers',
         'can_view_financial_credits',
         'can_manage_admin_users',
+        'can_manage_contact_messages',
     ];
 
     protected $casts = [
         'can_view_financial_vouchers' => 'boolean',
         'can_view_financial_credits' => 'boolean',
         'can_manage_admin_users' => 'boolean',
+        'can_manage_contact_messages' => 'boolean',
     ];
 
     public function admin()

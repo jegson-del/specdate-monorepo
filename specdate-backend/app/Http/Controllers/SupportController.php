@@ -41,6 +41,37 @@ class SupportController extends Controller
         return $this->sendResponse($ticket, 'Support ticket created.', 201);
     }
 
+    public function publicContact(Request $request)
+    {
+        $data = $request->validate([
+            'name' => 'required|string|max:160',
+            'email' => 'required|email|max:254',
+            'category' => ['required', 'string', Rule::in(SupportTicket::CATEGORIES)],
+            'subject' => 'required|string|max:160',
+            'message' => 'required|string|max:4000',
+            'captcha_a' => 'required|integer|min:1|max:20',
+            'captcha_b' => 'required|integer|min:1|max:20',
+            'captcha_answer' => 'required|integer|min:2|max:40',
+            'website' => 'nullable|string|max:0',
+        ]);
+
+        if ((int) $data['captcha_answer'] !== ((int) $data['captcha_a'] + (int) $data['captcha_b'])) {
+            return $this->sendError('Please answer the anti-spam question correctly.', [
+                'errors' => ['captcha_answer' => ['The anti-spam answer is incorrect.']],
+            ], 422);
+        }
+
+        $ticket = $this->supportService->createPublicContactTicket(
+            $data,
+            (string) $request->ip(),
+            (string) $request->userAgent()
+        );
+
+        return $this->sendResponse([
+            'ticket_id' => $ticket->id,
+        ], 'Message sent. The DateUsher team will review it from the admin support inbox.', 201);
+    }
+
     public function show(Request $request, int $ticket)
     {
         try {
