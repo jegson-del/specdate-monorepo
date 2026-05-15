@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { FlatList, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { ActivityIndicator, SegmentedButtons, Text, TextInput } from 'react-native-paper';
+import { ActivityIndicator, SegmentedButtons, Text } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
@@ -9,6 +9,7 @@ import { UserService } from '../../../services/user';
 import { FEED_KEYS, mapSpecsResponse, tagColor, withAlpha } from '../homeUtils';
 import { FeedKey, HomeColors, HomeTopTab, SpecCardItem } from '../types';
 import PersonCard, { UserItem } from './PersonCard';
+import PeopleLocationFilterModal from './PeopleLocationFilterModal';
 import SearchModal from './SearchModal';
 import SpecCard from './SpecCard';
 
@@ -26,21 +27,10 @@ export default function HomeFeedTab({ theme, homeColors, insets, bottomNavHeight
   const [feed, setFeed] = useState<FeedKey>('LIVE');
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
+  const [locationFilterOpen, setLocationFilterOpen] = useState(false);
   const [sexFilter, setSexFilter] = useState<string>('All');
   const [countryFilter, setCountryFilter] = useState<string>('');
-  const [countryQuery, setCountryQuery] = useState<string>('');
   const [cityFilter, setCityFilter] = useState<string>('');
-  const [cityQuery, setCityQuery] = useState<string>('');
-
-  React.useEffect(() => {
-    const t = setTimeout(() => setCountryQuery(countryFilter.trim()), 400);
-    return () => clearTimeout(t);
-  }, [countryFilter]);
-
-  React.useEffect(() => {
-    const t = setTimeout(() => setCityQuery(cityFilter.trim()), 400);
-    return () => clearTimeout(t);
-  }, [cityFilter]);
 
   const fetchSpecsForFeed = useCallback(async (f: FeedKey, page = 1) => {
     const res = await SpecService.getAll(f, page);
@@ -63,12 +53,12 @@ export default function HomeFeedTab({ theme, homeColors, insets, bottomNavHeight
   const { isLoading, error, isError, refetch, isRefetching } = specsQuery;
 
   const usersQuery = useInfiniteQuery({
-    queryKey: ['users', sexFilter, countryQuery, cityQuery, query],
+    queryKey: ['users', sexFilter, countryFilter, cityFilter, query],
     initialPageParam: 1,
     queryFn: ({ pageParam }) => UserService.getAll({
       sex: sexFilter,
-      country: countryQuery || undefined,
-      city: cityQuery || undefined,
+      country: countryFilter || undefined,
+      city: cityFilter || undefined,
       query,
       page: Number(pageParam),
       per_page: 20,
@@ -99,14 +89,13 @@ export default function HomeFeedTab({ theme, homeColors, insets, bottomNavHeight
     [usersQuery.data]
   );
   const peopleTotal = usersQuery.data?.pages?.[0]?.data?.total;
-  const activePeopleFilterCount = [sexFilter !== 'All', countryQuery, cityQuery, query.trim()].filter(Boolean).length;
+  const activePeopleFilterCount = [sexFilter !== 'All', countryFilter, cityFilter, query.trim()].filter(Boolean).length;
+  const locationLabel = [cityFilter, countryFilter].filter(Boolean).join(', ') || 'Any location';
 
   const clearPeopleFilters = () => {
     setSexFilter('All');
     setCountryFilter('');
-    setCountryQuery('');
     setCityFilter('');
-    setCityQuery('');
     setQuery('');
   };
 
@@ -159,6 +148,19 @@ export default function HomeFeedTab({ theme, homeColors, insets, bottomNavHeight
       </View>
 
       <SearchModal visible={searchOpen} onClose={() => setSearchOpen(false)} tab={tab} query={query} setQuery={setQuery} />
+      <PeopleLocationFilterModal
+        visible={locationFilterOpen}
+        theme={theme}
+        selectedCountry={countryFilter}
+        selectedCity={cityFilter}
+        sex={sexFilter}
+        query={query}
+        onClose={() => setLocationFilterOpen(false)}
+        onApply={({ country, city }) => {
+          setCountryFilter(country);
+          setCityFilter(city);
+        }}
+      />
 
       {tab === 'Specs' ? (
         <View style={[styles.feedWrap, { paddingLeft: insets.left + 16, paddingRight: insets.right + 16 }]}>
@@ -216,36 +218,22 @@ export default function HomeFeedTab({ theme, homeColors, insets, bottomNavHeight
               );
             })}
           </ScrollView>
-          <View style={styles.locationFiltersRow}>
-            <View style={[styles.locationFilterWrap, { backgroundColor: theme.colors.elevation.level2 }]}>
-              <MaterialCommunityIcons name="earth" size={19} color={theme.colors.primary} />
-              <TextInput
-                value={countryFilter}
-                onChangeText={setCountryFilter}
-                placeholder="Country"
-                placeholderTextColor={theme.colors.onSurfaceVariant}
-                mode="flat"
-                underlineColor="transparent"
-                activeUnderlineColor="transparent"
-                style={styles.locationInput}
-                dense
-              />
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => setLocationFilterOpen(true)}
+            style={[styles.locationSelectButton, { backgroundColor: theme.colors.elevation.level2 }]}
+          >
+            <View style={[styles.locationSelectIcon, { backgroundColor: theme.colors.primary + '16' }]}>
+              <MaterialCommunityIcons name="map-search-outline" size={20} color={theme.colors.primary} />
             </View>
-            <View style={[styles.locationFilterWrap, { backgroundColor: theme.colors.elevation.level2 }]}>
-              <MaterialCommunityIcons name="map-marker-outline" size={19} color={theme.colors.primary} />
-              <TextInput
-                value={cityFilter}
-                onChangeText={setCityFilter}
-                placeholder="City"
-                placeholderTextColor={theme.colors.onSurfaceVariant}
-                mode="flat"
-                underlineColor="transparent"
-                activeUnderlineColor="transparent"
-                style={styles.locationInput}
-                dense
-              />
+            <View style={styles.locationSelectCopy}>
+              <Text style={[styles.locationSelectLabel, { color: theme.colors.onSurfaceVariant }]}>Country and city</Text>
+              <Text style={[styles.locationSelectValue, { color: theme.colors.onSurface }]} numberOfLines={1}>
+                {locationLabel}
+              </Text>
             </View>
-          </View>
+            <MaterialCommunityIcons name="chevron-up" size={20} color={theme.colors.onSurfaceVariant} />
+          </TouchableOpacity>
         </View>
       )}
 
@@ -457,24 +445,36 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0,
   },
-  locationFiltersRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  locationFilterWrap: {
-    flex: 1,
+  locationSelectButton: {
+    minHeight: 58,
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 12,
-    paddingLeft: 12,
-    paddingVertical: 4,
-    gap: 8,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    gap: 10,
   },
-  locationInput: {
+  locationSelectIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  locationSelectCopy: {
     flex: 1,
-    backgroundColor: 'transparent',
-    height: 40,
     minWidth: 0,
+  },
+  locationSelectLabel: {
+    fontSize: 11,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 0,
+  },
+  locationSelectValue: {
+    marginTop: 2,
+    fontSize: 15,
+    fontWeight: '900',
+    letterSpacing: 0,
   },
   peopleListHeader: {
     paddingTop: 14,

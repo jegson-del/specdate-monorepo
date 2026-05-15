@@ -10,15 +10,21 @@ const TERMS = [
   'DateUsher may remove content, restrict features, suspend accounts, or terminate accounts when content or behavior violates our safety rules.',
   'Users can report profiles, messages, media, specs, and abusive behavior. Reports are reviewed by our moderation team.',
   'Users can block other users to prevent further contact and profile access.',
+  'Credit top-ups and other digital features may be sold through Apple, Google, and RevenueCat. Review price, credit amount, refund rules, and platform settings before purchase.',
 ];
 
 const PRIVACY = [
-  'We collect account, profile, media, chat, date, device, and safety-report information needed to operate DateUsher.',
+  'We collect account data such as name, username, email, phone number, date of birth, login details, and OTP verification data needed to operate DateUsher.',
+  'We collect profile data including photos, videos, prompts, preferences, city, state, country, interests, and dating criteria you choose to provide.',
   'Uploaded media and chat content may be processed for safety, abuse review, support, and moderation.',
   'We use your date of birth to enforce age restrictions and protect minors from accessing the app.',
+  'Purchases and credit grants may be validated through Apple, Google, and RevenueCat. We store product IDs, transaction IDs, entitlement or credit status, and related metadata needed for support, fraud prevention, and accounting.',
+  'OTP delivery, email, and SMS may be handled by Twilio, email providers, mobile carriers, or similar communications vendors.',
+  'Push notifications may be used for account, chat, match, Spec, booking, voucher, support, safety, and service updates when you allow notifications.',
   'We store authentication tokens securely on the device and use encrypted network connections for API communication.',
-  'We may share limited information with service providers such as hosting, push notifications, storage, email/SMS, and moderation tools.',
-  'You can pause or delete your account from Profile settings.',
+  'We may share limited information with service providers such as hosting, storage, RevenueCat, Apple, Google, Twilio, push notification providers, email/SMS providers, support tools, and moderation tools.',
+  'You can pause or delete your account from Profile settings. Some limited records may be retained where needed for legal, safety, fraud-prevention, financial, dispute, or security reasons.',
+  'Our Google Play Data Safety and Apple privacy disclosures are intended to match the full Privacy Policy at dateusher.com/privacy.',
 ];
 
 export default function LegalScreen({ route, navigation }: any) {
@@ -36,7 +42,7 @@ export default function LegalScreen({ route, navigation }: any) {
         <View style={{ width: 44 }} />
       </View>
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 28 }]}>
-        <Text style={[styles.updated, { color: theme.colors.onSurfaceVariant }]}>Effective May 7, 2026</Text>
+        <Text style={[styles.updated, { color: theme.colors.onSurfaceVariant }]}>Effective May 15, 2026</Text>
         {items.map((item, index) => (
           <View key={item} style={[styles.item, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant }]}>
             <Text style={[styles.itemNum, { color: theme.colors.primary }]}>{index + 1}</Text>
@@ -44,7 +50,7 @@ export default function LegalScreen({ route, navigation }: any) {
           </View>
         ))}
         <Text style={[styles.note, { color: theme.colors.onSurfaceVariant }]}>
-          For support or safety concerns, contact the DateUsher team through the app support channel.
+          For the full policy, visit dateusher.com/privacy or dateusher.com/terms. For support or safety concerns, contact the DateUsher team through the app support channel.
         </Text>
       </ScrollView>
     </View>

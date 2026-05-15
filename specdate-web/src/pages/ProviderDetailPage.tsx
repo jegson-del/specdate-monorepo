@@ -7,6 +7,7 @@ import {
   providerLocation,
   type PublicProvider,
 } from '../lib/publicProviders'
+import { Seo } from '../components/Seo'
 
 export default function ProviderDetailPage() {
   const { providerId = '' } = useParams()
@@ -68,6 +69,12 @@ export default function ProviderDetailPage() {
     <ProviderShell
       body={
         <>
+          <Seo
+            title={`${provider.name} - Date provider`}
+            description={`${provider.name} is a DateUsher provider${providerLocation(provider) ? ` in ${providerLocation(provider)}` : ''}. View date experience details, offers, and booking information.`}
+            path={`/providers/${provider.id}`}
+            image={providerImage(provider)}
+          />
           <section className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
             <div>
               <Link to="/providers" className="rounded text-sm font-bold text-pink-200 hover:text-white">

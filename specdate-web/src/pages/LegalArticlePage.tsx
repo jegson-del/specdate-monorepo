@@ -1,4 +1,5 @@
 import { LegalArticle } from '../components/legal/LegalArticle'
+import { Seo } from '../components/Seo'
 import type { LegalPageContent } from '../types/legal'
 
 interface LegalArticlePageProps {
@@ -6,5 +7,10 @@ interface LegalArticlePageProps {
 }
 
 export default function LegalArticlePage({ page }: LegalArticlePageProps) {
-  return <LegalArticle page={page} />
+  return (
+    <>
+      <Seo title={`${page.title} - DateUsher`} description={page.summary} path={`/${page.slug}`} />
+      <LegalArticle page={page} />
+    </>
+  )
 }

@@ -6,6 +6,7 @@ import {
   providerLocation,
   type PublicProvider,
 } from '../lib/publicProviders'
+import { Seo } from '../components/Seo'
 
 const SERVICE_FILTERS = ['All services', 'Hotel', 'Restaurant', 'Spa', 'Venue', 'Experience'] as const
 const PROVIDERS_PER_PAGE = 18
@@ -95,6 +96,11 @@ export default function ProvidersBrowsePage() {
 
   return (
     <main className="min-h-screen bg-gray-950 bg-[url('/bg.png')] bg-cover bg-center bg-fixed text-white">
+      <Seo
+        title="Date providers"
+        description="Browse DateUsher date providers, venues, restaurants, spas, hotels, and experiences for planned dates."
+        path="/providers"
+      />
       <section className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
         <div className="mb-10 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
           <div>

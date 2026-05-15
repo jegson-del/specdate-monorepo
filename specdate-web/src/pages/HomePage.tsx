@@ -9,6 +9,7 @@ import {
   HowItWorksSection,
   SuccessStoriesSection,
 } from '../components'
+import { Seo } from '../components/Seo'
 
 const NAV_LINKS = [
   { label: 'How it works', href: '#how-it-works' },
@@ -28,6 +29,12 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-gray-900 bg-[url('/bg.png')] bg-cover bg-center bg-no-repeat bg-fixed text-white">
+      <Seo
+        title="DateUsher - Curated dating and date experiences"
+        description="DateUsher helps people discover compatible daters, plan safer first dates, and find vetted date providers for memorable experiences."
+        path="/"
+        image="https://dateusher.com/dateusherweb-sharp.jpg"
+      />
       {/* Nav bar - sits above hero, not overlapping the image */}
       <div className="relative z-30 w-full bg-gradient-to-b from-black/50 to-transparent px-4 pt-6 pb-4 sm:px-6 sm:pt-6 sm:pb-4">
         <div className="flex items-center justify-between gap-4">

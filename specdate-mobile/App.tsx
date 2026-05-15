@@ -46,6 +46,7 @@ import CreateSupportTicketScreen from './src/features/support/CreateSupportTicke
 import CreditsTransactionScreen from './src/features/profile/CreditsTransactionScreen';
 import { routeNotification } from './src/features/notifications/notificationRouting';
 import { AppDialogProvider } from './src/components';
+import { VersionUpdatePrompt } from './src/components/VersionUpdatePrompt';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const queryClient = new QueryClient();
@@ -157,6 +158,7 @@ export default function App() {
       <PaperProvider theme={theme}>
         <QueryClientProvider client={queryClient}>
           <AppDialogProvider>
+            <VersionUpdatePrompt />
             <NavigationContainer ref={navigationRef}>
               <StatusBar style="dark" />
               <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={initialRoute}>

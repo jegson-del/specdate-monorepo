@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { Footer } from '../components'
+import { Seo } from '../components/Seo'
 import { publicApiBase } from '../lib/publicProviders'
 
 const contactEmail = 'hello@dateusher.com'
@@ -107,6 +108,11 @@ export default function ContactPage() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white">
+      <Seo
+        title="Contact DateUsher"
+        description="Contact DateUsher for account support, safety, privacy requests, provider enquiries, payments, credits, and technical help."
+        path="/contact"
+      />
       <header className="border-b border-white/10 bg-black/30">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-5 sm:px-6 lg:px-8">
           <Link to="/" className="flex items-center rounded focus:outline-none focus:ring-2 focus:ring-pink-500">

@@ -56,7 +56,7 @@ export const termsOfUse: LegalPageContent = {
   slug: 'terms',
   title: 'Terms of Use',
   kicker: 'Legal',
-  lastUpdated: 'May 13, 2026',
+  lastUpdated: 'May 15, 2026',
   summary:
     'These terms explain the rules for using DateUsher, including dating profiles, Spec searches, chat, media, provider listings, and account safety.',
   sections: [
@@ -128,8 +128,8 @@ export const termsOfUse: LegalPageContent = {
     {
       title: 'Purchases and subscriptions',
       body: [
-        'Some DateUsher features, offers, promotions, subscriptions, bookings, or provider services may involve payment. Billing terms, renewal rules, refunds, taxes, and cancellation steps may depend on Apple, Google, Stripe, or another payment or booking provider.',
-        'Review the purchase screen and the relevant platform settings before you buy or subscribe.',
+        'Some DateUsher features, including credit top-ups and other digital features, may be offered as in-app purchases through Apple, Google, RevenueCat, or another approved payment provider. Provider services, venue bills, bookings, or offline purchases may be handled separately by the relevant provider.',
+        'Review the purchase screen, credit amount, price, taxes, refund rules, and relevant Apple or Google account settings before you buy. Deleting a DateUsher account does not automatically reverse completed purchases or cancel subscriptions managed by Apple, Google, RevenueCat, Stripe, or another payment provider.',
       ],
     },
     {
@@ -146,7 +146,7 @@ export const privacyPolicy: LegalPageContent = {
   slug: 'privacy',
   title: 'Privacy Policy',
   kicker: 'Privacy',
-  lastUpdated: 'May 13, 2026',
+  lastUpdated: 'May 15, 2026',
   summary:
     'This policy explains what personal information DateUsher collects, why we use it, when we share it, and the choices you may have.',
   sections: [
@@ -160,11 +160,11 @@ export const privacyPolicy: LegalPageContent = {
     {
       title: 'Information you provide',
       items: [
-        'Account details such as name, username, phone number, email address, date of birth, login details, and verification codes.',
-        'Profile details such as photos, videos, prompts, preferences, interests, gender, location choices, and dating criteria.',
+        'Account details such as name, username, phone number, email address, date of birth, login details, one-time passwords, and verification codes.',
+        'Profile details such as photos, videos, prompts, preferences, interests, gender, city, state, country, location choices, and dating criteria.',
         'Spec search content, answers, eliminations, matches, chat messages, media, reports, appeals, support messages, and safety feedback.',
         'Provider registration details such as business name, category, address, contact person, email, phone number, website, description, and approval materials.',
-        'Payment, subscription, booking, discount, or transaction information when you use paid or provider-related features.',
+        'Purchase, credit wallet, subscription, booking, discount, or transaction information when you use paid or provider-related features.',
       ],
     },
     {
@@ -172,7 +172,7 @@ export const privacyPolicy: LegalPageContent = {
       items: [
         'Device and technical information such as IP address, device type, browser, operating system, app version, identifiers, crash data, and security logs.',
         'Usage data such as logins, pages viewed, features used, searches, reports, moderation events, messages sent, and interactions with offers or providers.',
-        'Approximate or precise location where you allow location-based features.',
+        'Approximate or precise location where you allow location-based features. DateUsher also uses profile city, state, and country information to support discovery and filtering.',
         'Cookie, analytics, advertising, and attribution data as described in our Cookie Policy.',
       ],
     },
@@ -180,10 +180,10 @@ export const privacyPolicy: LegalPageContent = {
       title: 'How we use information',
       items: [
         'To create accounts, operate profiles, run Spec searches, enable matching, provide chat, show provider listings, and support bookings or offers.',
-        'To verify identity, review provider applications, send OTPs, process support requests, and communicate about your account.',
+        'To verify identity, review provider applications, send phone or email OTPs, process support requests, and communicate about your account.',
         'To detect spam, scams, unsafe behaviour, prohibited media, fraud, account abuse, payment risk, and policy violations.',
         'To personalize recommendations, improve ranking, measure feature performance, fix bugs, build new features, and keep the service reliable.',
-        'To send service messages, safety notices, product updates, marketing communications, and legal notices where allowed.',
+        'To send service messages, push notifications, safety notices, product updates, marketing communications, and legal notices where allowed.',
         'To comply with law, enforce terms, resolve disputes, protect rights, and maintain records.',
       ],
     },
@@ -192,10 +192,24 @@ export const privacyPolicy: LegalPageContent = {
       items: [
         'With other members when you choose to share profile content, Spec answers, messages, media, or match information.',
         'With providers when needed for a booking, offer, reservation, service request, dispute, or provider interaction you initiate.',
-        'With vendors that provide hosting, storage, analytics, notifications, authentication, payments, support, moderation, security, and operational tools.',
+        'With vendors that provide hosting, storage, analytics, notifications, authentication, payments, support, moderation, security, and operational tools. This may include Twilio or similar providers for OTP messaging, RevenueCat for in-app purchase and entitlement management, Apple and Google for store purchases, Expo or similar providers for push notifications, and email/SMS providers for account and support messages.',
         'With administrators, reviewers, and support staff who need access to investigate reports, support tickets, provider applications, and safety issues.',
         'With law enforcement, courts, regulators, or other parties where disclosure is legally required or necessary to protect people or rights.',
         'With parties involved in business transfers such as a merger, acquisition, investment, restructuring, or sale of assets.',
+      ],
+    },
+    {
+      title: 'Purchases and RevenueCat',
+      body: [
+        'When you buy credits or other digital features in the mobile app, the purchase may be processed by Apple App Store or Google Play and managed through RevenueCat. DateUsher receives purchase identifiers, product identifiers, entitlement or credit-grant status, transaction status, and related metadata needed to validate purchases, prevent fraud, grant credits, support refunds or disputes, and keep accounting records.',
+        'Do not send full payment card details to DateUsher support. Apple, Google, RevenueCat, Stripe, or another payment provider may process payment data under their own terms and privacy notices.',
+      ],
+    },
+    {
+      title: 'OTP, communications, and push notifications',
+      body: [
+        'DateUsher uses phone and email OTPs to help verify accounts, provider registrations, login events, and security-sensitive actions. OTP delivery may use Twilio, email providers, mobile carriers, or similar communications vendors.',
+        'If you allow push notifications, we may send account, chat, match, Spec, booking, voucher, support, safety, and service notifications. You can manage push permissions in your device settings, though some important notices may still be sent by email or in-app message.',
       ],
     },
     {
@@ -216,7 +230,8 @@ export const privacyPolicy: LegalPageContent = {
       title: 'Your choices and rights',
       body: [
         'Depending on your location, you may be able to access, correct, delete, export, restrict, object to, or withdraw consent for certain uses of your personal information.',
-        'You can update many details in the app. For broader requests, use the DateUsher privacy request process.',
+        'You can update many details in the app. You can pause or delete your account from account settings where available. For broader requests, use the DateUsher privacy request process.',
+        'Google Play Data Safety disclosures and Apple privacy disclosures for DateUsher are intended to match this policy. If a store disclosure and this policy appear inconsistent, contact us so we can review and correct the issue.',
       ],
     },
   ],

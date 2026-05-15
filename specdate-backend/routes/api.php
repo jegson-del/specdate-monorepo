@@ -12,6 +12,7 @@ use App\Http\Controllers\AdminProviderController;
 use App\Http\Controllers\AdminRiskController;
 use App\Http\Controllers\AdminSuccessStoryController;
 use App\Http\Controllers\AdminUserController;
+use App\Http\Controllers\AppVersionController;
 use App\Http\Controllers\Api\CreditsController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\AuthController;
@@ -39,6 +40,7 @@ Route::post('/admin/login/verify-otp', [AdminController::class, 'verifyLoginOtp'
 Route::get('/public/providers', [ProviderController::class, 'index']);
 Route::get('/public/providers/{provider}', [ProviderController::class, 'show']);
 Route::get('/public/success-stories', [SuccessStoryController::class, 'index']);
+Route::get('/app-version', [AppVersionController::class, 'show']);
 Route::post('/public/contact', [SupportController::class, 'publicContact'])->middleware('throttle:5,1');
 Route::post('/provider-registrations', [ProviderController::class, 'registerInterest']);
 Route::post('/provider-password/setup', [ProviderController::class, 'setupPassword']);
@@ -52,6 +54,7 @@ Route::middleware(['auth:sanctum', 'device.fingerprint'])->group(function () {
     Route::get('/user', [MeController::class, 'show']);
     Route::get('/me/moderation', [ModerationAppealController::class, 'status']);
     Route::put('/profile', [ProfileController::class, 'update']);
+    Route::get('/users/filter-options', [UserController::class, 'filterOptions']);
     Route::get('/users', [UserController::class, 'index']);
     Route::get('/users/{id}', [UserController::class, 'show']);
 

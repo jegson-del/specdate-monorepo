@@ -51,6 +51,20 @@ class UserController extends Controller
         ], 'Users retrieved successfully.');
     }
 
+    public function filterOptions(Request $request)
+    {
+        $validated = $request->validate([
+            'sex' => ['nullable', 'string', 'max:32'],
+            'country' => ['nullable', 'string', 'max:120'],
+            'query' => ['nullable', 'string', 'max:120'],
+        ]);
+
+        return $this->sendResponse(
+            $this->userDirectory->filterOptionsForUser($request->user(), $validated),
+            'User filter options retrieved successfully.'
+        );
+    }
+
     /**
      * Return public profile for a user (read-only).
      * Used when viewing another user's profile (e.g. spec creator).

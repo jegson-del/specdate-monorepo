@@ -79,4 +79,61 @@ class PublicUserDirectoryTest extends TestCase
             ->assertJsonPath('data.data.0.city', 'London')
             ->assertJsonPath('data.data.0.country', 'United Kingdom');
     }
+
+    public function test_people_directory_filter_options_return_visible_counts(): void
+    {
+        $viewer = User::factory()->create();
+        $londonUser = User::factory()->create(['name' => 'London Date']);
+        $manchesterUser = User::factory()->create(['name' => 'Manchester Date']);
+        $lagosUser = User::factory()->create(['name' => 'Lagos Date']);
+        $pausedUser = User::factory()->create(['is_paused' => true]);
+        $provider = User::factory()->create(['role' => 'provider']);
+
+        UserProfile::create([
+            'user_id' => $londonUser->id,
+            'full_name' => 'London Date',
+            'city' => 'London',
+            'country' => 'United Kingdom',
+            'sex' => 'Female',
+        ]);
+        UserProfile::create([
+            'user_id' => $manchesterUser->id,
+            'full_name' => 'Manchester Date',
+            'city' => 'Manchester',
+            'country' => 'United Kingdom',
+            'sex' => 'Female',
+        ]);
+        UserProfile::create([
+            'user_id' => $lagosUser->id,
+            'full_name' => 'Lagos Date',
+            'city' => 'Lagos',
+            'country' => 'Nigeria',
+            'sex' => 'Male',
+        ]);
+        UserProfile::create([
+            'user_id' => $pausedUser->id,
+            'city' => 'Hidden City',
+            'country' => 'Hidden Country',
+            'sex' => 'Female',
+        ]);
+        UserProfile::create([
+            'user_id' => $provider->id,
+            'city' => 'Provider City',
+            'country' => 'Provider Country',
+            'sex' => 'Female',
+        ]);
+
+        Sanctum::actingAs($viewer);
+
+        $this->getJson('/api/users/filter-options?sex=Female&country=United%20Kingdom')
+            ->assertOk()
+            ->assertJsonCount(1, 'data.countries')
+            ->assertJsonPath('data.countries.0.name', 'United Kingdom')
+            ->assertJsonPath('data.countries.0.count', 2)
+            ->assertJsonCount(2, 'data.cities')
+            ->assertJsonPath('data.cities.0.name', 'London')
+            ->assertJsonPath('data.cities.0.count', 1)
+            ->assertJsonPath('data.cities.1.name', 'Manchester')
+            ->assertJsonPath('data.cities.1.count', 1);
+    }
 }
