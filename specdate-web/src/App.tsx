@@ -12,6 +12,7 @@ import AdminPage from './pages/AdminPage'
 import AdminProvidersPage from './pages/AdminProvidersPage'
 import AdminRiskPage from './pages/AdminRiskPage'
 import AdminSupportPage from './pages/AdminSupportPage'
+import AdminSuccessStoriesPage from './pages/AdminSuccessStoriesPage'
 import AdminUsersPage from './pages/AdminUsersPage'
 import ContactPage from './pages/ContactPage'
 import {
@@ -76,6 +77,7 @@ export default function App() {
           <Route path="/admin/risk" element={<AdminRiskPage />} />
           <Route path="/admin/support" element={<AdminSupportPage />} />
           <Route path="/admin/contact" element={<AdminContactPage />} />
+          <Route path="/admin/success-stories" element={<AdminSuccessStoriesPage />} />
           <Route path="/admin/users" element={<AdminUsersPage />} />
           <Route path="/admin/admin-management" element={<AdminManagementPage />} />
         </Routes>

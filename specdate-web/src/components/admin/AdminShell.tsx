@@ -6,6 +6,7 @@ type NavItem = {
   accessKey?:
     | 'can_manage_admin_users'
     | 'can_manage_contact_messages'
+    | 'can_manage_success_stories'
     | 'can_view_financial_credits'
     | 'can_view_financial_vouchers'
   badgeKey?: string
@@ -32,6 +33,12 @@ const navItems: NavItem[] = [
     enabled: true,
     accessKey: 'can_manage_contact_messages',
     badgeKey: 'contact_needs_admin',
+  },
+  {
+    label: 'Success stories',
+    to: '/admin/success-stories',
+    enabled: true,
+    accessKey: 'can_manage_success_stories',
   },
   { label: 'Financials', enabled: true, section: true },
   {
@@ -163,6 +170,7 @@ function canUseNavItem(
   accessKey?:
     | 'can_manage_admin_users'
     | 'can_manage_contact_messages'
+    | 'can_manage_success_stories'
     | 'can_view_financial_credits'
     | 'can_view_financial_vouchers',
 ) {

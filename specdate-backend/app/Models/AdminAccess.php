@@ -12,6 +12,7 @@ class AdminAccess extends Model
         'can_view_financial_credits',
         'can_manage_admin_users',
         'can_manage_contact_messages',
+        'can_manage_success_stories',
     ];
 
     protected $casts = [
@@ -19,6 +20,7 @@ class AdminAccess extends Model
         'can_view_financial_credits' => 'boolean',
         'can_manage_admin_users' => 'boolean',
         'can_manage_contact_messages' => 'boolean',
+        'can_manage_success_stories' => 'boolean',
     ];
 
     public function admin()

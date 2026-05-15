@@ -10,6 +10,7 @@ use App\Http\Controllers\AdminModerationCaseController;
 use App\Http\Controllers\AdminModerationStrikeController;
 use App\Http\Controllers\AdminProviderController;
 use App\Http\Controllers\AdminRiskController;
+use App\Http\Controllers\AdminSuccessStoryController;
 use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\Api\CreditsController;
 use App\Http\Controllers\Api\NotificationController;
@@ -26,6 +27,7 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\SpecController;
 use App\Http\Controllers\SupportController;
+use App\Http\Controllers\SuccessStoryController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -36,6 +38,7 @@ Route::post('/admin/login', [AdminController::class, 'login'])->middleware('thro
 Route::post('/admin/login/verify-otp', [AdminController::class, 'verifyLoginOtp'])->middleware('throttle:10,1');
 Route::get('/public/providers', [ProviderController::class, 'index']);
 Route::get('/public/providers/{provider}', [ProviderController::class, 'show']);
+Route::get('/public/success-stories', [SuccessStoryController::class, 'index']);
 Route::post('/public/contact', [SupportController::class, 'publicContact'])->middleware('throttle:5,1');
 Route::post('/provider-registrations', [ProviderController::class, 'registerInterest']);
 Route::post('/provider-password/setup', [ProviderController::class, 'setupPassword']);
@@ -106,6 +109,10 @@ Route::middleware(['auth:sanctum', 'device.fingerprint'])->group(function () {
     Route::post('/admin/contact/{ticket}/reply', [AdminContactController::class, 'reply']);
     Route::patch('/admin/contact/{ticket}', [AdminContactController::class, 'updateStatus']);
     Route::delete('/admin/contact/{ticket}', [AdminContactController::class, 'destroy']);
+    Route::get('/admin/success-stories', [AdminSuccessStoryController::class, 'index']);
+    Route::post('/admin/success-stories', [AdminSuccessStoryController::class, 'store']);
+    Route::patch('/admin/success-stories/{story}', [AdminSuccessStoryController::class, 'update']);
+    Route::delete('/admin/success-stories/{story}', [AdminSuccessStoryController::class, 'destroy']);
     Route::get('/admin/users', [AdminUserController::class, 'index']);
     Route::get('/admin/users/{user}', [AdminUserController::class, 'show']);
     Route::patch('/admin/users/{user}/pause', [AdminUserController::class, 'pause']);

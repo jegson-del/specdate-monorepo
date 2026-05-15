@@ -34,6 +34,9 @@ import type {
   AdminSupportTicket,
   AdminSupportTicketDetail,
   AdminSupportTicketStatus,
+  AdminSuccessStory,
+  AdminSuccessStoryPayload,
+  AdminSuccessStoryStatus,
   AdminUser,
   AdminManagedUser,
   AdminUserRole,
@@ -808,6 +811,86 @@ export async function deleteAdminContact(token: string, ticketId: number) {
   }
 
   return result?.message || 'Contact message deleted.'
+}
+
+export async function getAdminSuccessStories(
+  token: string,
+  status: AdminSuccessStoryStatus,
+  page = 1,
+  perPage = 25,
+) {
+  const query = new URLSearchParams({
+    page: String(page),
+    per_page: String(perPage),
+  })
+  if (status !== 'all') {
+    query.set('status', status)
+  }
+
+  const response = await fetch(`${getApiBase()}/api/admin/success-stories?${query.toString()}`, {
+    headers: adminHeaders(token),
+  })
+  const result = (await parseJson(response)) as ApiEnvelope<Paginated<AdminSuccessStory>> | null
+
+  if (!response.ok || !result) {
+    throw new Error(pickApiError(result, 'Success stories could not be loaded.'))
+  }
+
+  return paginatedResult(result.data, page, perPage)
+}
+
+export async function createAdminSuccessStory(token: string, payload: AdminSuccessStoryPayload) {
+  const response = await fetch(`${getApiBase()}/api/admin/success-stories`, {
+    method: 'POST',
+    headers: {
+      ...adminHeaders(token),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  })
+  const result = (await parseJson(response)) as ApiEnvelope<AdminSuccessStory> | null
+
+  if (!response.ok || !result) {
+    throw new Error(pickApiError(result, 'Success story could not be created.'))
+  }
+
+  return result.data
+}
+
+export async function updateAdminSuccessStory(
+  token: string,
+  storyId: number,
+  payload: Partial<AdminSuccessStoryPayload>,
+) {
+  const response = await fetch(`${getApiBase()}/api/admin/success-stories/${storyId}`, {
+    method: 'PATCH',
+    headers: {
+      ...adminHeaders(token),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  })
+  const result = (await parseJson(response)) as ApiEnvelope<AdminSuccessStory> | null
+
+  if (!response.ok || !result) {
+    throw new Error(pickApiError(result, 'Success story could not be updated.'))
+  }
+
+  return result.data
+}
+
+export async function deleteAdminSuccessStory(token: string, storyId: number) {
+  const response = await fetch(`${getApiBase()}/api/admin/success-stories/${storyId}`, {
+    method: 'DELETE',
+    headers: adminHeaders(token),
+  })
+  const result = await parseJson(response)
+
+  if (!response.ok) {
+    throw new Error(pickApiError(result, 'Success story could not be deleted.'))
+  }
+
+  return (result as { message?: string } | null)?.message || 'Success story deleted.'
 }
 
 export async function getAdminSupportTicket(token: string, ticketId: number) {

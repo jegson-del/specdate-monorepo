@@ -442,6 +442,46 @@ export type AdminContactThread = {
   messages: AdminContactMessage[]
 }
 
+export type AdminSuccessStoryStatus = 'all' | 'draft' | 'published' | 'archived'
+
+export type AdminSuccessStory = {
+  id: number
+  provider_profile_id: number | null
+  title: string
+  body: string
+  attribution: string | null
+  location: string | null
+  story_type: string
+  image_url: string | null
+  rating: number | null
+  status: Exclude<AdminSuccessStoryStatus, 'all'>
+  is_featured: boolean
+  sort_order: number
+  published_at: string | null
+  created_at: string
+  provider: {
+    id: number
+    name: string | null
+    city: string | null
+    country: string | null
+  } | null
+}
+
+export type AdminSuccessStoryPayload = {
+  attribution?: string | null
+  body: string
+  image_url?: string | null
+  is_featured?: boolean
+  location?: string | null
+  provider_profile_id?: number | null
+  published_at?: string | null
+  rating?: number | null
+  sort_order?: number
+  status?: Exclude<AdminSuccessStoryStatus, 'all'>
+  story_type?: string
+  title: string
+}
+
 export type AdminUserStatus = 'all' | 'active' | 'paused' | 'suspended' | 'banned'
 
 export type AdminUserRole = 'all' | 'user' | 'provider'

@@ -27,8 +27,15 @@ export default function HomeFeedTab({ theme, homeColors, insets, bottomNavHeight
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [sexFilter, setSexFilter] = useState<string>('All');
+  const [countryFilter, setCountryFilter] = useState<string>('');
+  const [countryQuery, setCountryQuery] = useState<string>('');
   const [cityFilter, setCityFilter] = useState<string>('');
   const [cityQuery, setCityQuery] = useState<string>('');
+
+  React.useEffect(() => {
+    const t = setTimeout(() => setCountryQuery(countryFilter.trim()), 400);
+    return () => clearTimeout(t);
+  }, [countryFilter]);
 
   React.useEffect(() => {
     const t = setTimeout(() => setCityQuery(cityFilter.trim()), 400);
@@ -56,13 +63,15 @@ export default function HomeFeedTab({ theme, homeColors, insets, bottomNavHeight
   const { isLoading, error, isError, refetch, isRefetching } = specsQuery;
 
   const usersQuery = useInfiniteQuery({
-    queryKey: ['users', sexFilter, cityQuery, query],
+    queryKey: ['users', sexFilter, countryQuery, cityQuery, query],
     initialPageParam: 1,
     queryFn: ({ pageParam }) => UserService.getAll({
       sex: sexFilter,
+      country: countryQuery || undefined,
       city: cityQuery || undefined,
       query,
       page: Number(pageParam),
+      per_page: 20,
     }),
     getNextPageParam: (lastPage) => {
       const data = lastPage?.data;
@@ -85,7 +94,21 @@ export default function HomeFeedTab({ theme, homeColors, insets, bottomNavHeight
     }, [feed, fetchSpecsForFeed, queryClient, refetch])
   );
 
-  const usersList = useMemo(() => usersQuery.data?.pages.flatMap((page) => page?.data?.data || []) as UserItem[] ?? [], [usersQuery.data]);
+  const usersList = useMemo<UserItem[]>(
+    () => usersQuery.data?.pages.flatMap((page) => page?.data?.data || []) ?? [],
+    [usersQuery.data]
+  );
+  const peopleTotal = usersQuery.data?.pages?.[0]?.data?.total;
+  const activePeopleFilterCount = [sexFilter !== 'All', countryQuery, cityQuery, query.trim()].filter(Boolean).length;
+
+  const clearPeopleFilters = () => {
+    setSexFilter('All');
+    setCountryFilter('');
+    setCountryQuery('');
+    setCityFilter('');
+    setCityQuery('');
+    setQuery('');
+  };
 
   const filteredItems = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -167,6 +190,18 @@ export default function HomeFeedTab({ theme, homeColors, insets, bottomNavHeight
         </View>
       ) : (
         <View style={[styles.peopleFiltersWrap, { paddingLeft: insets.left + 16, paddingRight: insets.right + 16 }]}>
+          <View style={styles.peopleFiltersHeader}>
+            <View>
+              <Text style={[styles.peopleEyebrow, { color: theme.colors.primary }]}>People</Text>
+              <Text style={[styles.peopleFilterTitle, { color: theme.colors.onSurface }]}>Find daters by location</Text>
+            </View>
+            {activePeopleFilterCount > 0 ? (
+              <TouchableOpacity onPress={clearPeopleFilters} hitSlop={10} style={[styles.clearPeopleButton, { backgroundColor: theme.colors.primary + '14' }]}>
+                <MaterialCommunityIcons name="filter-off-outline" size={15} color={theme.colors.primary} />
+                <Text style={[styles.clearPeopleText, { color: theme.colors.primary }]}>Clear</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.peopleFiltersRow}>
             {['All', 'Male', 'Female'].map((s) => {
               const active = sexFilter === s;
@@ -181,19 +216,35 @@ export default function HomeFeedTab({ theme, homeColors, insets, bottomNavHeight
               );
             })}
           </ScrollView>
-          <View style={[styles.cityFilterWrap, { backgroundColor: theme.colors.elevation.level2 }]}>
-            <MaterialCommunityIcons name="map-marker-outline" size={20} color={theme.colors.primary} />
-            <TextInput
-              value={cityFilter}
-              onChangeText={setCityFilter}
-              placeholder="Filter by city"
-              placeholderTextColor={theme.colors.onSurfaceVariant}
-              mode="flat"
-              underlineColor="transparent"
-              activeUnderlineColor="transparent"
-              style={styles.cityInput}
-              dense
-            />
+          <View style={styles.locationFiltersRow}>
+            <View style={[styles.locationFilterWrap, { backgroundColor: theme.colors.elevation.level2 }]}>
+              <MaterialCommunityIcons name="earth" size={19} color={theme.colors.primary} />
+              <TextInput
+                value={countryFilter}
+                onChangeText={setCountryFilter}
+                placeholder="Country"
+                placeholderTextColor={theme.colors.onSurfaceVariant}
+                mode="flat"
+                underlineColor="transparent"
+                activeUnderlineColor="transparent"
+                style={styles.locationInput}
+                dense
+              />
+            </View>
+            <View style={[styles.locationFilterWrap, { backgroundColor: theme.colors.elevation.level2 }]}>
+              <MaterialCommunityIcons name="map-marker-outline" size={19} color={theme.colors.primary} />
+              <TextInput
+                value={cityFilter}
+                onChangeText={setCityFilter}
+                placeholder="City"
+                placeholderTextColor={theme.colors.onSurfaceVariant}
+                mode="flat"
+                underlineColor="transparent"
+                activeUnderlineColor="transparent"
+                style={styles.locationInput}
+                dense
+              />
+            </View>
           </View>
         </View>
       )}
@@ -245,8 +296,17 @@ export default function HomeFeedTab({ theme, homeColors, insets, bottomNavHeight
         </View>
       ) : (
         <View style={[styles.specGridContainer, { backgroundColor: theme.colors.surface }]}>
+          <View style={[styles.peopleListHeader, { paddingLeft: insets.left + 16, paddingRight: insets.right + 16 }]}>
+            <Text style={[styles.peopleListTitle, { color: theme.colors.onSurface }]}>
+              {peopleTotal != null ? `${peopleTotal} people` : 'People'}
+            </Text>
+            <Text style={[styles.peopleListSubtitle, { color: theme.colors.onSurfaceVariant }]} numberOfLines={1}>
+              {activePeopleFilterCount > 0 ? 'Filtered by your current search' : 'Newest active profiles'}
+            </Text>
+          </View>
           <FlatList
             key="people"
+            style={styles.peopleList}
             data={usersList}
             keyExtractor={(item) => String(item.id)}
             numColumns={2}
@@ -259,10 +319,24 @@ export default function HomeFeedTab({ theme, homeColors, insets, bottomNavHeight
             }}
             onEndReachedThreshold={0.4}
             ListEmptyComponent={
-              <View style={styles.peopleEmpty}>
-                <MaterialCommunityIcons name="account-search-outline" size={42} color={theme.colors.outline} />
-                <Text style={[styles.peopleEmptyText, { color: theme.colors.outline }]}>No people found for this search.</Text>
-              </View>
+              usersQuery.isLoading ? (
+                <View style={styles.peopleEmpty}>
+                  <ActivityIndicator animating color={theme.colors.primary} />
+                  <Text style={[styles.peopleEmptyText, { color: theme.colors.outline }]}>Loading people...</Text>
+                </View>
+              ) : (
+                <View style={styles.peopleEmpty}>
+                  <MaterialCommunityIcons name="account-search-outline" size={42} color={theme.colors.outline} />
+                  <Text style={[styles.peopleEmptyText, { color: theme.colors.outline }]}>No people found for this search.</Text>
+                </View>
+              )
+            }
+            ListFooterComponent={
+              usersQuery.isFetchingNextPage ? (
+                <View style={styles.peopleFooterLoader}>
+                  <ActivityIndicator animating color={theme.colors.primary} />
+                </View>
+              ) : null
             }
             renderItem={({ item }) => (
               <PersonCard item={item} theme={theme} onPress={() => navigation.navigate('ProfileViewer', { userId: Number(item.id) })} />
@@ -318,7 +392,7 @@ const styles = StyleSheet.create({
   feedPillText: {
     fontSize: 12,
     fontWeight: '900',
-    letterSpacing: 0.4,
+    letterSpacing: 0,
   },
   specGridContainer: {
     flex: 1,
@@ -339,6 +413,36 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     gap: 10,
   },
+  peopleFiltersHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  peopleEyebrow: {
+    fontSize: 11,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 0,
+  },
+  peopleFilterTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    letterSpacing: 0,
+  },
+  clearPeopleButton: {
+    minHeight: 32,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+  },
+  clearPeopleText: {
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0,
+  },
   peopleFiltersRow: {
     gap: 8,
     paddingRight: 12,
@@ -351,9 +455,14 @@ const styles = StyleSheet.create({
   peoplePillText: {
     fontSize: 13,
     fontWeight: '700',
-    letterSpacing: 0.2,
+    letterSpacing: 0,
   },
-  cityFilterWrap: {
+  locationFiltersRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  locationFilterWrap: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: 12,
@@ -361,10 +470,29 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     gap: 8,
   },
-  cityInput: {
+  locationInput: {
     flex: 1,
     backgroundColor: 'transparent',
     height: 40,
+    minWidth: 0,
+  },
+  peopleListHeader: {
+    paddingTop: 14,
+    paddingBottom: 4,
+  },
+  peopleListTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    letterSpacing: 0,
+  },
+  peopleListSubtitle: {
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0,
+  },
+  peopleList: {
+    flex: 1,
   },
   peopleGridRow: {
     gap: 6,
@@ -392,5 +520,9 @@ const styles = StyleSheet.create({
     fontSize: 15,
     textAlign: 'center',
     paddingHorizontal: 24,
+  },
+  peopleFooterLoader: {
+    paddingVertical: 18,
+    alignItems: 'center',
   },
 });

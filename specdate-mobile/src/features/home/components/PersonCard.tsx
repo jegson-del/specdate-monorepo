@@ -9,10 +9,12 @@ export type UserItem = {
     id: string;
     name: string;
     age: number | null;
-    city: string;
-    occupation: string;
+    city?: string | null;
+    state?: string | null;
+    country?: string | null;
+    occupation?: string | null;
     avatar: string | null;
-    sex?: string;
+    sex?: string | null;
 };
 
 type Props = {
@@ -25,7 +27,9 @@ const PersonCard = memo(({ item, theme, onPress }: Props) => {
     const avatarUri = toImageUri(item.avatar);
     const displayName = (item.name || '?').trim() || 'Unknown';
     const initial = displayName.slice(0, 1).toUpperCase();
-    const location = [item.city].filter(Boolean).join(', ') || '—';
+    const location = [item.city, item.country].filter(Boolean).join(', ') || 'Location pending';
+    const meta = item.occupation?.trim() || item.sex?.trim() || 'DateUsher member';
+    const badge = item.sex?.trim();
 
     return (
         <TouchableOpacity
@@ -33,7 +37,6 @@ const PersonCard = memo(({ item, theme, onPress }: Props) => {
             onPress={onPress}
             style={styles.tile}
         >
-            {/* Image or gradient background */}
             {avatarUri ? (
                 <Image
                     source={{ uri: avatarUri }}
@@ -48,15 +51,24 @@ const PersonCard = memo(({ item, theme, onPress }: Props) => {
                 </View>
             )}
 
-            {/* Bottom gradient scrim + text */}
+            {badge ? (
+                <View style={styles.badge}>
+                    <MaterialCommunityIcons name={badge.toLowerCase() === 'male' ? 'gender-male' : badge.toLowerCase() === 'female' ? 'gender-female' : 'account'} size={12} color="#111827" />
+                    <Text style={styles.badgeText} numberOfLines={1}>{badge}</Text>
+                </View>
+            ) : null}
+
             <LinearGradient
-                colors={['transparent', 'rgba(0,0,0,0.82)']}
+                colors={['transparent', 'rgba(0,0,0,0.28)', 'rgba(0,0,0,0.86)']}
                 style={styles.scrim}
                 pointerEvents="none"
             >
                 <Text style={styles.name} numberOfLines={1}>
                     {displayName}
                     {item.age != null ? `, ${item.age}` : ''}
+                </Text>
+                <Text style={styles.meta} numberOfLines={1}>
+                    {meta}
                 </Text>
                 <View style={styles.cityRow}>
                     <MaterialCommunityIcons
@@ -80,8 +92,8 @@ const styles = StyleSheet.create({
     tile: {
         flex: 1,
         aspectRatio: 0.85,
-        minHeight: 140,
-        borderRadius: 14,
+        minHeight: 158,
+        borderRadius: 16,
         overflow: 'hidden',
         marginBottom: 6,
         backgroundColor: '#1a1a1a',
@@ -110,22 +122,48 @@ const styles = StyleSheet.create({
     placeholderInitial: {
         fontSize: 36,
         fontWeight: '700',
-        letterSpacing: -1,
+        letterSpacing: 0,
+    },
+    badge: {
+        position: 'absolute',
+        top: 9,
+        right: 9,
+        maxWidth: '72%',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: 8,
+        paddingVertical: 5,
+        borderRadius: 999,
+        backgroundColor: 'rgba(255,255,255,0.92)',
+    },
+    badgeText: {
+        fontSize: 10,
+        fontWeight: '800',
+        color: '#111827',
+        letterSpacing: 0,
     },
     scrim: {
         position: 'absolute',
         left: 0,
         right: 0,
         bottom: 0,
-        paddingTop: 32,
-        paddingHorizontal: 10,
-        paddingBottom: 10,
+        paddingTop: 48,
+        paddingHorizontal: 11,
+        paddingBottom: 11,
     },
     name: {
-        fontSize: 13,
-        fontWeight: '700',
+        fontSize: 14,
+        fontWeight: '800',
         color: '#fff',
-        letterSpacing: 0.2,
+        letterSpacing: 0,
+    },
+    meta: {
+        marginTop: 2,
+        fontSize: 11,
+        fontWeight: '700',
+        color: 'rgba(255,255,255,0.82)',
+        letterSpacing: 0,
     },
     cityRow: {
         flexDirection: 'row',

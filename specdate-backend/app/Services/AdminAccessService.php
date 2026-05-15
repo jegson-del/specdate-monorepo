@@ -13,12 +13,14 @@ class AdminAccessService
     public const FINANCIAL_CREDITS = 'can_view_financial_credits';
     public const MANAGE_ADMIN_USERS = 'can_manage_admin_users';
     public const MANAGE_CONTACT_MESSAGES = 'can_manage_contact_messages';
+    public const MANAGE_SUCCESS_STORIES = 'can_manage_success_stories';
 
     private const LABELS = [
         self::FINANCIAL_VOUCHERS => 'Voucher financials',
         self::FINANCIAL_CREDITS => 'Credit financials',
         self::MANAGE_ADMIN_USERS => 'Admin management',
         self::MANAGE_CONTACT_MESSAGES => 'Contact messages',
+        self::MANAGE_SUCCESS_STORIES => 'Success stories',
     ];
 
     public function assertCan(User $admin, string $permission): void
@@ -108,6 +110,7 @@ class AdminAccessService
             self::FINANCIAL_CREDITS => 'Admin credit financial access required.',
             self::MANAGE_ADMIN_USERS => 'Admin management access required.',
             self::MANAGE_CONTACT_MESSAGES => 'Admin contact message access required.',
+            self::MANAGE_SUCCESS_STORIES => 'Admin success story access required.',
             default => 'Admin access permission required.',
         };
     }

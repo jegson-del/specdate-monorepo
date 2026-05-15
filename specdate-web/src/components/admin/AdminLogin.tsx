@@ -15,8 +15,8 @@ const inputClass =
   'h-12 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-pink-500 focus:ring-4 focus:ring-pink-100'
 
 export function AdminLogin({ isSubmitting, onLogin }: AdminLoginProps) {
-  const [email, setEmail] = useState('admin@dateusher.test')
-  const [password, setPassword] = useState('password')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [otpCode, setOtpCode] = useState('')
   const [pendingChallenge, setPendingChallenge] = useState<{
     email: string

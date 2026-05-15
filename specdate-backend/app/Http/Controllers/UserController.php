@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\Spec;
 use App\Models\SpecApplication;
 use App\Services\BlockService;
+use App\Services\PublicUserDirectoryService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 
@@ -13,7 +14,10 @@ class UserController extends Controller
 {
     use ApiResponse;
 
-    public function __construct(private BlockService $blockService)
+    public function __construct(
+        private BlockService $blockService,
+        private PublicUserDirectoryService $userDirectory,
+    )
     {
     }
 
@@ -24,64 +28,26 @@ class UserController extends Controller
      */
     public function index(Request $request)
     {
-        $query = User::with(['profile', 'media'])
-            ->where('id', '!=', $request->user()->id)
-            ->where('is_paused', false)
-            ->whereDoesntHave('blockedUsers', fn ($q) => $q->where('blocked_id', $request->user()->id))
-            ->whereDoesntHave('blockedByUsers', fn ($q) => $q->where('blocker_id', $request->user()->id));
+        $validated = $request->validate([
+            'sex' => ['nullable', 'string', 'max:32'],
+            'city' => ['nullable', 'string', 'max:120'],
+            'country' => ['nullable', 'string', 'max:120'],
+            'query' => ['nullable', 'string', 'max:120'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:50'],
+        ]);
 
-        // Filter by Sex
-        if ($request->has('sex') && $request->sex !== 'All') {
-            $query->whereHas('profile', function ($q) use ($request) {
-                $q->where('sex', $request->sex);
-            });
-        }
-
-        // Filter by City (exact or partial)
-        if ($request->has('city')) {
-            $city = $request->city;
-            $query->whereHas('profile', function ($q) use ($city) {
-                $q->where('city', 'like', "%{$city}%");
-            });
-        }
-
-        // Search Query (Name, City, Occupation)
-        if ($request->has('query')) {
-            $search = $request->input('query');
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhereHas('profile', function ($pq) use ($search) {
-                      $pq->where('full_name', 'like', "%{$search}%")
-                         ->orWhere('city', 'like', "%{$search}%")
-                         ->orWhere('occupation', 'like', "%{$search}%");
-                  });
-            });
-        }
-
-        $users = $query->paginate(20);
-
-        // Format for public display
-        $data = $users->getCollection()->map(function ($user) {
-            $profile = $user->profile;
-            $avatarMedia = $user->media->where('type', 'avatar')->whereNull('hidden_at')->filter(fn ($media) => $media->isShareable())->sortByDesc('id')->first();
-            $avatarUrl = $avatarMedia ? $avatarMedia->url : null;
-
-            return [
-                'id' => $user->id,
-                'name' => $profile->full_name ?? $user->name, // Prefer full name
-                'age' => $profile && $profile->dob ? $profile->dob->age : null,
-                'city' => $profile->city ?? 'Unknown',
-                'occupation' => $profile->occupation ?? '',
-                'avatar' => $avatarUrl ?? $profile->avatar ?? null,
-                'sex' => $profile->sex ?? null,
-            ];
-        });
+        $users = $this->userDirectory->listForUser(
+            $request->user(),
+            $validated,
+            (int) $request->integer('per_page', 20)
+        );
 
         return $this->sendResponse([
-            'data' => $data,
+            'data' => $users->items(),
             'current_page' => $users->currentPage(),
             'last_page' => $users->lastPage(),
             'total' => $users->total(),
+            'per_page' => $users->perPage(),
         ], 'Users retrieved successfully.');
     }
 

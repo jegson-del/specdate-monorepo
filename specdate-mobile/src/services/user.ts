@@ -4,7 +4,7 @@ export const UserService = {
     /**
      * Get all users with optional filters (pagination included in response).
      */
-    async getAll(params: { page?: number; query?: string; sex?: string; city?: string }) {
+    async getAll(params: { page?: number; per_page?: number; query?: string; sex?: string; city?: string; country?: string }) {
         const response = await api.get('/users', { params });
         return response.data;
     },

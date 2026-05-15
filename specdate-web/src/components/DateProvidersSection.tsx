@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { DATE_PROVIDER_PLACEHOLDERS, type DateProviderCard } from '../data/dateProviders'
+import { useFeaturedProviders } from '../hooks/useFeaturedProviders'
+import {
+  providerImage,
+  providerLocation,
+  type PublicProvider,
+} from '../lib/publicProviders'
 
 function StarRating({ value, uniqueId }: { value: number; uniqueId: string }) {
   const filled = Math.round(value * 2) / 2
@@ -45,27 +50,35 @@ function StarRating({ value, uniqueId }: { value: number; uniqueId: string }) {
   )
 }
 
-function ProviderCard({ provider }: { provider: DateProviderCard }) {
+function ProviderCard({ provider }: { provider: PublicProvider }) {
   return (
-    <article className="group relative w-[min(100%,280px)] shrink-0 snap-center overflow-hidden rounded-2xl border border-white/10 bg-black/30 shadow-lg backdrop-blur-sm transition hover:border-pink-500/40">
+    <Link
+      to={`/providers/${provider.id}`}
+      className="group relative w-[min(100%,280px)] shrink-0 snap-center overflow-hidden rounded-2xl border border-white/10 bg-black/30 shadow-lg backdrop-blur-sm transition hover:border-pink-500/40 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+      aria-label={`View ${provider.name}`}
+    >
       <div className="relative aspect-[4/3] overflow-hidden">
         <img
-          src={provider.imageUrl}
+          src={providerImage(provider)}
           alt=""
           className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
           loading="lazy"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
         <span className="absolute left-3 top-3 rounded-full bg-pink-600/90 px-2.5 py-0.5 text-xs font-semibold text-white">
-          {provider.type}
+          {provider.category}
         </span>
       </div>
       <div className="space-y-1.5 p-4">
         <h3 className="font-semibold text-white">{provider.name}</h3>
-        <p className="text-sm text-white/60">{provider.location}</p>
-        <StarRating value={provider.rating} uniqueId={provider.id} />
+        <p className="text-sm text-white/60">{providerLocation(provider)}</p>
+        {provider.rating ? (
+          <StarRating value={provider.rating} uniqueId={String(provider.id)} />
+        ) : (
+          <p className="text-sm font-medium text-white/70">New verified provider</p>
+        )}
       </div>
-    </article>
+    </Link>
   )
 }
 
@@ -79,6 +92,11 @@ const CAROUSEL_LOOPS = 2
 export function DateProvidersSection() {
   const scrollerRef = useRef<HTMLDivElement>(null)
   const [paused, setPaused] = useState(false)
+  const { error, isLoading, providers } = useFeaturedProviders()
+  const loopCount = providers.length > 4 ? CAROUSEL_LOOPS : 1
+  const carouselProviders = Array.from({ length: loopCount }, (_, loop) =>
+    providers.map((provider) => ({ loop, provider })),
+  ).flat()
 
   useEffect(() => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
@@ -114,7 +132,9 @@ export function DateProvidersSection() {
     const el = scrollerRef.current
     if (!el) return
     const step = Math.min(el.clientWidth * 0.85, 320)
+    setPaused(true)
     el.scrollBy({ left: dir * step, behavior: 'smooth' })
+    window.setTimeout(() => setPaused(false), 2500)
   }
 
   return (
@@ -169,12 +189,29 @@ export function DateProvidersSection() {
               window.setTimeout(() => setPaused(false), 2500)
             }}
           >
-            {Array.from({ length: CAROUSEL_LOOPS }, (_, loop) =>
-              DATE_PROVIDER_PLACEHOLDERS.map((p) => (
-                <ProviderCard key={`${p.id}-loop-${loop}`} provider={p} />
-              )),
-            ).flat()}
+            {isLoading
+              ? Array.from({ length: 4 }, (_, index) => (
+                  <div
+                    key={`provider-loading-${index}`}
+                    className="w-[min(100%,280px)] shrink-0 snap-center overflow-hidden rounded-2xl border border-white/10 bg-black/30 shadow-lg backdrop-blur-sm"
+                  >
+                    <div className="aspect-[4/3] animate-pulse bg-white/10" />
+                    <div className="space-y-3 p-4">
+                      <div className="h-4 w-3/4 rounded bg-white/15" />
+                      <div className="h-3 w-1/2 rounded bg-white/10" />
+                      <div className="h-3 w-2/3 rounded bg-white/10" />
+                    </div>
+                  </div>
+                ))
+              : carouselProviders.map(({ loop, provider }) => (
+                  <ProviderCard key={`${provider.id}-loop-${loop}`} provider={provider} />
+                ))}
           </div>
+          {!isLoading && providers.length === 0 ? (
+            <div className="mx-auto max-w-xl rounded-2xl border border-white/10 bg-black/30 px-5 py-6 text-center text-sm text-white/70 backdrop-blur-sm">
+              {error || 'Verified providers will appear here as soon as they are approved.'}
+            </div>
+          ) : null}
         </div>
 
         <div className="mt-10 flex flex-col items-center gap-4 text-center sm:mt-12">
