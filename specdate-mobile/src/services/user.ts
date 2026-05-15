@@ -2,6 +2,7 @@ import { api } from './api';
 
 export type UserFilterOption = {
     name: string;
+    code?: string | null;
     count: number;
 };
 

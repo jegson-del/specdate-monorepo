@@ -125,6 +125,7 @@ export default function ProfileScreen({ navigation }: any) {
         city: '',
         state: '',
         country: '',
+        country_code: '',
         height: undefined,
         ethnicity: '',
         religion: '',
@@ -195,6 +196,7 @@ export default function ProfileScreen({ navigation }: any) {
             city: profile?.city || '',
             state: profile?.state || '',
             country: profile?.country || '',
+            country_code: profile?.country_code || '',
             height: profile?.height,
             ethnicity: profile?.ethnicity || '',
             religion: profile?.religion || '',
@@ -649,7 +651,7 @@ export default function ProfileScreen({ navigation }: any) {
                         mode="flat"
                         label="Country"
                         value={form?.country}
-                        onChangeText={(t) => updateForm({ country: t })}
+                        onChangeText={(t) => updateForm({ country: t, country_code: undefined })}
                         style={styles.input}
                         error={!!errors.country}
                         contentStyle={styles.inputContent}

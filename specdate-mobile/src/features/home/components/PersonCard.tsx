@@ -4,6 +4,7 @@ import { Text } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { toImageUri } from '../../../utils/imageUrl';
+import { flagEmoji } from '../../../utils/countryFlags';
 
 export type UserItem = {
     id: string;
@@ -12,6 +13,7 @@ export type UserItem = {
     city?: string | null;
     state?: string | null;
     country?: string | null;
+    country_code?: string | null;
     occupation?: string | null;
     avatar: string | null;
     sex?: string | null;
@@ -28,6 +30,7 @@ const PersonCard = memo(({ item, theme, onPress }: Props) => {
     const displayName = (item.name || '?').trim() || 'Unknown';
     const initial = displayName.slice(0, 1).toUpperCase();
     const location = [item.city, item.country].filter(Boolean).join(', ') || 'Location pending';
+    const flag = flagEmoji(item.country_code);
     const meta = item.occupation?.trim() || item.sex?.trim() || 'DateUsher member';
     const badge = item.sex?.trim();
 
@@ -78,7 +81,7 @@ const PersonCard = memo(({ item, theme, onPress }: Props) => {
                         style={styles.cityIcon}
                     />
                     <Text style={styles.city} numberOfLines={1}>
-                        {location}
+                        {flag ? `${flag} ${location}` : location}
                     </Text>
                 </View>
             </LinearGradient>

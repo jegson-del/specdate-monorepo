@@ -28,6 +28,7 @@ class PublicUserDirectoryTest extends TestCase
                 'full_name' => "Public Person {$index}",
                 'city' => 'London',
                 'country' => 'United Kingdom',
+                'country_code' => 'GB',
                 'sex' => $index === 1 ? 'Male' : 'Female',
                 'occupation' => 'Designer',
             ]);
@@ -43,6 +44,7 @@ class PublicUserDirectoryTest extends TestCase
             ->assertJsonPath('data.per_page', 2)
             ->assertJsonPath('data.data.0.name', 'Public Person 3')
             ->assertJsonPath('data.data.0.country', 'United Kingdom')
+            ->assertJsonPath('data.data.0.country_code', 'GB')
             ->assertJsonPath('data.data.0.occupation', 'Designer');
     }
 
@@ -57,6 +59,7 @@ class PublicUserDirectoryTest extends TestCase
             'full_name' => 'London Match',
             'city' => 'London',
             'country' => 'United Kingdom',
+            'country_code' => 'GB',
             'sex' => 'Female',
             'occupation' => 'Product Designer',
         ]);
@@ -66,6 +69,7 @@ class PublicUserDirectoryTest extends TestCase
             'full_name' => 'Lagos Match',
             'city' => 'Lagos',
             'country' => 'Nigeria',
+            'country_code' => 'NG',
             'sex' => 'Female',
             'occupation' => 'Product Designer',
         ]);
@@ -77,7 +81,8 @@ class PublicUserDirectoryTest extends TestCase
             ->assertJsonPath('data.total', 1)
             ->assertJsonPath('data.data.0.name', 'London Match')
             ->assertJsonPath('data.data.0.city', 'London')
-            ->assertJsonPath('data.data.0.country', 'United Kingdom');
+            ->assertJsonPath('data.data.0.country', 'United Kingdom')
+            ->assertJsonPath('data.data.0.country_code', 'GB');
     }
 
     public function test_people_directory_filter_options_return_visible_counts(): void
@@ -94,6 +99,7 @@ class PublicUserDirectoryTest extends TestCase
             'full_name' => 'London Date',
             'city' => 'London',
             'country' => 'United Kingdom',
+            'country_code' => 'GB',
             'sex' => 'Female',
         ]);
         UserProfile::create([
@@ -101,6 +107,7 @@ class PublicUserDirectoryTest extends TestCase
             'full_name' => 'Manchester Date',
             'city' => 'Manchester',
             'country' => 'United Kingdom',
+            'country_code' => 'GB',
             'sex' => 'Female',
         ]);
         UserProfile::create([
@@ -108,18 +115,21 @@ class PublicUserDirectoryTest extends TestCase
             'full_name' => 'Lagos Date',
             'city' => 'Lagos',
             'country' => 'Nigeria',
+            'country_code' => 'NG',
             'sex' => 'Male',
         ]);
         UserProfile::create([
             'user_id' => $pausedUser->id,
             'city' => 'Hidden City',
             'country' => 'Hidden Country',
+            'country_code' => 'HC',
             'sex' => 'Female',
         ]);
         UserProfile::create([
             'user_id' => $provider->id,
             'city' => 'Provider City',
             'country' => 'Provider Country',
+            'country_code' => 'PC',
             'sex' => 'Female',
         ]);
 
@@ -129,6 +139,7 @@ class PublicUserDirectoryTest extends TestCase
             ->assertOk()
             ->assertJsonCount(1, 'data.countries')
             ->assertJsonPath('data.countries.0.name', 'United Kingdom')
+            ->assertJsonPath('data.countries.0.code', 'GB')
             ->assertJsonPath('data.countries.0.count', 2)
             ->assertJsonCount(2, 'data.cities')
             ->assertJsonPath('data.cities.0.name', 'London')

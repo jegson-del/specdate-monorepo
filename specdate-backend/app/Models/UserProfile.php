@@ -8,7 +8,7 @@ class UserProfile extends Model
 {
     protected $fillable = [
         'user_id',
-        'latitude', 'longitude', 'city', 'state', 'country', 'continent',
+        'latitude', 'longitude', 'city', 'state', 'country', 'country_code', 'continent',
         'dob', 'full_name', 'hobbies', 'ideal_dates',
         'sex', 'occupation', 'qualification', 'sexual_orientation',
         'height', 'ethnicity', 'religion',

@@ -6,6 +6,7 @@ import { SpecService } from '../../../services/specs';
 import { HomeColors } from '../types';
 import { tagColor, withAlpha } from '../homeUtils';
 import SpecCard from './SpecCard';
+import { specCardTagForStatus } from '../../specs/specStatus';
 
 type Props = {
   theme: any;
@@ -97,7 +98,7 @@ export default function MySpecsTab({ theme, homeColors, insets, bottomNavHeight,
                 eliminatedCount: 0,
                 firstDateProvider: '—',
                 likesCount: 0,
-                tag: item.status === 'OPEN' ? 'LIVE' : 'ONGOING',
+                tag: specCardTagForStatus(item.status),
                 ownerAvatar: item.owner?.profile?.avatar,
               }}
               theme={theme}

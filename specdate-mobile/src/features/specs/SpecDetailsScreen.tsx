@@ -19,6 +19,7 @@ import { cmToFeetInches, isAudioMedia, isVideoMedia, requirementIcon, safeParseM
 import { useSpecDetailsMutations } from './hooks/useSpecDetailsMutations';
 import { useSpecDetailsQuery } from './hooks/useSpecDetailsQuery';
 import { isRoundMediaReviewing } from './roundMediaUpload';
+import { isClosedSpecStatus, normalizeSpecStatus, specStatusTone } from './specStatus';
 import ChatSafetySheet from '../chat/components/ChatSafetySheet';
 
 type ReportSheetState =
@@ -472,6 +473,9 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
     const ownerAvatar =
         spec.owner?.profile?.avatar ||
         `https://ui-avatars.com/api/?name=${encodeURIComponent(ownerName)}&size=512&background=111827&color=ffffff`;
+    const specStatus = normalizeSpecStatus(spec.status);
+    const specTone = specStatusTone(spec.status);
+    const isSpecClosed = isClosedSpecStatus(spec.status);
 
     return (
         <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
@@ -498,7 +502,7 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                         />
 
                         {/* Edit Button for Owner */}
-                        {isOwner && spec?.status === 'OPEN' && (
+                        {isOwner && specStatus === 'OPEN' && (
                             <IconButton
                                 icon="pencil"
                                 iconColor="#FFFFFF"
@@ -563,14 +567,9 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
 
                             {/* Status Badges */}
                             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 8 }}>
-                                {spec?.status === 'CLOSED' && (
-                                    <View style={{ backgroundColor: '#EF4444', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 }}>
-                                        <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>CLOSED</Text>
-                                    </View>
-                                )}
-                                {spec?.status === 'REVIEWING' && (
-                                    <View style={{ backgroundColor: '#EAB308', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 }}>
-                                        <Text style={{ color: 'black', fontSize: 10, fontWeight: 'bold' }}>REVIEWING</Text>
+                                {specStatus !== 'OPEN' && (
+                                    <View style={{ backgroundColor: specTone.backgroundColor, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 }}>
+                                        <Text style={{ color: specTone.textColor, fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase' }}>{specTone.label}</Text>
                                     </View>
                                 )}
                             </View>
@@ -589,7 +588,7 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                 </View>
 
                 {/* Host First/New Round Action */}
-                {isOwner && (!spec.rounds || !spec.rounds.some((r: any) => r.status === 'ACTIVE' || r.status === 'REVIEWING')) && (
+                {isOwner && !isSpecClosed && (!spec.rounds || !spec.rounds.some((r: any) => r.status === 'ACTIVE' || r.status === 'REVIEWING')) && (
                     <View style={styles.section}>
                         <Surface style={[styles.glassCard, { backgroundColor: theme.colors.elevation.level2, padding: 16 }]} elevation={2}>
                             <Text variant="titleMedium" style={{ fontWeight: 'bold', marginBottom: 8, color: theme.colors.primary }}>Start New Round</Text>
@@ -709,10 +708,11 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                         </View>
                         <View style={styles.roundsFlatList}>
                             {spec.rounds.map((r: any) => {
+                                const roundStatus = isSpecClosed ? 'COMPLETED' : r.status;
                                 const answers = r.answers || [];
                                 const eliminated = answers.filter((a: any) => a.is_eliminated).length;
                                 const remaining = answers.length - eliminated;
-                                const statusColor = r.status === 'ACTIVE' ? '#16a34a' : r.status === 'REVIEWING' ? '#ca8a04' : theme.colors.outline;
+                                const statusColor = roundStatus === 'ACTIVE' ? '#16a34a' : roundStatus === 'REVIEWING' ? '#ca8a04' : theme.colors.outline;
                                 const hasAudioQuestion = isAudioMedia(r.media);
                                 const hasVideoQuestion = isVideoMedia(r.media);
                                 return (
@@ -768,9 +768,9 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                                                 <Text style={[styles.roundCardFlatStat, { color: theme.colors.onSurfaceVariant }]}>
                                                     {eliminated} out · {remaining} left
                                                 </Text>
-                                                <View style={[styles.roundCardFlatPill, { backgroundColor: r.status === 'ACTIVE' ? 'rgba(22,163,74,0.12)' : r.status === 'REVIEWING' ? 'rgba(202,138,4,0.12)' : theme.colors.surfaceVariant }]}>
+                                                <View style={[styles.roundCardFlatPill, { backgroundColor: roundStatus === 'ACTIVE' ? 'rgba(22,163,74,0.12)' : roundStatus === 'REVIEWING' ? 'rgba(202,138,4,0.12)' : theme.colors.surfaceVariant }]}>
                                                     <View style={[styles.roundCardFlatPillDot, { backgroundColor: statusColor }]} />
-                                                    <Text style={[styles.roundCardFlatPillText, { color: theme.colors.onSurface }]}>{r.status}</Text>
+                                                    <Text style={[styles.roundCardFlatPillText, { color: theme.colors.onSurface }]}>{roundStatus}</Text>
                                                 </View>
                                                 {!canOpenRoundDetails ? (
                                                     <Text style={[styles.roundCardFlatStat, { color: theme.colors.onSurfaceVariant }]}>
@@ -980,6 +980,16 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                     >
                         {myApplication.status === 'ACCEPTED' ? 'Joined' : 'Applied'}
                     </Button>
+                ) : isSpecClosed ? (
+                    <Button
+                        mode="contained"
+                        disabled
+                        style={[styles.footerBtn, { backgroundColor: theme.colors.surfaceVariant }]}
+                        textColor={theme.colors.onSurfaceVariant}
+                        labelStyle={{ fontSize: 16, fontWeight: '800' }}
+                    >
+                        Spec Closed
+                    </Button>
                 ) : (spec.expires_at && new Date(spec.expires_at) <= new Date()) ? (
                     <Button
                         mode="contained"
@@ -990,7 +1000,7 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                     >
                         Applications Closed
                     </Button>
-                ) : spec.status !== 'OPEN' ? (
+                ) : specStatus !== 'OPEN' ? (
                     <Button
                         mode="contained"
                         disabled

@@ -50,6 +50,7 @@ export const profileSchema = z.object({
     city: z.string().min(1, "City is required"),
     state: z.string().min(1, "State is required"),
     country: z.string().min(1, "Country is required"),
+    country_code: z.string().length(2).optional(),
     height: z.coerce.number().min(50).max(300).optional(), // cm
     ethnicity: z.string().optional(),
     religion: z.string().optional(),

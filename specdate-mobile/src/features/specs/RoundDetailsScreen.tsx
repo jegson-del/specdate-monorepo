@@ -17,6 +17,7 @@ import { confirmMediaShareWithAiScan } from '../../utils/confirmMediaShareWithAi
 import { ModerationService, type ReportTargetType } from '../../services/moderation';
 import { isAudioMedia, isVideoMedia } from './specDetailsUtils';
 import { isRoundMediaReviewing, resolveShareableRoundMedia } from './roundMediaUpload';
+import { isClosedSpecStatus } from './specStatus';
 import ChatSafetySheet from '../chat/components/ChatSafetySheet';
 
 type ReportSheetState =
@@ -463,14 +464,8 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
     const resolvedRound =
         roundFromSpec ??
         (lastRoundRef.current && String(lastRoundRef.current.id) === String(roundId) ? lastRoundRef.current : null);
-    const roundToShow =
-        resolvedRound &&
-            roundFromSpec?.status === 'COMPLETED' &&
-            lastRoundRef.current &&
-            String(lastRoundRef.current.id) === String(roundId) &&
-            lastRoundRef.current.status !== 'COMPLETED'
-            ? lastRoundRef.current
-            : resolvedRound;
+    const roundToShow = resolvedRound;
+    const specIsClosed = isClosedSpecStatus(spec?.status);
 
     // Participants = accepted applicants only; exclude spec owner (role: owner, not participant).
     const activeParticipants = useMemo(() => {
@@ -589,8 +584,7 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
         );
     }
 
-    // Resolve round: use refetch result, or last-known round to avoid "Round not found" flash during refetch / COMPLETED overwrite
-    // but we were showing ACTIVE/REVIEWING (so Close button and round UI don't disappear after a few seconds)
+    // Resolve round from fresh data first, falling back only while a refetch is between states.
 
 
     if (roundToShow && !canViewRoundDetails) {
@@ -627,7 +621,8 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
     // For owner view: we show all answers.
     const answers = roundToShow.answers || [];
 
-    const statusColor = roundToShow.status === 'ACTIVE' ? '#16a34a' : roundToShow.status === 'REVIEWING' ? '#ca8a04' : theme.colors.outline;
+    const roundDisplayStatus = specIsClosed ? 'COMPLETED' : String(roundToShow.status || '');
+    const statusColor = roundDisplayStatus === 'ACTIVE' ? '#16a34a' : roundDisplayStatus === 'REVIEWING' ? '#ca8a04' : theme.colors.outline;
 
     return (
         <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -638,7 +633,7 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                     <Text style={[styles.headerTitle, { color: theme.colors.onSurface }]}>Round {roundToShow.round_number}</Text>
                     <View style={[styles.headerStatusPill, { backgroundColor: (theme.colors as any).surfaceVariant || theme.colors.elevation?.level2 }]}>
                         <View style={[styles.headerStatusDot, { backgroundColor: statusColor }]} />
-                        <Text style={[styles.headerStatusText, { color: theme.colors.onSurface }]}>{roundToShow.status}</Text>
+                        <Text style={[styles.headerStatusText, { color: theme.colors.onSurface }]}>{roundDisplayStatus}</Text>
                     </View>
                 </View>
                 <View style={{ width: 48 }} />
@@ -672,7 +667,7 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                     <View style={styles.section}>
                         <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Owner controls</Text>
 
-                        {roundToShow.status === 'ACTIVE' && (
+                        {roundDisplayStatus === 'ACTIVE' && (
                             <TouchableOpacity
                                 activeOpacity={0.8}
                                 style={[styles.primaryButton, { backgroundColor: theme.colors.error }]}
@@ -687,7 +682,7 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                             </TouchableOpacity>
                         )}
 
-                        {roundToShow.status === 'REVIEWING' && (
+                        {roundDisplayStatus === 'REVIEWING' && (
                             <View style={[styles.flatBlock, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant || theme.colors.outline + '40' }]}>
                                 <Text style={[styles.flatBlockHint, { color: theme.colors.onSurfaceVariant }]}>Tap Eliminate next to an answer to remove that participant.</Text>
                                 <View style={[styles.divider, { backgroundColor: theme.colors.outlineVariant || theme.colors.outline + '30' }]} />
@@ -757,14 +752,14 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                             </View>
                         )}
 
-                        {roundToShow.status === 'COMPLETED' && (
+                        {roundDisplayStatus === 'COMPLETED' && (
                             <Text style={[styles.hintText, { color: theme.colors.onSurfaceVariant }]}>This round is completed.</Text>
                         )}
                     </View>
                 )}
 
                 {/* PARTICIPANT – Your Answer (show when they have an answer in this round, or when ACCEPTED + ACTIVE for form) */}
-                {!isOwner && (myAnswer || (myApplication?.status === 'ACCEPTED' && roundToShow.status === 'ACTIVE')) && (
+                {!isOwner && (myAnswer || (myApplication?.status === 'ACCEPTED' && roundDisplayStatus === 'ACTIVE')) && (
                     <View style={styles.section}>
                         <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Your answer</Text>
 
@@ -870,7 +865,7 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                 {isOwner && (
                     <RoundResponsesList
                         answers={answers}
-                        roundStatus={roundToShow.status}
+                        roundStatus={roundDisplayStatus}
                         theme={theme}
                         onEliminate={(userId) => eliminateUserMutation.mutate({ rId: roundToShow.id, userId })}
                         onOpenVideo={(uri) => {

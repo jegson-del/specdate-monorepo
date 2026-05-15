@@ -9,6 +9,7 @@ export type PublicProfile = {
         city?: string;
         state?: string;
         country?: string;
+        country_code?: string;
         dob?: string;
         sex?: string;
         occupation?: string;

@@ -3,6 +3,7 @@ import { View, StyleSheet, TouchableOpacity, ImageBackground, Image } from 'reac
 import { Text, Surface } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import { flagEmoji } from '../../../utils/countryFlags';
 
 type SpecCardItem = {
     id: string;
@@ -11,11 +12,12 @@ type SpecCardItem = {
     expiresIn: string;
     joinCount: number;
     locationCity?: string | null;
+    locationCountryCode?: string | null;
     maxParticipants: number;
     eliminatedCount: number;
     firstDateProvider: string;
     likesCount: number;
-    tag: 'LIVE' | 'ONGOING' | 'POPULAR' | 'HOTTEST';
+    tag: 'LIVE' | 'ONGOING' | 'POPULAR' | 'HOTTEST' | 'CLOSED';
     ownerAvatar?: string;
 };
 
@@ -30,6 +32,8 @@ type Props = {
 
 const SpecCard = memo(({ item, theme, homeColors, tagColor, withAlpha, onPress }: Props) => {
     const navigation = useNavigation<any>();
+    const locationFlag = flagEmoji(item.locationCountryCode);
+    const locationLabel = item.locationCity?.trim() || 'Location not set';
 
     const handlePress = () => {
         if (onPress) onPress();
@@ -92,7 +96,7 @@ const SpecCard = memo(({ item, theme, homeColors, tagColor, withAlpha, onPress }
                             <View style={styles.metaRow}>
                                 <MaterialCommunityIcons name="map-marker" size={20} color={theme.colors.primary} />
                                 <Text style={[styles.metaText, { color: homeColors.cardSubtext }]} numberOfLines={1}>
-                                    {item.locationCity?.trim() || 'Location not set'}
+                                    {locationFlag ? `${locationFlag} ${locationLabel}` : locationLabel}
                                 </Text>
                             </View>
 

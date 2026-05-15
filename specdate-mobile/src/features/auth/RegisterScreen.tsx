@@ -87,6 +87,7 @@ export default function RegisterScreen({ navigation }: any) {
         city: '',
         state: '',
         country: '',
+        country_code: '',
         continent: '',
     });
 
@@ -167,6 +168,7 @@ export default function RegisterScreen({ navigation }: any) {
                     city: place?.city ?? prev.city,
                     state: place?.region ?? prev.state,
                     country: place?.country ?? prev.country,
+                    country_code: iso || prev.country_code,
                     // expo-location doesn't reliably provide continent; leave as-is.
                     continent: prev.continent,
                     mobile: nextMobile,

@@ -70,6 +70,10 @@ class UserRegistrationOtpTest extends TestCase
             'mobile' => '+447700900123',
             'role' => 'user',
         ]);
+        $this->assertDatabaseHas('user_profiles', [
+            'country' => 'United Kingdom',
+            'country_code' => 'GB',
+        ]);
         $this->assertFalse(Cache::has('otp:mobile:+447700900123'));
     }
 
@@ -137,6 +141,10 @@ class UserRegistrationOtpTest extends TestCase
             'channel' => 'mobile',
             'target' => '+447700900123',
             'terms_accepted' => true,
+            'city' => 'London',
+            'state' => 'England',
+            'country' => 'United Kingdom',
+            'country_code' => 'GB',
         ], $overrides);
     }
 

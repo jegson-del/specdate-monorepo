@@ -5,11 +5,12 @@ export type SpecCardItem = {
   expiresIn: string;
   joinCount: number;
   locationCity?: string | null;
+  locationCountryCode?: string | null;
   maxParticipants: number;
   eliminatedCount: number;
   firstDateProvider: string;
   likesCount: number;
-  tag: 'LIVE' | 'ONGOING' | 'POPULAR' | 'HOTTEST';
+  tag: 'LIVE' | 'ONGOING' | 'POPULAR' | 'HOTTEST' | 'CLOSED';
   ownerAvatar?: string;
 };
 

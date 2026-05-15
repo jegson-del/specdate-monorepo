@@ -24,6 +24,8 @@ export function tagColor(tag: string) {
       return '#A78BFA';
     case 'HOTTEST':
       return '#5B21B6';
+    case 'CLOSED':
+      return '#475569';
     default:
       return '#7C3AED';
   }
@@ -54,6 +56,7 @@ export async function mapSpecsResponse(res: any, fallbackFeed: FeedKey): Promise
       expiresIn: expiresText,
       joinCount: s.applications_count || 0,
       locationCity: s.location_city || null,
+      locationCountryCode: s.location_country_code || s.owner?.profile?.country_code || null,
       maxParticipants: s.max_participants,
       eliminatedCount: 0,
       firstDateProvider: '—',

@@ -5,6 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { UserService, type UserFilterOption } from '../../../services/user';
+import { flagForCountry } from '../../../utils/countryFlags';
 
 type Props = {
   visible: boolean;
@@ -50,7 +51,11 @@ function OptionRow({
       ]}
     >
       <View style={[styles.optionIcon, { backgroundColor: selected ? theme.colors.primary : theme.colors.elevation.level2 }]}>
-        <MaterialCommunityIcons name={icon as any} size={18} color={selected ? theme.colors.onPrimary : theme.colors.primary} />
+        {icon === 'flag' ? (
+          <Text style={styles.optionFlag}>{flagForCountry(option.name, option.code) || '--'}</Text>
+        ) : (
+          <MaterialCommunityIcons name={icon as any} size={18} color={selected ? theme.colors.onPrimary : theme.colors.primary} />
+        )}
       </View>
       <View style={styles.optionBody}>
         <Text style={[styles.optionName, { color: theme.colors.onSurface }]} numberOfLines={1}>
@@ -108,6 +113,8 @@ export default function PeopleLocationFilterModal({
   );
   const showingCities = Boolean(draftCountry);
   const list = showingCities ? cities : countries;
+  const draftCountryOption = optionsQuery.data?.countries.find((option) => option.name === draftCountry);
+  const draftFlag = flagForCountry(draftCountry, draftCountryOption?.code);
 
   const apply = () => {
     onApply({ country: draftCountry, city: draftCity });
@@ -187,7 +194,11 @@ export default function PeopleLocationFilterModal({
               }}
               style={[styles.countryTrail, { borderColor: theme.colors.outlineVariant }]}
             >
-              <MaterialCommunityIcons name="earth" size={17} color={theme.colors.primary} />
+              {draftFlag ? (
+                <Text style={styles.trailFlag}>{draftFlag}</Text>
+              ) : (
+                <MaterialCommunityIcons name="earth" size={17} color={theme.colors.primary} />
+              )}
               <Text style={[styles.countryTrailText, { color: theme.colors.onSurface }]} numberOfLines={1}>
                 {draftCountry}
               </Text>
@@ -211,7 +222,7 @@ export default function PeopleLocationFilterModal({
                 <OptionRow
                   option={item}
                   selected={showingCities ? draftCity === item.name : draftCountry === item.name}
-                  icon={showingCities ? 'map-marker-outline' : 'earth'}
+                  icon={showingCities ? 'map-marker-outline' : 'flag'}
                   theme={theme}
                   onPress={() => {
                     if (showingCities) {
@@ -363,6 +374,14 @@ const styles = StyleSheet.create({
     borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  optionFlag: {
+    fontSize: 18,
+    lineHeight: 22,
+  },
+  trailFlag: {
+    fontSize: 16,
+    lineHeight: 20,
   },
   optionBody: {
     flex: 1,

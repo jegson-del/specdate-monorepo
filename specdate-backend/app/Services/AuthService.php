@@ -217,6 +217,7 @@ class AuthService
                 'city' => $data['city'] ?? null,
                 'state' => $data['state'] ?? null,
                 'country' => $data['country'] ?? null,
+                'country_code' => isset($data['country_code']) ? strtoupper((string) $data['country_code']) : null,
                 'continent' => $data['continent'] ?? null,
             ]);
 

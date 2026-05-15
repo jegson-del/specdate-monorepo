@@ -7,11 +7,12 @@ export type Spec = {
     title: string;
     description: string;
     location_city: string;
+    location_country_code?: string | null;
     location_lat?: number;
     location_lng?: number;
     duration: number;
     max_participants: number;
-    status: 'OPEN' | 'CLOSED' | 'COMPLETED';
+    status: 'OPEN' | 'ACTIVE' | 'COMPLETED' | 'EXPIRED' | 'CLOSED';
     expires_at: string;
     created_at: string;
     updated_at: string;
@@ -22,6 +23,8 @@ export type Spec = {
         email: string;
         profile?: {
             full_name: string;
+            country?: string | null;
+            country_code?: string | null;
             avatar?: string;
         };
     };

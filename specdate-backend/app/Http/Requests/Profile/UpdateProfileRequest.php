@@ -26,6 +26,7 @@ class UpdateProfileRequest extends ApiFormRequest
             'city' => 'nullable|string|max:100',
             'state' => 'nullable|string|max:100',
             'country' => 'nullable|string|max:100',
+            'country_code' => 'nullable|string|size:2',
             'height' => 'nullable|integer|min:50|max:300',
             'ethnicity' => 'nullable|string|max:255',
             'religion' => 'nullable|string|max:100',

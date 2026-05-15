@@ -105,6 +105,7 @@ class UserController extends Controller
                 'city' => $profile->city,
                 'state' => $profile->state,
                 'country' => $profile->country,
+                'country_code' => $profile->country_code,
                 'dob' => $profile->dob?->format('Y-m-d'),
                 'sex' => $profile->sex,
                 'occupation' => $profile->occupation,

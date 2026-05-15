@@ -24,6 +24,7 @@ class RegisterRequest extends ApiFormRequest
             'city' => 'nullable|string|max:255',
             'state' => 'nullable|string|max:255',
             'country' => 'nullable|string|max:255',
+            'country_code' => 'nullable|string|size:2',
             'continent' => 'nullable|string|max:255',
             // Mobile user registration is phone-first; provider web onboarding uses a separate route.
             'otp_code' => 'required|string|size:6',

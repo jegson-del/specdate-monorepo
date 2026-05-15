@@ -23,6 +23,10 @@ class ProfileService
      */
     public function updateProfile(User $user, array $data)
     {
+        if (array_key_exists('country_code', $data) && $data['country_code'] !== null) {
+            $data['country_code'] = strtoupper((string) $data['country_code']);
+        }
+
         Log::info("Updating profile for user: {$user->id}", $data);
 
         $profile = $user->profile;

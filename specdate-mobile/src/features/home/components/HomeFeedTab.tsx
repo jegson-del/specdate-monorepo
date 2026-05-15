@@ -12,6 +12,7 @@ import PersonCard, { UserItem } from './PersonCard';
 import PeopleLocationFilterModal from './PeopleLocationFilterModal';
 import SearchModal from './SearchModal';
 import SpecCard from './SpecCard';
+import { flagForCountry } from '../../../utils/countryFlags';
 
 type Props = {
   theme: any;
@@ -91,6 +92,7 @@ export default function HomeFeedTab({ theme, homeColors, insets, bottomNavHeight
   const peopleTotal = usersQuery.data?.pages?.[0]?.data?.total;
   const activePeopleFilterCount = [sexFilter !== 'All', countryFilter, cityFilter, query.trim()].filter(Boolean).length;
   const locationLabel = [cityFilter, countryFilter].filter(Boolean).join(', ') || 'Any location';
+  const locationFlag = flagForCountry(countryFilter);
 
   const clearPeopleFilters = () => {
     setSexFilter('All');
@@ -221,18 +223,31 @@ export default function HomeFeedTab({ theme, homeColors, insets, bottomNavHeight
           <TouchableOpacity
             activeOpacity={0.85}
             onPress={() => setLocationFilterOpen(true)}
-            style={[styles.locationSelectButton, { backgroundColor: theme.colors.elevation.level2 }]}
+            style={[
+              styles.locationSelectButton,
+              {
+                backgroundColor: countryFilter || cityFilter ? theme.colors.primary + '10' : theme.colors.elevation.level2,
+                borderColor: countryFilter || cityFilter ? theme.colors.primary : theme.colors.outlineVariant,
+              },
+            ]}
           >
             <View style={[styles.locationSelectIcon, { backgroundColor: theme.colors.primary + '16' }]}>
-              <MaterialCommunityIcons name="map-search-outline" size={20} color={theme.colors.primary} />
+              {locationFlag ? (
+                <Text style={styles.locationSelectFlag}>{locationFlag}</Text>
+              ) : (
+                <MaterialCommunityIcons name="map-search-outline" size={20} color={theme.colors.primary} />
+              )}
             </View>
             <View style={styles.locationSelectCopy}>
-              <Text style={[styles.locationSelectLabel, { color: theme.colors.onSurfaceVariant }]}>Country and city</Text>
+              <Text style={[styles.locationSelectLabel, { color: theme.colors.primary }]}>Tap to filter by location</Text>
               <Text style={[styles.locationSelectValue, { color: theme.colors.onSurface }]} numberOfLines={1}>
                 {locationLabel}
               </Text>
             </View>
-            <MaterialCommunityIcons name="chevron-up" size={20} color={theme.colors.onSurfaceVariant} />
+            <View style={[styles.locationSelectBadge, { backgroundColor: theme.colors.surface }]}>
+              <Text style={[styles.locationSelectBadgeText, { color: theme.colors.primary }]}>Filter</Text>
+              <MaterialCommunityIcons name="chevron-up" size={16} color={theme.colors.primary} />
+            </View>
           </TouchableOpacity>
         </View>
       )}
@@ -452,6 +467,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingHorizontal: 12,
     gap: 10,
+    borderWidth: 1,
   },
   locationSelectIcon: {
     width: 36,
@@ -473,6 +489,24 @@ const styles = StyleSheet.create({
   locationSelectValue: {
     marginTop: 2,
     fontSize: 15,
+    fontWeight: '900',
+    letterSpacing: 0,
+  },
+  locationSelectFlag: {
+    fontSize: 20,
+    lineHeight: 24,
+  },
+  locationSelectBadge: {
+    minHeight: 30,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingLeft: 9,
+    paddingRight: 7,
+    borderRadius: 999,
+  },
+  locationSelectBadgeText: {
+    fontSize: 11,
     fontWeight: '900',
     letterSpacing: 0,
   },
