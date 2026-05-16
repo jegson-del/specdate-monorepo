@@ -35,8 +35,9 @@ class SpecInteractionService
         ];
     }
 
-    public function extendSearch($user, $specId, ?string $comment = null): array
+    public function extendSearch($user, $specId, ?string $comment = null, int $durationDays = 30): array
     {
+        $durationDays = max(1, min($durationDays, 30));
         $spec = Spec::with('rounds')->findOrFail($specId);
         if ($spec->user_id !== $user->id) {
             throw new HttpException(403, 'You are not the owner of this spec.');
@@ -57,7 +58,7 @@ class SpecInteractionService
             $body .= "\n\nMessage from the owner: " . trim($comment);
         }
 
-        $balance = DB::transaction(function () use ($user, $spec, $winnerApp, $round, $body) {
+        $balance = DB::transaction(function () use ($user, $spec, $winnerApp, $round, $body, $durationDays) {
             $balance = $this->credits->debitCredit(
                 $user,
                 "Extended Spec: {$spec->title}",
@@ -66,7 +67,11 @@ class SpecInteractionService
 
             $round->answers()->where('user_id', $winnerApp->user_id)->update(['is_eliminated' => true]);
             $winnerApp->update(['status' => 'ELIMINATED']);
-            $spec->update(['status' => 'OPEN']);
+            $spec->update([
+                'status' => 'OPEN',
+                'expires_at' => now()->addDays($durationDays),
+                'expiry_extension_count' => max(1, (int) $spec->expiry_extension_count),
+            ]);
 
             $victim = $winnerApp->user;
             if ($victim) {

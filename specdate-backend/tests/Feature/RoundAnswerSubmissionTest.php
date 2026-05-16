@@ -113,6 +113,83 @@ class RoundAnswerSubmissionTest extends TestCase
         ]);
     }
 
+    public function test_starting_first_round_closes_applications_and_locks_current_capacity(): void
+    {
+        $owner = User::factory()->create();
+        $participants = User::factory()->count(2)->create();
+        $spec = Spec::create([
+            'user_id' => $owner->id,
+            'title' => 'Early round quest',
+            'description' => 'Starts before full capacity',
+            'expires_at' => now()->addDays(10),
+            'max_participants' => 10,
+            'status' => 'OPEN',
+        ]);
+        foreach ($participants as $participant) {
+            SpecApplication::create([
+                'spec_id' => $spec->id,
+                'user_id' => $participant->id,
+                'user_role' => 'participant',
+                'status' => 'ACCEPTED',
+            ]);
+        }
+
+        Sanctum::actingAs($owner);
+
+        $this->postJson("/api/specs/{$spec->id}/rounds", [
+            'question' => 'Ready?',
+        ])->assertOk();
+
+        $spec->refresh();
+        $this->assertSame('ACTIVE', $spec->status);
+        $this->assertSame(2, $spec->max_participants);
+        $this->assertTrue($spec->expires_at->between(now()->subMinute(), now()->addMinute()));
+    }
+
+    public function test_owner_cannot_start_next_round_without_eliminating_someone(): void
+    {
+        [$owner, $spec] = $this->createActiveSpecWithParticipants(2);
+        SpecRound::create([
+            'spec_id' => $spec->id,
+            'round_number' => 1,
+            'question_text' => 'First question',
+            'status' => 'COMPLETED',
+        ]);
+
+        Sanctum::actingAs($owner);
+
+        $this->postJson("/api/specs/{$spec->id}/rounds", [
+            'question' => 'Next question',
+        ])->assertStatus(400)
+            ->assertJsonPath('message', 'Eliminate at least one participant before starting the next round. If participants have not answered, nudge them from the close round prompt.');
+    }
+
+    public function test_owner_can_start_next_round_after_elimination(): void
+    {
+        [$owner, $spec, $participants] = $this->createActiveSpecWithParticipants(2);
+        $round = SpecRound::create([
+            'spec_id' => $spec->id,
+            'round_number' => 1,
+            'question_text' => 'First question',
+            'status' => 'COMPLETED',
+        ]);
+        $round->answers()->create([
+            'user_id' => $participants[0]->id,
+            'answer_text' => 'Answer',
+            'is_eliminated' => true,
+        ]);
+        SpecApplication::where('spec_id', $spec->id)
+            ->where('user_id', $participants[0]->id)
+            ->update(['status' => 'ELIMINATED']);
+
+        Sanctum::actingAs($owner);
+
+        $this->postJson("/api/specs/{$spec->id}/rounds", [
+            'question' => 'Next question',
+        ])->assertOk()
+            ->assertJsonPath('data.round_number', 2);
+    }
+
     public function test_participant_cannot_submit_empty_round_answer(): void
     {
         [$participant, $round] = $this->createActiveRoundForParticipant();
@@ -150,5 +227,30 @@ class RoundAnswerSubmissionTest extends TestCase
         ]);
 
         return [$participant, $round];
+    }
+
+    private function createActiveSpecWithParticipants(int $count): array
+    {
+        $owner = User::factory()->create();
+        $participants = User::factory()->count($count)->create();
+        $spec = Spec::create([
+            'user_id' => $owner->id,
+            'title' => 'Active quest',
+            'description' => 'Has participants',
+            'expires_at' => now(),
+            'max_participants' => $count,
+            'status' => 'ACTIVE',
+        ]);
+
+        foreach ($participants as $participant) {
+            SpecApplication::create([
+                'spec_id' => $spec->id,
+                'user_id' => $participant->id,
+                'user_role' => 'participant',
+                'status' => 'ACCEPTED',
+            ]);
+        }
+
+        return [$owner, $spec, $participants];
     }
 }

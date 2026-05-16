@@ -132,8 +132,8 @@ export const SpecService = {
         return response.data;
     },
 
-    async extendSearch(specId: string, comment?: string) {
-        const response = await api.post(`/specs/${specId}/extend-search`, { comment: comment ?? '' });
+    async extendSearch(specId: string, comment?: string, duration = 30) {
+        const response = await api.post(`/specs/${specId}/extend-search`, { comment: comment ?? '', duration });
         return response.data;
     },
 

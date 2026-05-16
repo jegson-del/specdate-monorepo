@@ -151,9 +151,9 @@ class SpecService
      * participant, and set spec status to OPEN so the owner can recruit again.
      * $comment is sent to the eliminated user in the notification.
      */
-    public function extendSearch($user, $specId, ?string $comment = null)
+    public function extendSearch($user, $specId, ?string $comment = null, int $durationDays = 30)
     {
-        return $this->specInteractionService->extendSearch($user, $specId, $comment);
+        return $this->specInteractionService->extendSearch($user, $specId, $comment, $durationDays);
     }
 
     /**

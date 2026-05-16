@@ -15,11 +15,17 @@ class ExtendSpecSearchRequest extends FormRequest
     {
         return [
             'comment' => 'nullable|string',
+            'duration' => 'sometimes|integer|min:1|max:30',
         ];
     }
 
     public function comment(): ?string
     {
         return $this->input('comment');
+    }
+
+    public function durationDays(): int
+    {
+        return (int) $this->input('duration', 30);
     }
 }

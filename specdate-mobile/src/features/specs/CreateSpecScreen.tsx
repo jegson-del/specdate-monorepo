@@ -12,7 +12,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 // --- Constants & Options ---
 
-const DURATION_DAYS = Array.from({ length: 14 }, (_, i) => ({
+const DURATION_DAYS = Array.from({ length: 30 }, (_, i) => ({
     label: `${i + 1} Day${i === 0 ? '' : 's'}`,
     value: String(i + 1),
 }));

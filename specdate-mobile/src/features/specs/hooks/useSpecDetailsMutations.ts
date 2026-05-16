@@ -137,14 +137,14 @@ export function useSpecDetailsMutations({
     });
 
     const extendSearchMutation = useMutation({
-        mutationFn: ({ specIdToUse, comment }: { specIdToUse: string; comment: string }) =>
-            SpecService.extendSearch(specIdToUse, comment),
+        mutationFn: ({ specIdToUse, comment, durationDays }: { specIdToUse: string; comment: string; durationDays: number }) =>
+            SpecService.extendSearch(specIdToUse, comment, durationDays),
         onSuccess: async (res: any) => {
             updateCredits(res?.data?.balance?.credits);
             queryClient.invalidateQueries({ queryKey: ['spec', specId] });
             await refetchSpec();
             resetLastManStanding();
-            Alert.alert('Search extended', 'Edit your spec and set the status to open to get more applicants.');
+            Alert.alert('Search extended', 'Your spec is open again for new applicants.');
         },
         onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to extend search.'),
     });

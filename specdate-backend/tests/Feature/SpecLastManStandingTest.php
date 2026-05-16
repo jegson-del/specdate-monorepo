@@ -52,7 +52,7 @@ class SpecLastManStandingTest extends TestCase
         [$owner, $winner, $spec, $round] = $this->createLastManStandingSpec();
         UserBalance::create(['user_id' => $owner->id, 'credits' => 2]);
 
-        $result = app(SpecService::class)->extendSearch($owner, $spec->id, 'I need more time.');
+        $result = app(SpecService::class)->extendSearch($owner, $spec->id, 'I need more time.', 30);
 
         $this->assertSame(1, $result['balance']['credits']);
         $this->assertDatabaseHas('user_balances', [
@@ -69,7 +69,9 @@ class SpecLastManStandingTest extends TestCase
             'user_id' => $winner->id,
             'is_eliminated' => true,
         ]);
-        $this->assertSame('OPEN', $spec->fresh()->status);
+        $spec->refresh();
+        $this->assertSame('OPEN', $spec->status);
+        $this->assertTrue($spec->expires_at->between(now()->addDays(29)->subMinute(), now()->addDays(30)->addMinute()));
     }
 
     public function test_extend_search_is_blocked_when_owner_has_no_credits(): void

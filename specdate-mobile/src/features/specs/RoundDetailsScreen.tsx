@@ -203,8 +203,8 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
     });
 
     const extendSearchMutation = useMutation({
-        mutationFn: ({ specIdToUse, comment }: { specIdToUse: string; comment: string }) =>
-            SpecService.extendSearch(specIdToUse, comment),
+        mutationFn: ({ specIdToUse, comment, durationDays }: { specIdToUse: string; comment: string; durationDays: number }) =>
+            SpecService.extendSearch(specIdToUse, comment, durationDays),
         onSuccess: async (res: any) => {
             const credits = res?.data?.balance?.credits;
             if (typeof credits === 'number') {
@@ -224,7 +224,7 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
             setLastManStandingVisible(false);
             setLastManStandingSpecId(null);
             setLastManStandingWinnerName('');
-            Alert.alert('Search extended', 'Edit your spec and set the status to open to get more applicants.');
+            Alert.alert('Search extended', 'Your spec is open again for new applicants.');
         },
         onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to extend search.'),
     });
@@ -870,7 +870,7 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                 winnerName={lastManStandingWinnerName}
                 specId={lastManStandingSpecId ?? ''}
                 onMatchAndDate={() => lastManStandingSpecId && createDateMutation.mutate(lastManStandingSpecId)}
-                onExtendSearch={(comment) => lastManStandingSpecId && extendSearchMutation.mutate({ specIdToUse: lastManStandingSpecId, comment })}
+                onExtendSearch={(comment, durationDays) => lastManStandingSpecId && extendSearchMutation.mutate({ specIdToUse: lastManStandingSpecId, comment, durationDays })}
                 availableCredits={user?.balance?.credits ?? 0}
                 matchLoading={createDateMutation.isPending}
                 extendLoading={extendSearchMutation.isPending}

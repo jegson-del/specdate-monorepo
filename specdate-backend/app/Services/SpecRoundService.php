@@ -41,15 +41,18 @@ class SpecRoundService
         $eliminationCount = max(1, (int) ceil($activeCount * 0.1));
 
         $latestRound = $spec->rounds()->latest('id')->first();
+        if ($latestRound && ! $latestRound->answers()->where('is_eliminated', true)->exists()) {
+            throw new HttpException(400, 'Eliminate at least one participant before starting the next round. If participants have not answered, nudge them from the close round prompt.');
+        }
+
         if ($latestRound && ($latestRound->status === 'ACTIVE' || $latestRound->status === 'REVIEWING')) {
             $latestRound->update(['status' => 'COMPLETED']);
         }
 
         if ($spec->status === 'OPEN') {
             $spec->status = 'ACTIVE';
-            if ($activeCount < (int) $spec->max_participants) {
-                $spec->max_participants = $activeCount;
-            }
+            $spec->max_participants = $activeCount;
+            $spec->expires_at = now();
             $spec->save();
         }
 

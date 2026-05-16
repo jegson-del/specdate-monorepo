@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Alert, View, StyleSheet, TextInput } from 'react-native';
 import { Button, Modal, Portal, Text, useTheme } from 'react-native-paper';
+import { Dropdown } from 'react-native-paper-dropdown';
+
+const EXTEND_DURATION_OPTIONS = Array.from({ length: 30 }, (_, i) => ({
+  label: `${i + 1} Day${i === 0 ? '' : 's'}`,
+  value: String(i + 1),
+}));
 
 export type LastManStandingModalProps = {
   visible: boolean;
@@ -8,8 +14,8 @@ export type LastManStandingModalProps = {
   winnerName: string;
   specId: string;
   onMatchAndDate: () => void;
-  /** Called with the comment to send to the eliminated user. */
-  onExtendSearch: (comment: string) => void;
+  /** Called with the comment to send to the eliminated user and paid reopen duration. */
+  onExtendSearch: (comment: string, durationDays: number) => void;
   availableCredits?: number;
   matchLoading?: boolean;
   extendLoading?: boolean;
@@ -29,11 +35,13 @@ export function LastManStandingModal({
   const theme = useTheme();
   const [showCommentStep, setShowCommentStep] = useState(false);
   const [comment, setComment] = useState('');
+  const [durationDays, setDurationDays] = useState('30');
 
   useEffect(() => {
     if (!visible) {
       setShowCommentStep(false);
       setComment('');
+      setDurationDays('30');
     }
   }, [visible]);
 
@@ -48,10 +56,10 @@ export function LastManStandingModal({
 
     Alert.alert(
       'Extend this quest?',
-      'Extending will charge 1 credit, remove the last person standing, and reopen this spec for new applicants.',
+      `Extending will charge 1 credit, remove the last person standing, and reopen this spec for ${durationDays} day${durationDays === '1' ? '' : 's'}.`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Use 1 credit', onPress: () => onExtendSearch(comment.trim()) },
+        { text: 'Use 1 credit', onPress: () => onExtendSearch(comment.trim(), parseInt(durationDays, 10)) },
       ]
     );
   };
@@ -107,6 +115,15 @@ export function LastManStandingModal({
             <Text style={[styles.costText, { color: theme.colors.error }]}>
               Extending costs 1 credit. Your balance: {availableCredits}
             </Text>
+            <View style={styles.dropdownWrap}>
+              <Dropdown
+                label="Reopen For"
+                mode="outlined"
+                options={EXTEND_DURATION_OPTIONS}
+                value={durationDays}
+                onSelect={(value) => setDurationDays(value || '30')}
+              />
+            </View>
             <TextInput
               placeholder="e.g. I'd like to see more options before deciding"
               placeholderTextColor={theme.colors.onSurfaceVariant}
@@ -192,5 +209,8 @@ const styles = StyleSheet.create({
     minHeight: 88,
     textAlignVertical: 'top',
     marginBottom: 16,
+  },
+  dropdownWrap: {
+    marginBottom: 14,
   },
 });

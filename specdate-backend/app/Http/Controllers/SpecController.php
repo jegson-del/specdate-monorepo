@@ -294,7 +294,7 @@ class SpecController extends Controller
     public function extendSearch(ExtendSpecSearchRequest $request, $id)
     {
         try {
-            $result = $this->specService->extendSearch($request->user(), $id, $request->comment());
+            $result = $this->specService->extendSearch($request->user(), $id, $request->comment(), $request->durationDays());
             return $this->sendResponse($result, $result['message'] ?? 'Search extended.');
         } catch (HttpException $e) {
             return $this->sendError($e->getMessage(), [], $e->getStatusCode());

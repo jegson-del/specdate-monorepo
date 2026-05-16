@@ -6,6 +6,19 @@ import { useTheme, Modal as PaperModal, Portal } from 'react-native-paper';
 import { Dropdown } from 'react-native-paper-dropdown';
 import { SpecService } from '../../../services/specs';
 
+const EXPIRY_DURATION_OPTIONS = Array.from({ length: 30 }, (_, i) => ({
+    label: `${i + 1} Day${i === 0 ? '' : 's'}`,
+    value: String(i + 1),
+}));
+
+const MAX_PARTICIPANTS_OPTIONS = [
+    { label: '10 People', value: '10' },
+    { label: '20 People', value: '20' },
+    { label: '30 People', value: '30' },
+    { label: '50 People', value: '50' },
+    { label: '100 People', value: '100' },
+];
+
 interface EditSpecModalProps {
     visible: boolean;
     onClose: () => void;
@@ -18,21 +31,22 @@ export const EditSpecModal = ({ visible, onClose, spec }: EditSpecModalProps) =>
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [maxParticipants, setMaxParticipants] = useState('');
-    const [expiresAtText, setExpiresAtText] = useState('');
+    const [initialMaxParticipants, setInitialMaxParticipants] = useState('');
+    const [expiryDays, setExpiryDays] = useState('');
+    const [initialExpiryDays, setInitialExpiryDays] = useState('');
     const [status, setStatus] = useState<string>('OPEN');
 
     useEffect(() => {
         if (spec) {
             setTitle(spec.title);
             setDescription(spec.description || '');
-            setMaxParticipants(spec.max_participants ? String(spec.max_participants) : '');
+            const currentMaxParticipants = spec.max_participants ? String(spec.max_participants) : '30';
+            setMaxParticipants(currentMaxParticipants);
+            setInitialMaxParticipants(currentMaxParticipants);
 
-            if (spec.expires_at) {
-                const d = new Date(spec.expires_at);
-                setExpiresAtText(d.toISOString().split('T')[0]);
-            } else {
-                setExpiresAtText('');
-            }
+            const daysUntilExpiry = daysFromNow(spec.expires_at);
+            setExpiryDays(daysUntilExpiry);
+            setInitialExpiryDays(daysUntilExpiry);
 
             // Map status
             setStatus(spec.status);
@@ -58,31 +72,40 @@ export const EditSpecModal = ({ visible, onClose, spec }: EditSpecModalProps) =>
             return;
         }
 
-        // Validate date
-        let expires_at = null;
-        if (expiresAtText.trim()) {
-            const d = new Date(expiresAtText);
-            if (isNaN(d.getTime())) {
-                Alert.alert('Error', 'Invalid date format. Use YYYY-MM-DD');
-                return;
-            }
-            expires_at = d.toISOString();
-        }
-
         const data: any = {
             title,
             description,
         };
-        if (maxParticipants.trim()) {
+        if (maxParticipants.trim() && maxParticipants !== initialMaxParticipants) {
             data.max_participants = parseInt(maxParticipants, 10);
         }
-        if (expires_at) {
-            data.expires_at = expires_at;
+        if (expiryDays && expiryDays !== initialExpiryDays) {
+            data.duration = parseInt(expiryDays, 10);
         }
 
         // Handle Status
         if (status !== spec.status) {
             data.status = status;
+        }
+
+        const sensitiveChanges = [];
+        if (data.max_participants !== undefined) {
+            sensitiveChanges.push(`Max participants will change from ${initialMaxParticipants} to ${maxParticipants}.`);
+        }
+        if (data.duration !== undefined) {
+            sensitiveChanges.push(`Expiry will change to ${expiryDays} day${expiryDays === '1' ? '' : 's'} from now.`);
+        }
+
+        if (sensitiveChanges.length > 0) {
+            Alert.alert(
+                'Confirm spec limits',
+                `${sensitiveChanges.join('\n\n')}\n\nIf people have already applied, shortening expiry or lowering capacity may be blocked.`,
+                [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Save changes', onPress: () => updateMutation.mutate(data) },
+                ],
+            );
+            return;
         }
 
         updateMutation.mutate(data);
@@ -165,26 +188,28 @@ export const EditSpecModal = ({ visible, onClose, spec }: EditSpecModalProps) =>
                     <View style={styles.row}>
                         <View style={{ flex: 1, marginRight: 8 }}>
                             <Text style={styles.label}>Max Participants</Text>
-                            <TextInput
-                                style={styles.input}
+                            <Dropdown
+                                label="Max Participants"
+                                mode="outlined"
+                                options={MAX_PARTICIPANTS_OPTIONS}
                                 value={maxParticipants}
-                                onChangeText={setMaxParticipants}
-                                placeholder="Unlimited"
-                                placeholderTextColor={theme.colors.onSurfaceDisabled}
-                                keyboardType="numeric"
+                                onSelect={(value) => setMaxParticipants(value || initialMaxParticipants || '30')}
                             />
                         </View>
                         <View style={{ flex: 1, marginLeft: 8 }}>
-                            <Text style={styles.label}>Expiry Date</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={expiresAtText}
-                                onChangeText={setExpiresAtText}
-                                placeholder="YYYY-MM-DD"
-                                placeholderTextColor={theme.colors.onSurfaceDisabled}
+                            <Text style={styles.label}>Expires In</Text>
+                            <Dropdown
+                                label="Expires In"
+                                mode="outlined"
+                                options={EXPIRY_DURATION_OPTIONS}
+                                value={expiryDays}
+                                onSelect={(value) => setExpiryDays(value || initialExpiryDays || '3')}
                             />
                         </View>
                     </View>
+                    <Text style={[styles.helperText, { marginTop: -16, marginBottom: 20 }]}>
+                        Expiry is limited to 30 days from creation. Normal expiry extension can be used once.
+                    </Text>
 
                     {/* Status Dropdown */}
                     {isEditable ? (
@@ -236,6 +261,18 @@ export const EditSpecModal = ({ visible, onClose, spec }: EditSpecModalProps) =>
         </Portal>
     );
 };
+
+function daysFromNow(value?: string | null) {
+    if (!value) return '';
+
+    const expiry = new Date(value).getTime();
+    if (Number.isNaN(expiry)) return '';
+
+    const diff = expiry - Date.now();
+    if (diff <= 0) return '1';
+
+    return String(Math.min(30, Math.max(1, Math.ceil(diff / 86_400_000))));
+}
 
 const getStyles = (theme: any) => StyleSheet.create({
     modalContainer: {

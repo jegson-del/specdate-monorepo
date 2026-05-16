@@ -12,12 +12,14 @@ class Spec extends Model
         'description',
         'location_city', 'location_lat', 'location_lng',
         'expires_at',
+        'expiry_extension_count',
         'max_participants',
         'status',
     ];
 
     protected $casts = [
         'expires_at' => 'datetime',
+        'expiry_extension_count' => 'integer',
         'location_lat' => 'decimal:8',
         'location_lng' => 'decimal:8',
     ];

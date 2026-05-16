@@ -192,7 +192,7 @@ class ModerationStrikeTest extends TestCase
             'title' => 'Blocked spec',
             'description' => 'Should not be created.',
             'duration' => 3,
-            'max_participants' => 2,
+            'max_participants' => 10,
         ])->assertForbidden()
             ->assertJsonPath('message', 'Your account is temporarily suspended.');
 

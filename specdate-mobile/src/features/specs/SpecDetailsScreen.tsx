@@ -111,7 +111,7 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
         if (startsBelowCapacity) {
             Alert.alert(
                 'Start quest now?',
-                'Your spec has not reached the max number of participants you required. If you begin the quest, new participants cannot join this spec. Do you wish to start or cancel?',
+                `Your spec has ${acceptedParticipantCount} accepted participant${acceptedParticipantCount === 1 ? '' : 's'} out of ${maxParticipants}. If you begin now, applications will close immediately, expiry will be set to today, and max participants will be locked to ${acceptedParticipantCount}.`,
                 [
                     { text: 'Cancel', style: 'cancel' },
                     {
@@ -432,7 +432,7 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                 winnerName={lastManStandingWinnerName}
                 specId={lastManStandingSpecId ?? ''}
                 onMatchAndDate={() => lastManStandingSpecId && createDateMutation.mutate(lastManStandingSpecId)}
-                onExtendSearch={(comment) => lastManStandingSpecId && extendSearchMutation.mutate({ specIdToUse: lastManStandingSpecId, comment })}
+                onExtendSearch={(comment, durationDays) => lastManStandingSpecId && extendSearchMutation.mutate({ specIdToUse: lastManStandingSpecId, comment, durationDays })}
                 availableCredits={user?.balance?.credits ?? 0}
                 matchLoading={createDateMutation.isPending}
                 extendLoading={extendSearchMutation.isPending}
