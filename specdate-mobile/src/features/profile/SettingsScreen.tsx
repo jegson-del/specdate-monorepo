@@ -8,6 +8,7 @@ import { AuthService } from '../../services/auth';
 import { AccountService } from '../../services/account';
 import { useUser } from '../../hooks/useUser';
 import { ConfirmModal } from './components';
+import { HomeOnboardingModal } from '../onboarding/HomeOnboardingModal';
 
 type ConfirmAction = 'pause' | 'unpause' | 'delete' | null;
 
@@ -70,6 +71,7 @@ export default function SettingsScreen({ navigation }: any) {
   const { data: user } = useUser();
   const [confirmModal, setConfirmModal] = useState<ConfirmAction>(null);
   const [loading, setLoading] = useState(false);
+  const [guideVisible, setGuideVisible] = useState(false);
 
   const handleLogout = async () => {
     await AuthService.logout();
@@ -172,6 +174,15 @@ export default function SettingsScreen({ navigation }: any) {
         <Surface style={[styles.section, { backgroundColor: theme.colors.elevation.level1 }]} elevation={0}>
           <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.primary }]}>Safety</Text>
           <SettingsItem
+            icon="map-search-outline"
+            iconColor={theme.colors.primary}
+            iconBg={theme.colors.primaryContainer}
+            title="How DateUsher works"
+            subtitle="Quick guide to Specs, rounds, vouchers, support, and reports"
+            onPress={() => setGuideVisible(true)}
+            theme={theme}
+          />
+          <SettingsItem
             icon="lifebuoy"
             iconColor={theme.colors.primary}
             iconBg={theme.colors.primaryContainer}
@@ -227,6 +238,8 @@ export default function SettingsScreen({ navigation }: any) {
           loading={loading}
         />
       )}
+
+      <HomeOnboardingModal visible={guideVisible} onClose={() => setGuideVisible(false)} />
     </View>
   );
 }

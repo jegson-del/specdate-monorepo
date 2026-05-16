@@ -15,6 +15,8 @@ import RequestsTab from './components/RequestsTab';
 import VouchersTab from './components/VouchersTab';
 import { BottomTabKey, HomeColors } from './types';
 import { ReviewService } from '../../services/reviews';
+import { HomeOnboardingModal } from '../onboarding/HomeOnboardingModal';
+import { hasSeenHomeOnboarding, markHomeOnboardingSeen } from '../onboarding/onboardingStorage';
 
 export default function HomeScreen({ navigation, route }: any) {
   const theme = useTheme();
@@ -29,6 +31,7 @@ export default function HomeScreen({ navigation, route }: any) {
       : 'Home'
   );
   const [dismissedPromptId, setDismissedPromptId] = useState<number | null>(null);
+  const [onboardingVisible, setOnboardingVisible] = useState(false);
 
   const { data: reviewPromptData } = useQuery({
     queryKey: ['review-prompts'],
@@ -91,6 +94,35 @@ export default function HomeScreen({ navigation, route }: any) {
       queryClient.invalidateQueries({ queryKey: route.params.initialTab === 'Requests' ? ['pending-requests'] : route.params.initialTab === 'Matches' ? ['dates'] : ['date-vouchers'] });
     }
   }, [queryClient, route?.params?.initialTab]);
+
+  React.useEffect(() => {
+    if (!user?.id || user.role === 'provider') return;
+
+    let mounted = true;
+
+    hasSeenHomeOnboarding(user.id)
+      .then((seen) => {
+        if (mounted && !seen) {
+          setOnboardingVisible(true);
+        }
+      })
+      .catch(() => {
+        if (mounted) {
+          setOnboardingVisible(true);
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [user?.id, user?.role]);
+
+  const closeOnboarding = useCallback(() => {
+    setOnboardingVisible(false);
+    if (user?.id) {
+      markHomeOnboardingSeen(user.id).catch(() => undefined);
+    }
+  }, [user?.id]);
 
   return (
     <View style={[styles.container, { backgroundColor: homeColors.bg }]}>
@@ -181,6 +213,8 @@ export default function HomeScreen({ navigation, route }: any) {
           </View>
         </Modal>
       </Portal>
+
+      <HomeOnboardingModal visible={onboardingVisible} onClose={closeOnboarding} />
     </View>
   );
 }

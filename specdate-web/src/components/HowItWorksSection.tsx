@@ -29,17 +29,20 @@ const HOW_IT_WORKS_STEPS = [
 function SpecSearchScreenshot() {
   return (
     <div
-      className="mx-auto w-full max-w-[22rem] rounded-[2rem] border border-white/18 bg-gray-950/95 p-2 shadow-2xl shadow-black/40"
+      className="spec-search-phone relative mx-auto w-full max-w-[22rem] rounded-[2rem] border border-white/18 bg-gray-950/95 p-2 shadow-2xl shadow-black/40"
       aria-label="Spec search screen preview"
     >
+      <span className="spec-search-glint spec-search-glint-one" aria-hidden="true" />
+      <span className="spec-search-glint spec-search-glint-two" aria-hidden="true" />
+      <span className="spec-search-glint spec-search-glint-three" aria-hidden="true" />
       <div className="aspect-[9/20] overflow-hidden rounded-[1.55rem] bg-white">
         <img
-          src="/dateusherweb-sharp.jpg"
+          src="/replacement_web_image.png"
           alt="DateUsher Spec search screen showing live quests"
           className="h-full w-full object-cover object-top"
           loading="lazy"
-          width={1620}
-          height={3600}
+          width={841}
+          height={1871}
         />
       </div>
     </div>
@@ -71,7 +74,7 @@ export function HowItWorksSection() {
         </div>
 
         <div className="grid gap-4 lg:grid-cols-[1fr_1.1fr] lg:gap-8">
-          <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.06] p-6 shadow-2xl shadow-pink-950/30 backdrop-blur-md sm:p-8">
+          <div className="spec-search-panel relative overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.06] p-6 shadow-2xl shadow-pink-950/30 backdrop-blur-md sm:p-8">
             <div className="grid gap-8">
               <div className="mx-auto max-w-xl text-center lg:text-left">
                 <span className="inline-flex rounded-full border border-pink-300/30 bg-pink-500/15 px-4 py-2 text-sm font-bold uppercase tracking-[0.18em] text-pink-100">
