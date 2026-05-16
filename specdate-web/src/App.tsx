@@ -1,5 +1,6 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { AlertProvider } from './components/AlertProvider'
+import { CookieConsent } from './components/CookieConsent'
 import AdminContactPage from './pages/AdminContactPage'
 import AdminCreditFinancialsPage from './pages/AdminCreditFinancialsPage'
 import AdminManagementPage from './pages/AdminManagementPage'
@@ -85,6 +86,7 @@ export default function App() {
           <Route path="/admin/admin-management" element={<AdminManagementPage />} />
           <Route path="/admin/invite" element={<AdminInvitePage />} />
         </Routes>
+        <CookieConsent />
       </BrowserRouter>
     </AlertProvider>
   )

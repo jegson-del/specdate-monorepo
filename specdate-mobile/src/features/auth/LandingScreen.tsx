@@ -1,11 +1,16 @@
 import React from 'react';
-import { View, StyleSheet, Image as RNImage } from 'react-native';
+import { View, StyleSheet, Image as RNImage, Linking } from 'react-native';
 import { Text, Button, useTheme } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MotiView } from 'moti';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const HEART_EMOJI_RED = '#FF2D55';
+const LEGAL_LINKS = {
+    terms: 'https://dateusher.com/terms',
+    privacy: 'https://dateusher.com/privacy',
+    cookies: 'https://dateusher.com/cookie-policy',
+};
 
 function HeartLetter({
     letter,
@@ -65,6 +70,9 @@ function HeartLetter({
 export default function LandingScreen({ navigation }: any) {
     const theme = useTheme();
     const insets = useSafeAreaInsets();
+    const openLegalLink = (url: string) => {
+        Linking.openURL(url).catch(() => undefined);
+    };
 
     return (
         <View style={styles.container}>
@@ -132,6 +140,31 @@ export default function LandingScreen({ navigation }: any) {
                     >
                         Login
                     </Button>
+
+                    <Text style={[styles.legalCopy, { color: theme.colors.outline }]}>
+                        By tapping Create Account or Login, you agree to our{' '}
+                        <Text
+                            style={[styles.legalLink, { color: theme.colors.primary }]}
+                            onPress={() => openLegalLink(LEGAL_LINKS.terms)}
+                        >
+                            Terms of Service
+                        </Text>
+                        . Learn how we process your data in our{' '}
+                        <Text
+                            style={[styles.legalLink, { color: theme.colors.primary }]}
+                            onPress={() => openLegalLink(LEGAL_LINKS.privacy)}
+                        >
+                            Privacy Policy
+                        </Text>
+                        {' '}and{' '}
+                        <Text
+                            style={[styles.legalLink, { color: theme.colors.primary }]}
+                            onPress={() => openLegalLink(LEGAL_LINKS.cookies)}
+                        >
+                            Cookie Policy
+                        </Text>
+                        .
+                    </Text>
                 </MotiView>
             </View>
         </View>
@@ -206,5 +239,16 @@ const styles = StyleSheet.create({
     },
     buttonContent: {
         height: 56,
-    }
+    },
+    legalCopy: {
+        marginTop: 2,
+        textAlign: 'center',
+        fontSize: 12,
+        lineHeight: 18,
+        fontWeight: '600',
+    },
+    legalLink: {
+        fontWeight: '900',
+        textDecorationLine: 'underline',
+    },
 });

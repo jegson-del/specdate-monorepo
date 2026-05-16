@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Button, IconButton, Modal, Portal, Text, useTheme } from 'react-native-paper';
@@ -12,6 +12,7 @@ type HomeOnboardingModalProps = {
 const STEPS = [
   {
     icon: 'clipboard-plus-outline',
+    image: require('../../../assets/onboarding/create_spec.png'),
     title: 'Create a Spec',
     bullets: [
       'Costs 1 credit to publish.',
@@ -22,6 +23,7 @@ const STEPS = [
   },
   {
     icon: 'account-check-outline',
+    image: require('../../../assets/onboarding/join_free.png'),
     title: 'Join for free',
     bullets: [
       'Joining a Spec is free.',
@@ -32,6 +34,7 @@ const STEPS = [
   },
   {
     icon: 'forum-outline',
+    image: require('../../../assets/onboarding/round_decide.png'),
     title: 'Rounds decide the match',
     bullets: [
       'Rounds close new applications.',
@@ -42,6 +45,7 @@ const STEPS = [
   },
   {
     icon: 'ticket-percent-outline',
+    image: require('../../../assets/onboarding/restuarant_date.png'),
     title: 'Book date vouchers',
     bullets: [
       'Matched users can plan real dates.',
@@ -52,6 +56,7 @@ const STEPS = [
   },
   {
     icon: 'shield-alert-outline',
+    image: require('../../../assets/onboarding/safety_support.png'),
     title: 'Safety and support',
     bullets: [
       'Report unsafe users, media, or messages.',
@@ -96,14 +101,24 @@ export function HomeOnboardingModal({ visible, onClose }: HomeOnboardingModalPro
           <IconButton icon="close" size={20} onPress={close} />
         </View>
 
-        <LinearGradient colors={step.accent} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.visual}>
-          <View style={styles.visualInner}>
-            <MaterialCommunityIcons name={step.icon} size={74} color="#FFFFFF" />
+        <View style={styles.visual}>
+          <Image source={step.image} resizeMode="cover" style={styles.visualImage} />
+          <LinearGradient
+            colors={['rgba(0,0,0,0.02)', 'rgba(0,0,0,0.14)', 'rgba(0,0,0,0.54)']}
+            locations={[0, 0.48, 1]}
+            style={StyleSheet.absoluteFillObject}
+          />
+          <View style={[styles.visualInner, { backgroundColor: step.accent[0] }]}>
+            <MaterialCommunityIcons name={step.icon} size={28} color="#FFFFFF" />
           </View>
           <View style={styles.visualChip}>
             <Text style={styles.visualChipText}>{index + 1} / {STEPS.length}</Text>
           </View>
-        </LinearGradient>
+          <View style={styles.visualCaption}>
+            <Text style={styles.visualTitle}>{step.title}</Text>
+            <Text style={styles.visualSubtext}>A quick guide to your next step</Text>
+          </View>
+        </View>
 
         <Text style={[styles.title, { color: theme.colors.onSurface }]}>{step.title}</Text>
         <View style={styles.bulletList}>
@@ -168,20 +183,47 @@ const makeStyles = (theme: any) => StyleSheet.create({
     marginBottom: 22,
     overflow: 'hidden',
   },
+  visualImage: {
+    height: 360,
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    width: '100%',
+  },
   visualInner: {
     alignItems: 'center',
-    alignSelf: 'center',
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    borderColor: 'rgba(255,255,255,0.35)',
-    borderRadius: 56,
+    borderColor: 'rgba(255,255,255,0.55)',
+    borderRadius: 20,
     borderWidth: 1,
-    height: 112,
+    height: 48,
     justifyContent: 'center',
-    width: 112,
+    left: 16,
+    position: 'absolute',
+    top: 16,
+    width: 48,
+  },
+  visualCaption: {
+    bottom: 16,
+    left: 16,
+    position: 'absolute',
+    right: 82,
+  },
+  visualTitle: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '900',
+    letterSpacing: 0,
+  },
+  visualSubtext: {
+    color: 'rgba(255,255,255,0.82)',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 3,
   },
   visualChip: {
-    backgroundColor: 'rgba(255,255,255,0.22)',
-    borderColor: 'rgba(255,255,255,0.28)',
+    backgroundColor: 'rgba(0,0,0,0.28)',
+    borderColor: 'rgba(255,255,255,0.35)',
     borderRadius: 999,
     borderWidth: 1,
     bottom: 16,
