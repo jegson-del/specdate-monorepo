@@ -5,6 +5,7 @@ import { MediaModerationError } from '../../../services/media';
 import { resolveShareableRoundMedia } from '../roundMediaUpload';
 import type { RoundMediaAsset } from '../components';
 import type { UploadProgressState } from '../../../components';
+import { useLastManStandingActions } from './useLastManStandingActions';
 
 type UseSpecDetailsMutationsParams = {
     specId?: string;
@@ -34,6 +35,17 @@ export function useSpecDetailsMutations({
     setUploadProgress,
 }: UseSpecDetailsMutationsParams) {
     const queryClient = useQueryClient();
+    const {
+        createDateMutation,
+        extendSearchMutation,
+        openLastManStandingFromPayload,
+    } = useLastManStandingActions({
+        specId,
+        refetchSpec,
+        setLastManStandingVisible,
+        setLastManStandingWinnerName,
+        setLastManStandingSpecId,
+    });
 
     const updateCredits = (credits: unknown) => {
         if (typeof credits !== 'number') return;
@@ -47,12 +59,6 @@ export function useSpecDetailsMutations({
                 },
             };
         });
-    };
-
-    const resetLastManStanding = () => {
-        setLastManStandingVisible(false);
-        setLastManStandingSpecId(null);
-        setLastManStandingWinnerName('');
     };
 
     const isMediaReviewError = (err: unknown) => {
@@ -87,66 +93,11 @@ export function useSpecDetailsMutations({
             queryClient.invalidateQueries({ queryKey: ['spec', specId] });
             await refetchSpec();
             const payload = apiResponse?.data;
-            if (payload?.last_man_standing && payload.winner && payload.spec_id != null) {
-                setLastManStandingWinnerName(payload.winner.name || 'Winner');
-                setLastManStandingSpecId(String(payload.spec_id));
-                setLastManStandingVisible(true);
-            } else {
+            if (!openLastManStandingFromPayload(payload)) {
                 Alert.alert('Success', 'Participant eliminated.');
             }
         },
         onError: () => Alert.alert('Error', 'Failed to eliminate participant.'),
-    });
-
-    const createDateMutation = useMutation({
-        mutationFn: (specIdToUse: string) => SpecService.createDate(specIdToUse),
-        onSuccess: async (res: any) => {
-            const data = res?.data ?? res;
-            queryClient.setQueryData(['spec', specId], (current: any) => current ? ({
-                ...current,
-                status: 'COMPLETED',
-                rounds: Array.isArray(current.rounds)
-                    ? current.rounds.map((round: any) => (
-                        round.status === 'ACTIVE' || round.status === 'REVIEWING'
-                            ? { ...round, status: 'COMPLETED' }
-                            : round
-                    ))
-                    : current.rounds,
-            }) : current);
-            queryClient.setQueryData(['spec', specId, 'round_details'], (current: any) => current ? ({
-                ...current,
-                status: 'COMPLETED',
-                rounds: Array.isArray(current.rounds)
-                    ? current.rounds.map((round: any) => (
-                        round.status === 'ACTIVE' || round.status === 'REVIEWING'
-                            ? { ...round, status: 'COMPLETED' }
-                            : round
-                    ))
-                    : current.rounds,
-            }) : current);
-            queryClient.invalidateQueries({ queryKey: ['spec', specId] });
-            queryClient.invalidateQueries({ queryKey: ['spec', specId, 'round_details'] });
-            queryClient.invalidateQueries({ queryKey: ['specs'] });
-            queryClient.invalidateQueries({ queryKey: ['my-specs'] });
-            queryClient.invalidateQueries({ queryKey: ['dates'] });
-            await refetchSpec();
-            resetLastManStanding();
-            Alert.alert('Date created!', data?.date_code ? `Your date code: ${data.date_code}` : 'You are now matched. Go plan your date!');
-        },
-        onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to create date.'),
-    });
-
-    const extendSearchMutation = useMutation({
-        mutationFn: ({ specIdToUse, comment, durationDays }: { specIdToUse: string; comment: string; durationDays: number }) =>
-            SpecService.extendSearch(specIdToUse, comment, durationDays),
-        onSuccess: async (res: any) => {
-            updateCredits(res?.data?.balance?.credits);
-            queryClient.invalidateQueries({ queryKey: ['spec', specId] });
-            await refetchSpec();
-            resetLastManStanding();
-            Alert.alert('Search extended', 'Your spec is open again for new applicants.');
-        },
-        onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to extend search.'),
     });
 
     const joinMutation = useMutation({

@@ -3,7 +3,7 @@ import { Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import type { RoundMediaAsset } from '../components';
 
-type RoundMediaTarget = 'answer' | 'next_question';
+export type RoundMediaTarget = 'answer' | 'next_question' | 'round_question';
 
 type UseRoundMediaPickerParams = {
     onMediaSelected: (target: RoundMediaTarget, asset: RoundMediaAsset) => void;

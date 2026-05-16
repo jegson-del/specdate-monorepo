@@ -1,29 +1,24 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { View, ScrollView, Alert } from 'react-native';
+import { View, ScrollView } from 'react-native';
 import { Text, useTheme, Button, ActivityIndicator } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect } from '@react-navigation/native';
 import { SpecService } from '../../services/specs';
-import { MediaModerationError } from '../../services/media';
 import { useUser } from '../../hooks/useUser';
 import { insertEmojiAtSelection, type TextSelection } from '../../utils/emojiText';
 import { MediaPickerSheet, UploadProgressModal, VideoViewerModal, type UploadProgressState } from '../../components';
 import { CloseRoundModal, LastManStandingModal, PrivateRoundState, RoundHeader, RoundOwnerControls, RoundParticipantAnswerSection, RoundQuestionCard, RoundResponsesList, useRoundAudioRecorder } from './components';
 import type { RoundMediaAsset } from './components';
 import { confirmMediaShareWithAiScan } from '../../utils/confirmMediaShareWithAiScan';
-import { ModerationService, type ReportTargetType } from '../../services/moderation';
-import { resolveShareableRoundMedia } from './roundMediaUpload';
 import { useRoundDetailsState } from './hooks/useRoundDetailsState';
 import ChatSafetySheet from '../chat/components/ChatSafetySheet';
 import { styles } from './roundDetailsStyles';
 import { useRoundMediaPicker } from './hooks/useRoundMediaPicker';
-
-type ReportSheetState =
-    | null
-    | { mode: 'message_actions'; answerId: number; mediaId?: number }
-    | { mode: 'report'; targetType: ReportTargetType; targetId: number; label: string }
-    | { mode: 'success'; title: string; subtitle: string };
+import { useLastManStandingActions } from './hooks/useLastManStandingActions';
+import { useRoundDetailsMutations } from './hooks/useRoundDetailsMutations';
+import { useRoundOwnerFlow } from './hooks/useRoundOwnerFlow';
+import { useSpecReportSheet } from './hooks/useSpecReportSheet';
 
 type RoundMediaSheetState = null | {
     target: 'answer' | 'next_question';
@@ -91,143 +86,6 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
         unresponsiveParticipants,
     } = useRoundDetailsState({ lastRoundRef, roundId, spec, user });
 
-    // --- Mutations ---
-
-    const submitAnswerMutation = useMutation({
-        mutationFn: async ({ rId, text }: { rId: number, text: string }) => {
-            let mediaId: number | undefined;
-            if (answerMedia) {
-                const uploadType =
-                    answerMedia.assetType === 'audio'
-                        ? 'round_answer_audio'
-                        : answerMedia.assetType === 'video'
-                            ? 'round_answer_video'
-                            : 'round_answer_image';
-                const reviewed = await resolveShareableRoundMedia({
-                    asset: answerMedia,
-                    uploadType,
-                    onAssetChange: setAnswerMedia,
-                    onProgress: setUploadProgress,
-                    label: 'answer media',
-                });
-                mediaId = reviewed.id;
-            }
-            setUploadProgress({
-                title: 'Submitting answer',
-                message: 'Adding your answer to the round.',
-            });
-            return SpecService.submitAnswer(rId, text, mediaId);
-        },
-        onSuccess: async () => {
-            queryClient.invalidateQueries({ queryKey: ['spec', String(specId)] });
-            await refetchSpec();
-            setAnswerText('');
-            setAnswerSelection({ start: 0, end: 0 });
-            setAnswerMedia(null);
-            Alert.alert('Success', 'Answer submitted!');
-        },
-        onError: (err: any) => {
-            if (isMediaReviewError(err)) {
-                showMediaReviewResult(err, 'Answer media not sent');
-                return;
-            }
-            const msg = err?.response?.data?.message ?? err?.message;
-            const fileErrors = err?.response?.data?.errors?.file;
-            const detail = Array.isArray(fileErrors) ? fileErrors[0] : (typeof fileErrors === 'string' ? fileErrors : null);
-            Alert.alert('Error', detail || msg || 'Failed to submit answer.');
-        },
-        onSettled: (_data, err) => {
-            if (!isMediaReviewError(err)) {
-                setUploadProgress(null);
-            }
-        },
-    });
-
-    const closeRoundMutation = useMutation({
-        mutationFn: (rId: number) => SpecService.closeRound(rId),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['spec', String(specId)] });
-        },
-        onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to close round.'),
-    });
-
-    // No confetti on elimination – it was causing the view to re-render and data to disappear
-    const eliminateUserMutation = useMutation({
-        mutationFn: ({ rId, userId }: { rId: number, userId: number }) =>
-            SpecService.eliminateUser(rId, userId),
-        onSuccess: async (apiResponse: any) => {
-            queryClient.invalidateQueries({ queryKey: ['spec', String(specId)] });
-            queryClient.invalidateQueries({ queryKey: ['spec', String(specId), 'round_details'] });
-            await refetchSpec();
-            const payload = apiResponse?.data;
-            if (payload?.last_man_standing && payload.winner && payload.spec_id != null) {
-                setLastManStandingWinnerName(payload.winner.name || 'Winner');
-                setLastManStandingSpecId(String(payload.spec_id));
-                setLastManStandingVisible(true);
-            } else {
-                Alert.alert('Success', 'Participant eliminated.');
-            }
-        },
-        onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to eliminate user.'),
-    });
-
-    const createDateMutation = useMutation({
-        mutationFn: (specIdToUse: string) => SpecService.createDate(specIdToUse),
-        onSuccess: async (res: any) => {
-            const data = res?.data ?? res;
-            const completeSpec = (current: any) => current ? ({
-                ...current,
-                status: 'COMPLETED',
-                rounds: Array.isArray(current.rounds)
-                    ? current.rounds.map((round: any) => (
-                        round.status === 'ACTIVE' || round.status === 'REVIEWING'
-                            ? { ...round, status: 'COMPLETED' }
-                            : round
-                    ))
-                    : current.rounds,
-            }) : current;
-            queryClient.setQueryData(['spec', String(specId)], completeSpec);
-            queryClient.setQueryData(['spec', String(specId), 'round_details'], completeSpec);
-            queryClient.invalidateQueries({ queryKey: ['spec', String(specId)] });
-            queryClient.invalidateQueries({ queryKey: ['specs'] });
-            queryClient.invalidateQueries({ queryKey: ['my-specs'] });
-            queryClient.invalidateQueries({ queryKey: ['dates'] });
-            await refetchSpec();
-            setLastManStandingVisible(false);
-            setLastManStandingSpecId(null);
-            setLastManStandingWinnerName('');
-            Alert.alert('Date created!', data?.date_code ? `Your date code: ${data.date_code}` : 'You are now matched. Go plan your date!');
-        },
-        onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to create date.'),
-    });
-
-    const extendSearchMutation = useMutation({
-        mutationFn: ({ specIdToUse, comment, durationDays }: { specIdToUse: string; comment: string; durationDays: number }) =>
-            SpecService.extendSearch(specIdToUse, comment, durationDays),
-        onSuccess: async (res: any) => {
-            const credits = res?.data?.balance?.credits;
-            if (typeof credits === 'number') {
-                queryClient.setQueryData(['user'], (current: any) => {
-                    if (!current) return current;
-                    return {
-                        ...current,
-                        balance: {
-                            ...(current.balance ?? {}),
-                            credits,
-                        },
-                    };
-                });
-            }
-            queryClient.invalidateQueries({ queryKey: ['spec', String(specId)] });
-            await refetchSpec();
-            setLastManStandingVisible(false);
-            setLastManStandingSpecId(null);
-            setLastManStandingWinnerName('');
-            Alert.alert('Search extended', 'Your spec is open again for new applicants.');
-        },
-        onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to extend search.'),
-    });
-
     // --- State ---
     const [answerText, setAnswerText] = useState('');
     const [answerSelection, setAnswerSelection] = useState<TextSelection>({ start: 0, end: 0 });
@@ -242,10 +100,16 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
     const [lastManStandingVisible, setLastManStandingVisible] = useState(false);
     const [lastManStandingWinnerName, setLastManStandingWinnerName] = useState('');
     const [lastManStandingSpecId, setLastManStandingSpecId] = useState<string | null>(null);
-    const [reportSheet, setReportSheet] = useState<ReportSheetState>(null);
-    const [reportLoading, setReportLoading] = useState(false);
-    const [reportError, setReportError] = useState<string | null>(null);
     const [uploadProgress, setUploadProgress] = useState<UploadProgressState>(null);
+    const {
+        closeReportSheet,
+        openAnswerReportMenu,
+        openReportSheet,
+        reportError,
+        reportLoading,
+        reportSheet,
+        submitReport,
+    } = useSpecReportSheet();
 
     // Edit Question State
     const [isEditing, setIsEditing] = useState(false);
@@ -266,7 +130,7 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
         setNextRoundQuestionSelection(next.selection);
     }, [nextRoundQuestion, nextRoundQuestionSelection]);
 
-    const setSelectedRoundMedia = useCallback((target: 'answer' | 'next_question', asset: RoundMediaAsset) => {
+    const setSelectedRoundMedia = useCallback((target: string, asset: RoundMediaAsset) => {
         if (target === 'answer') {
             setAnswerMedia(asset);
         } else {
@@ -277,176 +141,55 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
         onMediaSelected: setSelectedRoundMedia,
     });
 
-    const startRoundMutation = useMutation({
-        mutationFn: async (question: string) => {
-            let mediaId: number | undefined;
-            if (nextRoundQuestionMedia) {
-                const uploadType =
-                    nextRoundQuestionMedia.assetType === 'audio'
-                        ? 'round_question_audio'
-                        : nextRoundQuestionMedia.assetType === 'video'
-                            ? 'round_question_video'
-                            : 'round_question_image';
-                const reviewed = await resolveShareableRoundMedia({
-                    asset: nextRoundQuestionMedia,
-                    uploadType,
-                    onAssetChange: setNextRoundQuestionMedia,
-                    onProgress: setUploadProgress,
-                    label: 'round question media',
-                });
-                mediaId = reviewed.id;
-            }
-            setUploadProgress({
-                title: 'Starting round',
-                message: 'Adding the media to the round question.',
-            });
-            return SpecService.startRound(String(specId), question, mediaId);
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['spec', String(specId)] });
-            Alert.alert('Success', 'Next round started!');
-            setNextRoundQuestion('');
-            setNextRoundQuestionSelection({ start: 0, end: 0 });
-            setNextRoundQuestionMedia(null);
-            navigation.goBack(); // Go back to list? Or stay?
-        },
-        onError: (err: any) => {
-            if (isMediaReviewError(err)) {
-                showMediaReviewResult(err, 'Round media not sent');
-                return;
-            }
-            Alert.alert('Error', err?.response?.data?.message || err?.message || 'Failed to start round.');
-        },
-        onSettled: (_data, err) => {
-            if (!isMediaReviewError(err)) {
-                setUploadProgress(null);
-            }
-        },
+    const {
+        createDateMutation,
+        extendSearchMutation,
+        openLastManStandingFromPayload,
+    } = useLastManStandingActions({
+        specId,
+        refetchSpec,
+        setLastManStandingVisible,
+        setLastManStandingWinnerName,
+        setLastManStandingSpecId,
     });
 
-    const updateRoundMutation = useMutation({
-        mutationFn: ({ rId, text }: { rId: number, text: string }) => SpecService.updateRound(rId, text),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['spec', String(specId)] });
-            setIsEditing(false);
-            Alert.alert('Success', 'Question updated!');
-        },
-        onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to update question.'),
+    const {
+        closeRoundMutation,
+        eliminateUserMutation,
+        eliminateUsersMutation,
+        nudgeUsersMutation,
+        startRoundMutation,
+        submitAnswerMutation,
+        updateRoundMutation,
+    } = useRoundDetailsMutations({
+        answerMedia,
+        navigation,
+        nextRoundQuestionMedia,
+        openLastManStandingFromPayload,
+        refetchSpec,
+        setAnswerMedia,
+        setAnswerSelection,
+        setAnswerText,
+        setIsEditing,
+        setNextRoundQuestion,
+        setNextRoundQuestionMedia,
+        setNextRoundQuestionSelection,
+        setUploadProgress,
+        specId,
     });
 
-    const eliminateUsersMutation = useMutation({
-        mutationFn: ({ rId, userIds }: { rId: number, userIds: number[] }) =>
-            SpecService.eliminateUsers(rId, userIds),
-        onSuccess: async (apiResponse: any) => {
-            // After elimination, we might want to refetch
-            queryClient.invalidateQueries({ queryKey: ['spec', String(specId)] });
-            queryClient.invalidateQueries({ queryKey: ['spec', String(specId), 'round_details'] });
-            await refetchSpec();
-            const payload = apiResponse?.data;
-            if (payload?.last_man_standing && payload.winner && payload.spec_id != null) {
-                setLastManStandingWinnerName(payload.winner.name || 'Winner');
-                setLastManStandingSpecId(String(payload.spec_id));
-                setLastManStandingVisible(true);
-            }
-        },
-        onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to eliminate users.'),
+    const {
+        handleCloseRoundPress,
+        handleEliminateAndClose,
+        handleNudge,
+    } = useRoundOwnerFlow({
+        closeRoundMutation,
+        eliminateUsersMutation,
+        nudgeUsersMutation,
+        roundToShow,
+        setCloseRoundModalVisible,
+        unresponsiveParticipants,
     });
-
-    const nudgeUsersMutation = useMutation({
-        mutationFn: ({ rId, userIds }: { rId: number, userIds: number[] }) =>
-            SpecService.nudgeUsers(rId, userIds),
-        onSuccess: (data) => {
-            setCloseRoundModalVisible(false);
-            Alert.alert('Success', data.message || 'Participants nudged.');
-        },
-        onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to nudge users.'),
-    });
-
-    function isMediaReviewError(err: unknown): boolean {
-        const status = String((err as any)?.status ?? '');
-        return err instanceof MediaModerationError || ['flagged', 'failed', 'timeout', 'reviewing'].includes(status);
-    }
-
-    function showMediaReviewResult(err: any, title: string): void {
-        setUploadProgress({
-            title,
-            message: err?.message || 'This file could not be used. Please choose another file.',
-            status: err?.status === 'reviewing' ? 'reviewing' : 'error',
-            dismissLabel: 'OK',
-            onDismiss: () => setUploadProgress(null),
-        });
-    }
-
-    const handleCloseRoundPress = () => {
-        if (unresponsiveParticipants.length > 0) {
-            setCloseRoundModalVisible(true);
-        } else {
-            Alert.alert('Close Round?', 'Stop accepting answers?', [
-                { text: 'Cancel' },
-                { text: 'Close', onPress: () => closeRoundMutation.mutate(roundToShow.id) }
-            ]);
-        }
-    };
-
-    const handleEliminateAndClose = async () => {
-        const ids = unresponsiveParticipants.map((p: any) => p.user_id);
-        if (ids.length > 0) {
-            try {
-                const apiResponse: any = await eliminateUsersMutation.mutateAsync({ rId: roundToShow.id, userIds: ids });
-                if (apiResponse?.data?.last_man_standing) {
-                    setCloseRoundModalVisible(false);
-                    return;
-                }
-            } catch (e) {
-                return; // Stop if elimination fails
-            }
-        }
-        closeRoundMutation.mutate(roundToShow.id);
-        setCloseRoundModalVisible(false);
-    };
-
-    const handleNudge = () => {
-        const ids = unresponsiveParticipants.map((p: any) => p.user_id);
-        nudgeUsersMutation.mutate({ rId: roundToShow.id, userIds: ids });
-    };
-
-    const closeReportSheet = useCallback(() => {
-        setReportSheet(null);
-        setReportError(null);
-    }, []);
-
-    const openReportSheet = useCallback((targetType: ReportTargetType, targetId: number, label: string) => {
-        setReportError(null);
-        setReportSheet({ mode: 'report', targetType, targetId, label });
-    }, []);
-
-    const openAnswerReportMenu = useCallback((answer: any) => {
-        const mediaId = answer.media?.id ? Number(answer.media.id) : undefined;
-        setReportError(null);
-        setReportSheet({ mode: 'message_actions', answerId: Number(answer.id), mediaId });
-    }, []);
-
-    const submitReport = useCallback(async (reason: string) => {
-        if (reportSheet?.mode !== 'report') return;
-        setReportLoading(true);
-        setReportError(null);
-        try {
-            await ModerationService.reportContent({
-                target_type: reportSheet.targetType,
-                target_id: reportSheet.targetId,
-                reason,
-            });
-            setReportSheet({
-                mode: 'success',
-                title: 'Report submitted',
-                subtitle: 'Thanks. Our moderation team will review this and take action where needed.',
-            });
-        } catch (e: any) {
-            setReportError(e?.response?.data?.message || e?.message || 'Could not submit report.');
-        } finally {
-            setReportLoading(false);
-        }
-    }, [reportSheet]);
 
     // --- Render Helpers ---
 
