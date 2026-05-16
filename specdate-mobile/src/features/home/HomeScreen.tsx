@@ -79,6 +79,13 @@ export default function HomeScreen({ navigation, route }: any) {
 
     channel.listen('.NotificationCreated', async (e: any) => {
       queryClient.invalidateQueries({ queryKey: ['user'] });
+      const notification = e?.notification ?? e;
+      const data = notification?.data && typeof notification.data === 'object' ? notification.data : {};
+      const type = notification?.type ?? data?.type ?? data?.notification_type;
+      if (type === 'match_created') {
+        queryClient.invalidateQueries({ queryKey: ['dates'] });
+        queryClient.invalidateQueries({ queryKey: ['chats'] });
+      }
       console.log('New notification received!', e);
       player.play();
     });

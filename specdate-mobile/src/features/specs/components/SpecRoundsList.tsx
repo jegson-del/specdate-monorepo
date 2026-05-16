@@ -6,31 +6,44 @@ import { isAudioMedia, isVideoMedia } from '../specDetailsUtils';
 
 type SpecRoundsListProps = {
     canOpenRoundDetails: boolean;
+    isOwner?: boolean;
     isSpecClosed: boolean;
+    getPendingParticipantCount?: (round: any) => number;
+    nudgePendingRoundId?: string | number | null;
     onOpenRound: (roundId: string | number) => void;
+    onNudgeRound?: (round: any) => void;
     rounds?: any[] | null;
     theme: any;
 };
 
 export function SpecRoundsList({
     canOpenRoundDetails,
+    isOwner = false,
+    getPendingParticipantCount,
     isSpecClosed,
+    nudgePendingRoundId = null,
     onOpenRound,
+    onNudgeRound,
     rounds,
     theme,
 }: SpecRoundsListProps) {
-    if (!rounds || rounds.length === 0) return null;
+    const roundItems = Array.isArray(rounds)
+        ? rounds
+        : rounds && typeof rounds === 'object'
+            ? Object.values(rounds)
+            : [];
+    if (roundItems.length === 0) return null;
 
     return (
         <View style={styles.section}>
             <View style={styles.sectionTitleRow}>
                 <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Rounds</Text>
                 <Text style={[styles.sectionSubtitle, { color: theme.colors.onSurfaceVariant }]}>
-                    {rounds.length} round{rounds.length !== 1 ? 's' : ''}
+                    {roundItems.length} round{roundItems.length !== 1 ? 's' : ''}
                 </Text>
             </View>
             <View style={styles.roundsFlatList}>
-                {rounds.map((round: any) => {
+                {roundItems.map((round: any) => {
                     const roundStatus = isSpecClosed ? 'COMPLETED' : round.status;
                     const answers = round.answers || [];
                     const eliminated = answers.filter((answer: any) => answer.is_eliminated).length;
@@ -38,6 +51,9 @@ export function SpecRoundsList({
                     const statusColor = roundStatus === 'ACTIVE' ? '#16a34a' : roundStatus === 'REVIEWING' ? '#ca8a04' : theme.colors.outline;
                     const hasAudioQuestion = isAudioMedia(round.media);
                     const hasVideoQuestion = isVideoMedia(round.media);
+                    const pendingCount = getPendingParticipantCount?.(round) ?? 0;
+                    const canNudge = isOwner && roundStatus === 'ACTIVE' && pendingCount > 0 && !!onNudgeRound;
+                    const isNudging = String(nudgePendingRoundId ?? '') === String(round.id);
 
                     return (
                         <TouchableOpacity
@@ -102,6 +118,19 @@ export function SpecRoundsList({
                                         </Text>
                                     ) : null}
                                 </View>
+                                {canNudge ? (
+                                    <TouchableOpacity
+                                        activeOpacity={0.8}
+                                        onPress={() => onNudgeRound?.(round)}
+                                        disabled={isNudging}
+                                        style={[styles.nudgeButton, { backgroundColor: theme.colors.primaryContainer }]}
+                                    >
+                                        <MaterialCommunityIcons name="bell-ring-outline" size={15} color={theme.colors.primary} />
+                                        <Text style={[styles.nudgeButtonText, { color: theme.colors.primary }]}>
+                                            {isNudging ? 'Nudging...' : `Nudge ${pendingCount}`}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ) : null}
                             </View>
                             <MaterialCommunityIcons
                                 name={canOpenRoundDetails ? 'chevron-right' : 'lock-outline'}
@@ -160,4 +189,15 @@ const styles = StyleSheet.create({
     roundCardFlatPill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
     roundCardFlatPillDot: { width: 6, height: 6, borderRadius: 3 },
     roundCardFlatPillText: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3 },
+    nudgeButton: {
+        alignSelf: 'flex-start',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginTop: 10,
+        paddingHorizontal: 10,
+        paddingVertical: 7,
+        borderRadius: 10,
+    },
+    nudgeButtonText: { fontSize: 12, fontWeight: '900' },
 });

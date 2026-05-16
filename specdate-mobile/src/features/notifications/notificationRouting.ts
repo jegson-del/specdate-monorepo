@@ -36,6 +36,13 @@ export function routeNotification(item: any, navigation: NavigationLike, queryCl
     return true;
   }
 
+  if (type === 'match_created') {
+    queryClient?.invalidateQueries({ queryKey: ['dates'] });
+    queryClient?.invalidateQueries({ queryKey: ['chats'] });
+    navigation.navigate('Home', { initialTab: 'Matches' });
+    return true;
+  }
+
   if ((type === 'support_reply' || type === 'support_ticket') && ticketId != null) {
     navigation.navigate('SupportThread', { ticketId });
     return true;

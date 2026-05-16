@@ -190,6 +190,25 @@ class RoundAnswerSubmissionTest extends TestCase
             ->assertJsonPath('data.round_number', 2);
     }
 
+    public function test_spec_details_payload_includes_rounds_for_round_list(): void
+    {
+        [$owner, $spec] = $this->createActiveSpecWithParticipants(2);
+        SpecRound::create([
+            'spec_id' => $spec->id,
+            'round_number' => 1,
+            'question_text' => 'First question',
+            'status' => 'REVIEWING',
+        ]);
+
+        Sanctum::actingAs($owner);
+
+        $this->getJson("/api/specs/{$spec->id}")
+            ->assertOk()
+            ->assertJsonCount(1, 'data.rounds')
+            ->assertJsonPath('data.rounds.0.round_number', 1)
+            ->assertJsonPath('data.rounds.0.status', 'REVIEWING');
+    }
+
     public function test_participant_cannot_submit_empty_round_answer(): void
     {
         [$participant, $round] = $this->createActiveRoundForParticipant();

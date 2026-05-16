@@ -24,6 +24,16 @@ class ChatService
         return DB::transaction(function () use ($date) {
             $thread = ChatThread::query()
                 ->where('type', 'match')
+                ->where('spec_date_id', $date->id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($thread) {
+                return $thread;
+            }
+
+            $thread = ChatThread::query()
+                ->where('type', 'match')
                 ->where('spec_id', $date->spec_id)
                 ->where('owner_id', $date->owner_id)
                 ->where('winner_user_id', $date->winner_user_id)

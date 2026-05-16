@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Text } from 'react-native-paper';
+import { ActivityIndicator, Button, Text } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { SpecService } from '../../../services/specs';
@@ -28,7 +28,7 @@ export default function DatesTab({ theme, homeColors, insets, bottomNavHeight, n
       return current < last ? current + 1 : undefined;
     },
   });
-  const { refetch, isLoading } = datesQuery;
+  const { refetch, isLoading, isError, error } = datesQuery;
 
   const dates = useMemo<SpecDateItem[]>(() => datesQuery.data?.pages.flatMap((page) => page?.data?.data || []) ?? [], [datesQuery.data]);
 
@@ -60,6 +60,19 @@ export default function DatesTab({ theme, homeColors, insets, bottomNavHeight, n
           isLoading ? (
             <View style={styles.empty}>
               <ActivityIndicator animating color={theme.colors.primary} />
+            </View>
+          ) : isError ? (
+            <View style={styles.empty}>
+              <View style={[styles.emptyIcon, { backgroundColor: withAlpha(theme.colors.error, 0.1) }]}>
+                <MaterialCommunityIcons name="alert-circle-outline" size={34} color={theme.colors.error} />
+              </View>
+              <Text style={[styles.emptyTitle, { color: theme.colors.onSurface }]}>Could not load matches</Text>
+              <Text style={[styles.emptyText, { color: homeColors.subtext }]}>
+                {(error as any)?.response?.data?.message || 'Pull to refresh or try again.'}
+              </Text>
+              <Button mode="contained" onPress={() => refetch()} style={styles.retryButton}>
+                Retry
+              </Button>
             </View>
           ) : (
             <View style={styles.empty}>
@@ -156,5 +169,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
     marginTop: 6,
+  },
+  retryButton: {
+    marginTop: 14,
+    borderRadius: 12,
   },
 });

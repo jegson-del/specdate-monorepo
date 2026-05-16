@@ -510,6 +510,7 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
     }
 
     const statusColor = roundDisplayStatus === 'ACTIVE' ? '#16a34a' : roundDisplayStatus === 'REVIEWING' ? '#ca8a04' : theme.colors.outline;
+    const hasEliminatedAnswer = answers.some((answer: any) => answer.is_eliminated);
 
     return (
         <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -552,9 +553,11 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                     isOwner={isOwner}
                     isRecording={nextRoundAudioRecorder.isRecording}
                     media={nextRoundQuestionMedia}
+                    canStartNextRound={roundDisplayStatus !== 'REVIEWING' || hasEliminatedAnswer}
                     onChangeQuestion={setNextRoundQuestion}
                     onCloseRound={handleCloseRoundPress}
                     onEmojiSelected={handleNextRoundQuestionEmoji}
+                    onNudgePending={handleNudge}
                     onOpenCamera={() => setRoundMediaSheet({ target: 'next_question', source: 'camera' })}
                     onOpenFile={() => setRoundMediaSheet({ target: 'next_question', source: 'file' })}
                     onPreviewVideo={(uri) => {
@@ -574,6 +577,9 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                     question={nextRoundQuestion}
                     roundStatus={roundDisplayStatus}
                     selection={nextRoundQuestionSelection}
+                    startNextRoundHint="Eliminate at least one participant before starting the next round."
+                    pendingParticipantCount={unresponsiveParticipants.length}
+                    nudgePending={nudgeUsersMutation.isPending}
                     startPending={startRoundMutation.isPending}
                     theme={theme}
                 />

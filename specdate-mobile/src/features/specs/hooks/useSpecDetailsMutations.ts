@@ -241,6 +241,16 @@ export function useSpecDetailsMutations({
         onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to eliminate users.'),
     });
 
+    const nudgeUsersMutation = useMutation({
+        mutationFn: ({ roundId, userIds }: { roundId: number; userIds: number[] }) =>
+            SpecService.nudgeUsers(roundId, userIds),
+        onSuccess: (data: any) => {
+            queryClient.invalidateQueries({ queryKey: ['spec', specId] });
+            Alert.alert('Success', data?.message || 'Participants nudged.');
+        },
+        onError: (err: any) => Alert.alert('Error', err?.response?.data?.message || 'Failed to nudge users.'),
+    });
+
     return {
         likeMutation,
         eliminateMutation,
@@ -249,5 +259,6 @@ export function useSpecDetailsMutations({
         joinMutation,
         startRoundMutation,
         eliminateUsersMutation,
+        nudgeUsersMutation,
     };
 }

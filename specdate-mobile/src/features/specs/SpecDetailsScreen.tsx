@@ -66,12 +66,35 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
     const [questionVideoViewerVisible, setQuestionVideoViewerVisible] = React.useState(false);
     const [questionVideoViewerUri, setQuestionVideoViewerUri] = React.useState<string | null>(null);
     const [uploadProgress, setUploadProgress] = React.useState<UploadProgressState>(null);
+    const [nudgePendingRoundId, setNudgePendingRoundId] = React.useState<string | number | null>(null);
     const questionAudioRecorder = useRoundAudioRecorder(setRoundQuestionMedia);
     const handleNewRoundQuestionEmoji = React.useCallback((emoji: string) => {
         const next = insertEmojiAtSelection(newRoundQuestion, emoji, newRoundQuestionSelection);
         setNewRoundQuestion(next.value);
         setNewRoundQuestionSelection(next.selection);
     }, [newRoundQuestion, newRoundQuestionSelection]);
+    const rounds = React.useMemo(() => {
+        const rawRounds = (spec as any)?.rounds;
+        if (Array.isArray(rawRounds)) return rawRounds;
+        if (rawRounds && typeof rawRounds === 'object') return Object.values(rawRounds);
+        return [];
+    }, [spec]);
+    const hasOpenRound = React.useMemo(
+        () => rounds.some((round: any) => round.status === 'ACTIVE' || round.status === 'REVIEWING'),
+        [rounds]
+    );
+    const acceptedParticipants = React.useMemo(
+        () => participants.filter((participant: any) => participant.status === 'ACCEPTED'),
+        [participants]
+    );
+    const getPendingParticipantIds = React.useCallback((round: any) => {
+        if (!round || String(round.status).toUpperCase() !== 'ACTIVE') return [];
+        const answeredIds = new Set((round.answers || []).map((answer: any) => String(answer.user_id)));
+        return acceptedParticipants
+            .filter((participant: any) => !answeredIds.has(String(participant.user_id)))
+            .map((participant: any) => Number(participant.user_id))
+            .filter((id: number) => Number.isFinite(id));
+    }, [acceptedParticipants]);
 
     const {
         likeMutation,
@@ -79,6 +102,7 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
         createDateMutation,
         extendSearchMutation,
         joinMutation,
+        nudgeUsersMutation,
         startRoundMutation,
     } = useSpecDetailsMutations({
         specId,
@@ -230,6 +254,19 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
         );
     };
 
+    const handleNudgeRound = React.useCallback((round: any) => {
+        const userIds = getPendingParticipantIds(round);
+        if (userIds.length === 0) {
+            Alert.alert('No pending participants', 'Everyone has answered this round.');
+            return;
+        }
+        setNudgePendingRoundId(round.id);
+        nudgeUsersMutation.mutate(
+            { roundId: Number(round.id), userIds },
+            { onSettled: () => setNudgePendingRoundId(null) }
+        );
+    }, [getPendingParticipantIds, nudgeUsersMutation]);
+
     const openParticipantProfile = React.useCallback((participantUserId: string | number) => {
         if (String(participantUserId) === String(user?.id)) {
             navigation.navigate('Profile');
@@ -343,7 +380,7 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                 {/* Host First/New Round Action */}
                 <SpecRoundComposer
                     acceptedParticipantCount={acceptedParticipantCount}
-                    canStartRound={isOwner && !isSpecClosed && (!spec.rounds || !spec.rounds.some((r: any) => r.status === 'ACTIVE' || r.status === 'REVIEWING'))}
+                    canStartRound={isOwner && !isSpecClosed && !hasOpenRound}
                     durationMillis={questionAudioRecorder.durationMillis}
                     isRecording={questionAudioRecorder.isRecording}
                     isSubmitting={startRoundMutation.isPending}
@@ -389,9 +426,13 @@ export default function SpecDetailsScreen({ route, navigation }: any) {
                 {/* Rounds */}
                 <SpecRoundsList
                     canOpenRoundDetails={canOpenRoundDetails}
+                    isOwner={isOwner}
                     isSpecClosed={isSpecClosed}
+                    getPendingParticipantCount={(round) => getPendingParticipantIds(round).length}
+                    nudgePendingRoundId={nudgePendingRoundId}
                     onOpenRound={(roundId) => navigation.navigate('RoundDetails', { specId: spec.id, roundId })}
-                    rounds={spec.rounds}
+                    onNudgeRound={handleNudgeRound}
+                    rounds={rounds}
                     theme={theme}
                 />
                 {/* Requirements */}

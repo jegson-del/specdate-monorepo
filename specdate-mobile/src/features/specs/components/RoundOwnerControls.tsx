@@ -17,6 +17,7 @@ type RoundOwnerControlsProps = {
     onChangeQuestion: (value: string) => void;
     onCloseRound: () => void;
     onEmojiSelected: (emoji: string) => void;
+    onNudgePending?: () => void;
     onOpenCamera: () => void;
     onOpenFile: () => void;
     onPreviewVideo: (uri: string) => void;
@@ -24,9 +25,13 @@ type RoundOwnerControlsProps = {
     onSelectionChange: (selection: TextSelection) => void;
     onStartNextRound: () => void;
     onToggleVoice: () => void;
+    canStartNextRound?: boolean;
+    startNextRoundHint?: string;
     question: string;
     roundStatus: string;
     selection: TextSelection;
+    pendingParticipantCount?: number;
+    nudgePending?: boolean;
     startPending: boolean;
     theme: any;
 };
@@ -40,6 +45,7 @@ export function RoundOwnerControls({
     onChangeQuestion,
     onCloseRound,
     onEmojiSelected,
+    onNudgePending,
     onOpenCamera,
     onOpenFile,
     onPreviewVideo,
@@ -47,9 +53,13 @@ export function RoundOwnerControls({
     onSelectionChange,
     onStartNextRound,
     onToggleVoice,
+    canStartNextRound = true,
+    startNextRoundHint,
     question,
     roundStatus,
     selection,
+    pendingParticipantCount = 0,
+    nudgePending = false,
     startPending,
     theme,
 }: RoundOwnerControlsProps) {
@@ -60,23 +70,51 @@ export function RoundOwnerControls({
             <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Owner controls</Text>
 
             {roundStatus === 'ACTIVE' ? (
-                <TouchableOpacity
-                    activeOpacity={0.8}
-                    style={[styles.primaryButton, { backgroundColor: theme.colors.error }]}
-                    onPress={onCloseRound}
-                    disabled={closePending}
-                >
-                    {closePending ? (
-                        <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                        <Text style={styles.primaryButtonText}>Close round & review</Text>
-                    )}
-                </TouchableOpacity>
+                <View style={styles.activeActions}>
+                    {pendingParticipantCount > 0 && onNudgePending ? (
+                        <View style={[styles.nudgePanel, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant || theme.colors.outline + '40' }]}>
+                            <Text style={[styles.flatBlockHint, { color: theme.colors.onSurfaceVariant }]}>
+                                {pendingParticipantCount} participant{pendingParticipantCount !== 1 ? 's' : ''} still need to answer.
+                            </Text>
+                            <TouchableOpacity
+                                activeOpacity={0.8}
+                                style={[styles.secondaryButton, { backgroundColor: theme.colors.primaryContainer }]}
+                                onPress={onNudgePending}
+                                disabled={nudgePending}
+                            >
+                                {nudgePending ? (
+                                    <ActivityIndicator size="small" color={theme.colors.primary} />
+                                ) : (
+                                    <Text style={[styles.secondaryButtonText, { color: theme.colors.primary }]}>
+                                        Nudge pending participants
+                                    </Text>
+                                )}
+                            </TouchableOpacity>
+                        </View>
+                    ) : null}
+                    <TouchableOpacity
+                        activeOpacity={0.8}
+                        style={[styles.primaryButton, { backgroundColor: theme.colors.error }]}
+                        onPress={onCloseRound}
+                        disabled={closePending}
+                    >
+                        {closePending ? (
+                            <ActivityIndicator size="small" color="#fff" />
+                        ) : (
+                            <Text style={styles.primaryButtonText}>Close round & review</Text>
+                        )}
+                    </TouchableOpacity>
+                </View>
             ) : null}
 
             {roundStatus === 'REVIEWING' ? (
                 <View style={[styles.flatBlock, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant || theme.colors.outline + '40' }]}>
                     <Text style={[styles.flatBlockHint, { color: theme.colors.onSurfaceVariant }]}>Tap Eliminate next to an answer to remove that participant.</Text>
+                    {!canStartNextRound && startNextRoundHint ? (
+                        <Text style={[styles.warningHint, { color: theme.colors.error }]}>
+                            {startNextRoundHint}
+                        </Text>
+                    ) : null}
                     <View style={[styles.divider, { backgroundColor: theme.colors.outlineVariant || theme.colors.outline + '30' }]} />
                     <Text style={[styles.flatBlockLabel, { color: theme.colors.onSurfaceVariant }]}>Next round question</Text>
                     <TextInput
@@ -125,9 +163,12 @@ export function RoundOwnerControls({
                     />
                     <TouchableOpacity
                         activeOpacity={0.8}
-                        style={[styles.primaryButton, { backgroundColor: theme.colors.primary }]}
+                        style={[
+                            styles.primaryButton,
+                            { backgroundColor: canStartNextRound ? theme.colors.primary : theme.colors.surfaceVariant },
+                        ]}
                         onPress={onStartNextRound}
-                        disabled={(!question.trim() && !media) || startPending}
+                        disabled={!canStartNextRound || (!question.trim() && !media) || startPending}
                     >
                         {startPending ? (
                             <ActivityIndicator size="small" color="#fff" />
@@ -148,6 +189,13 @@ export function RoundOwnerControls({
 const styles = StyleSheet.create({
     section: { marginBottom: 28 },
     sectionTitle: { fontSize: 16, fontWeight: '800', marginBottom: 4 },
+    activeActions: { gap: 10 },
+    nudgePanel: {
+        borderWidth: 1,
+        borderRadius: 12,
+        padding: 12,
+        gap: 10,
+    },
     flatBlock: {
         padding: 16,
         borderRadius: 12,
@@ -155,6 +203,7 @@ const styles = StyleSheet.create({
         gap: 12,
     },
     flatBlockHint: { fontSize: 13, lineHeight: 20 },
+    warningHint: { fontSize: 13, lineHeight: 20, fontWeight: '800' },
     flatBlockLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 0.3 },
     divider: { height: 1, marginVertical: 2 },
     flatTextArea: {
@@ -173,6 +222,14 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
     },
     primaryButtonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+    secondaryButton: {
+        minHeight: 44,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 14,
+    },
+    secondaryButtonText: { fontSize: 14, fontWeight: '800' },
     hintText: { fontSize: 14 },
     mediaPreviewBox: {
         alignSelf: 'flex-start',
