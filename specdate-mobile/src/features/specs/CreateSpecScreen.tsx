@@ -1,72 +1,29 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, Platform } from 'react-native';
-import { Text, TextInput, Button, useTheme, ProgressBar, IconButton, HelperText, SegmentedButtons, Switch } from 'react-native-paper';
+import { View, ScrollView, Alert, TouchableOpacity } from 'react-native';
+import { Text, TextInput, Button, useTheme, ProgressBar, IconButton, HelperText, SegmentedButtons } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MotiView } from 'moti';
 import { useCreateSpec, CreateSpecPayload } from '../../hooks/useSpecs';
 import { Dropdown } from 'react-native-paper-dropdown';
 import { useUser } from '../../hooks/useUser';
 import { OCCUPATION_OPTIONS, QUALIFICATION_OPTIONS, RELIGION_OPTIONS, SEX_OPTIONS } from '../../constants/profileOptions';
 import { MultiSelectModal } from './components/MultiSelectModal';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-
-// --- Constants & Options ---
-
-const DURATION_DAYS = Array.from({ length: 30 }, (_, i) => ({
-    label: `${i + 1} Day${i === 0 ? '' : 's'}`,
-    value: String(i + 1),
-}));
-
-const MAX_PARTICIPANTS_OPTIONS = [
-    { label: '10 People', value: '10' },
-    { label: '20 People', value: '20' },
-    { label: '30 People', value: '30' },
-    { label: '50 People', value: '50' },
-    { label: '100 People', value: '100' },
-];
-
-const AGE_RANGES = [
-    { label: '18 - 25', value: '18-25' },
-    { label: '21 - 30', value: '21-30' },
-    { label: '25 - 35', value: '25-35' },
-    { label: '30 - 40', value: '30-40' },
-    { label: '35 - 50', value: '35-50' },
-    { label: 'All Ages (18+)', value: '18-99' },
-];
-
-const GENOTYPES = [
-    { label: 'AA Only', value: 'AA' },
-    { label: 'AA, AS', value: 'AA,AS' },
-    { label: 'Any', value: 'ANY' },
-];
-
-const HEIGHT_MINS = [
-    { label: 'Any Height', value: '0' },
-    { label: '160cm+ (5\'3")', value: '160' },
-    { label: '170cm+ (5\'7")', value: '170' },
-    { label: '180cm+ (5\'11")', value: '180' },
-    { label: '190cm+ (6\'3")', value: '190' },
-];
+import { CreateSpecStepWrapper } from './components/CreateSpecStepWrapper';
+import { CreateSpecRequirementBlock } from './components/CreateSpecRequirementBlock';
+import {
+    AGE_RANGES,
+    DURATION_DAYS,
+    GENOTYPES,
+    HEIGHT_MINS,
+    MAX_PARTICIPANTS_OPTIONS,
+    type CreateSpecStep,
+    isAllSelected,
+    normalizeStringArray,
+    strictLabel,
+} from './createSpecOptions';
+import { styles } from './createSpecStyles';
 
 // --- Types ---
-
-type Step = 1 | 2 | 3;
-
-const STEP_FROM = { opacity: 0, translateX: 10 };
-const STEP_ANIMATE = { opacity: 1, translateX: 0 };
-
-function StepWrapper({ children, style }: { children: React.ReactNode; style?: any }) {
-    // Reanimated can throw `connectAnimatedNodes ... child ... does not exist` on Android
-    // during TextInput re-renders. Keep it simple/stable on Android.
-    if (Platform.OS === 'android') {
-        return <View style={style}>{children}</View>;
-    }
-    return (
-        <MotiView from={STEP_FROM} animate={STEP_ANIMATE} style={style}>
-            {children}
-        </MotiView>
-    );
-}
 
 export default function CreateSpecScreen({ navigation }: any) {
     const theme = useTheme();
@@ -78,7 +35,7 @@ export default function CreateSpecScreen({ navigation }: any) {
     const currentCredits = me.data?.balance?.credits ?? 0;
     const creditsAfterCreate = Math.max(currentCredits - 1, 0);
 
-    const [step, setStep] = useState<Step>(1);
+    const [step, setStep] = useState<CreateSpecStep>(1);
 
     // Form State
     const [title, setTitle] = useState('');
@@ -126,14 +83,6 @@ export default function CreateSpecScreen({ navigation }: any) {
     const sexOptions = useMemo(() => Array.from(SEX_OPTIONS), []);
     const occupationOptions = useMemo(() => Array.from(OCCUPATION_OPTIONS), []);
     const qualificationOptions = useMemo(() => Array.from(QUALIFICATION_OPTIONS), []);
-
-    const normalizeStringArray = (xs: string[]) => xs.map((s) => s.trim()).filter(Boolean);
-    const isAllSelected = (selected: string[], opts: string[]) => {
-        const set = new Set(selected);
-        return opts.every((o) => set.has(o));
-    };
-
-    const strictLabel = (strict: boolean) => (strict ? 'Strict' : 'Flexible');
 
     const checklist = useMemo(() => {
         const lines: { label: string; value: string }[] = [];
@@ -230,7 +179,7 @@ export default function CreateSpecScreen({ navigation }: any) {
 
     const handleBack = () => {
         if (step > 1) {
-            setStep((s) => (s - 1) as Step);
+            setStep((s) => (s - 1) as CreateSpecStep);
         } else {
             navigation.goBack();
         }
@@ -402,7 +351,7 @@ export default function CreateSpecScreen({ navigation }: any) {
     // --- Render Steps ---
 
     const renderStep1 = () => (
-        <StepWrapper style={styles.stepContent}>
+        <CreateSpecStepWrapper style={styles.stepContent}>
             <Text variant="headlineSmall" style={[styles.stepTitle, { color: theme.colors.onSurface }]}>The Vibe</Text>
             <Text variant="bodyMedium" style={[styles.stepSubtitle, styles.stepSubtitleText, promptText]}>
                 What kind of connection are you looking for?
@@ -531,25 +480,18 @@ export default function CreateSpecScreen({ navigation }: any) {
                 value={duration}
                 onSelect={(v) => setDuration(v || '3')}
             />
-        </StepWrapper>
+        </CreateSpecStepWrapper>
     );
 
     const renderStep2 = () => (
-        <StepWrapper style={styles.stepContent}>
+        <CreateSpecStepWrapper style={styles.stepContent}>
             <Text variant="headlineSmall" style={[styles.stepTitle, { color: theme.colors.onSurface }]}>The Bouncer</Text>
             <Text variant="bodyMedium" style={[styles.stepSubtitle, styles.stepSubtitleText, promptText]}>
                 Set your requirements. "Compulsory" means they MUST match.
             </Text>
 
             {/* Age */}
-            <View style={styles.reqBlock}>
-                <View style={styles.reqHeader}>
-                    <Text variant="titleMedium" style={[styles.reqTitle, { color: theme.colors.onSurface }]}>Age Range</Text>
-                    <View style={styles.switchWrap}>
-                        <Text variant="labelSmall" style={[styles.reqLabel, { color: theme.colors.onSurface }]}>Strict?</Text>
-                        <Switch value={isAgeCompulsory} onValueChange={setIsAgeCompulsory} />
-                    </View>
-                </View>
+            <CreateSpecRequirementBlock title="Age Range" strict={isAgeCompulsory} onStrictChange={setIsAgeCompulsory}>
                 <Dropdown
                     label="Age Preference"
                     mode="outlined"
@@ -557,17 +499,10 @@ export default function CreateSpecScreen({ navigation }: any) {
                     value={ageRange}
                     onSelect={(v) => setAgeRange(v || '18-99')}
                 />
-            </View>
+            </CreateSpecRequirementBlock>
 
             {/* Height */}
-            <View style={styles.reqBlock}>
-                <View style={styles.reqHeader}>
-                    <Text variant="titleMedium" style={[styles.reqTitle, { color: theme.colors.onSurface }]}>Min Height</Text>
-                    <View style={styles.switchWrap}>
-                        <Text variant="labelSmall" style={[styles.reqLabel, { color: theme.colors.onSurface }]}>Strict?</Text>
-                        <Switch value={isHeightCompulsory} onValueChange={setIsHeightCompulsory} />
-                    </View>
-                </View>
+            <CreateSpecRequirementBlock title="Min Height" strict={isHeightCompulsory} onStrictChange={setIsHeightCompulsory}>
                 <Dropdown
                     label="Minimum Height"
                     mode="outlined"
@@ -575,17 +510,10 @@ export default function CreateSpecScreen({ navigation }: any) {
                     value={minHeight}
                     onSelect={(v) => setMinHeight(v || '0')}
                 />
-            </View>
+            </CreateSpecRequirementBlock>
 
             {/* Genotype */}
-            <View style={styles.reqBlock}>
-                <View style={styles.reqHeader}>
-                    <Text variant="titleMedium" style={[styles.reqTitle, { color: theme.colors.onSurface }]}>Genotype</Text>
-                    <View style={styles.switchWrap}>
-                        <Text variant="labelSmall" style={[styles.reqLabel, { color: theme.colors.onSurface }]}>Strict?</Text>
-                        <Switch value={isGenotypeCompulsory} onValueChange={setIsGenotypeCompulsory} />
-                    </View>
-                </View>
+            <CreateSpecRequirementBlock title="Genotype" strict={isGenotypeCompulsory} onStrictChange={setIsGenotypeCompulsory}>
                 <Dropdown
                     label="Genotype Preference"
                     mode="outlined"
@@ -593,17 +521,10 @@ export default function CreateSpecScreen({ navigation }: any) {
                     value={genotype}
                     onSelect={(v) => setGenotype(v || 'ANY')}
                 />
-            </View>
+            </CreateSpecRequirementBlock>
 
             {/* Religion */}
-            <View style={styles.reqBlock}>
-                <View style={styles.reqHeader}>
-                    <Text variant="titleMedium" style={[styles.reqTitle, { color: theme.colors.onSurface }]}>Religion</Text>
-                    <View style={styles.switchWrap}>
-                        <Text variant="labelSmall" style={[styles.reqLabel, { color: theme.colors.onSurface }]}>Strict?</Text>
-                        <Switch value={isReligionCompulsory} onValueChange={setIsReligionCompulsory} />
-                    </View>
-                </View>
+            <CreateSpecRequirementBlock title="Religion" strict={isReligionCompulsory} onStrictChange={setIsReligionCompulsory}>
                 <Dropdown
                     label="Religion preference (Any = no filter)"
                     mode="outlined"
@@ -611,17 +532,10 @@ export default function CreateSpecScreen({ navigation }: any) {
                     value={religion}
                     onSelect={(v) => setReligion(v || 'Any')}
                 />
-            </View>
+            </CreateSpecRequirementBlock>
 
             {/* Gender */}
-            <View style={styles.reqBlock}>
-                <View style={styles.reqHeader}>
-                    <Text variant="titleMedium" style={[styles.reqTitle, { color: theme.colors.onSurface }]}>Gender</Text>
-                    <View style={styles.switchWrap}>
-                        <Text variant="labelSmall" style={[styles.reqLabel, { color: theme.colors.onSurface }]}>Strict?</Text>
-                        <Switch value={isSexCompulsory} onValueChange={setIsSexCompulsory} />
-                    </View>
-                </View>
+            <CreateSpecRequirementBlock title="Gender" strict={isSexCompulsory} onStrictChange={setIsSexCompulsory}>
                 <MultiSelectModal
                     title="Select gender(s)"
                     options={sexOptions}
@@ -629,17 +543,10 @@ export default function CreateSpecScreen({ navigation }: any) {
                     onChange={setSexSelected}
                     placeholder="Any (all genders)"
                 />
-            </View>
+            </CreateSpecRequirementBlock>
 
             {/* Smoker */}
-            <View style={styles.reqBlock}>
-                <View style={styles.reqHeader}>
-                    <Text variant="titleMedium" style={[styles.reqTitle, { color: theme.colors.onSurface }]}>Smoker</Text>
-                    <View style={styles.switchWrap}>
-                        <Text variant="labelSmall" style={[styles.reqLabel, { color: theme.colors.onSurface }]}>Strict?</Text>
-                        <Switch value={isSmokerCompulsory} onValueChange={setIsSmokerCompulsory} />
-                    </View>
-                </View>
+            <CreateSpecRequirementBlock title="Smoker" strict={isSmokerCompulsory} onStrictChange={setIsSmokerCompulsory}>
                 <SegmentedButtons
                     value={smokerPref}
                     onValueChange={(v) => setSmokerPref(v as any)}
@@ -694,17 +601,10 @@ export default function CreateSpecScreen({ navigation }: any) {
                         },
                     ]}
                 />
-            </View>
+            </CreateSpecRequirementBlock>
 
             {/* Occupation */}
-            <View style={styles.reqBlock}>
-                <View style={styles.reqHeader}>
-                    <Text variant="titleMedium" style={[styles.reqTitle, { color: theme.colors.onSurface }]}>Occupation</Text>
-                    <View style={styles.switchWrap}>
-                        <Text variant="labelSmall" style={[styles.reqLabel, { color: theme.colors.onSurface }]}>Strict?</Text>
-                        <Switch value={isOccupationCompulsory} onValueChange={setIsOccupationCompulsory} />
-                    </View>
-                </View>
+            <CreateSpecRequirementBlock title="Occupation" strict={isOccupationCompulsory} onStrictChange={setIsOccupationCompulsory}>
                 <MultiSelectModal
                     title="Select occupation(s)"
                     options={occupationOptions}
@@ -712,17 +612,10 @@ export default function CreateSpecScreen({ navigation }: any) {
                     onChange={setOccupationSelected}
                     placeholder="Any occupation"
                 />
-            </View>
+            </CreateSpecRequirementBlock>
 
             {/* Qualification */}
-            <View style={styles.reqBlock}>
-                <View style={styles.reqHeader}>
-                    <Text variant="titleMedium" style={[styles.reqTitle, { color: theme.colors.onSurface }]}>Qualification</Text>
-                    <View style={styles.switchWrap}>
-                        <Text variant="labelSmall" style={[styles.reqLabel, { color: theme.colors.onSurface }]}>Strict?</Text>
-                        <Switch value={isQualificationCompulsory} onValueChange={setIsQualificationCompulsory} />
-                    </View>
-                </View>
+            <CreateSpecRequirementBlock title="Qualification" strict={isQualificationCompulsory} onStrictChange={setIsQualificationCompulsory}>
                 <MultiSelectModal
                     title="Select qualification(s)"
                     options={qualificationOptions}
@@ -730,12 +623,12 @@ export default function CreateSpecScreen({ navigation }: any) {
                     onChange={setQualificationSelected}
                     placeholder="Any qualification"
                 />
-            </View>
-        </StepWrapper>
+            </CreateSpecRequirementBlock>
+        </CreateSpecStepWrapper>
     );
 
     const renderStep3 = () => (
-        <StepWrapper style={styles.stepContent}>
+        <CreateSpecStepWrapper style={styles.stepContent}>
             <Text variant="headlineSmall" style={[styles.stepTitle, { color: theme.colors.onSurface }]}>Final Details</Text>
 
             <View style={styles.reqBlock}>
@@ -798,7 +691,7 @@ export default function CreateSpecScreen({ navigation }: any) {
                     ))}
                 </View>
             </View>
-        </StepWrapper>
+        </CreateSpecStepWrapper>
     );
 
     if (me.data?.is_paused) {
@@ -856,94 +749,3 @@ export default function CreateSpecScreen({ navigation }: any) {
     );
 }
 
-const styles = StyleSheet.create({
-    container: { flex: 1 },
-    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 10 },
-    progress: { height: 4 },
-    scroll: { padding: 24 },
-    stepContent: { gap: 16 },
-    stepTitle: { marginBottom: 8, fontWeight: '900' },
-    stepSubtitle: { marginBottom: 20 },
-    stepSubtitleText: { fontWeight: '900' },
-    input: { backgroundColor: 'transparent' },
-    footer: {
-        paddingHorizontal: 24,
-        paddingTop: 16,
-        borderTopWidth: 1,
-        borderTopColor: 'rgba(0,0,0,0.05)',
-        flexDirection: 'row',
-    },
-    reqBlock: {
-        backgroundColor: 'rgba(0,0,0,0.02)',
-        padding: 16,
-        borderRadius: 12,
-        marginBottom: 10,
-    },
-    reqHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-    switchWrap: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    reqTitle: { fontWeight: '900' },
-    reqLabel: { fontWeight: '800' },
-    reqHint: { marginBottom: 10 },
-    summaryCard: {
-        backgroundColor: 'rgba(124, 58, 237, 0.08)',
-        padding: 16,
-        borderRadius: 12,
-        marginTop: 20,
-        borderWidth: 1,
-        borderColor: 'rgba(124, 58, 237, 0.2)',
-    },
-    creditUsageCard: {
-        backgroundColor: '#FFFFFF',
-        padding: 16,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: 'rgba(124, 58, 237, 0.18)',
-    },
-    creditUsageTop: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-    },
-    creditIconWrap: {
-        width: 44,
-        height: 44,
-        borderRadius: 12,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'rgba(124, 58, 237, 0.10)',
-    },
-    creditUsageCopy: {
-        flex: 1,
-    },
-    creditRows: {
-        marginTop: 14,
-        borderTopWidth: 1,
-        borderTopColor: 'rgba(0,0,0,0.06)',
-        paddingTop: 12,
-        gap: 10,
-    },
-    creditRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: 12,
-    },
-    creditRowFinal: {
-        paddingTop: 10,
-        borderTopWidth: 1,
-        borderTopColor: 'rgba(0,0,0,0.06)',
-    },
-    creditRowLabel: {
-        flex: 1,
-        fontWeight: '800',
-        opacity: 0.78,
-    },
-    creditRowValue: {
-        fontWeight: '900',
-        fontSize: 18,
-    },
-    creditDebit: {
-        fontWeight: '900',
-        fontSize: 16,
-    },
-});

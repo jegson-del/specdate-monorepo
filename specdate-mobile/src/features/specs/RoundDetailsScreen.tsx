@@ -1,8 +1,7 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, TextInput, Image } from 'react-native';
-import { Text, useTheme, Button, ActivityIndicator, Chip } from 'react-native-paper';
+import { View, ScrollView, Alert } from 'react-native';
+import { Text, useTheme, Button, ActivityIndicator } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect } from '@react-navigation/native';
 import { SpecService } from '../../services/specs';
@@ -10,15 +9,15 @@ import { MediaModerationError } from '../../services/media';
 import { useUser } from '../../hooks/useUser';
 import { insertEmojiAtSelection, type TextSelection } from '../../utils/emojiText';
 import { MediaPickerSheet, UploadProgressModal, VideoViewerModal, type UploadProgressState } from '../../components';
-import { AudioMessagePlayer, CloseRoundModal, LastManStandingModal, PrivateRoundState, RoundHeader, RoundMediaActions, RoundOwnerControls, RoundQuestionCard, RoundResponsesList, useRoundAudioRecorder, VideoThumbnailPlayer } from './components';
+import { CloseRoundModal, LastManStandingModal, PrivateRoundState, RoundHeader, RoundOwnerControls, RoundParticipantAnswerSection, RoundQuestionCard, RoundResponsesList, useRoundAudioRecorder } from './components';
 import type { RoundMediaAsset } from './components';
-import * as ImagePicker from 'expo-image-picker';
 import { confirmMediaShareWithAiScan } from '../../utils/confirmMediaShareWithAiScan';
 import { ModerationService, type ReportTargetType } from '../../services/moderation';
-import { isAudioMedia, isVideoMedia } from './specDetailsUtils';
-import { isRoundMediaReviewing, resolveShareableRoundMedia } from './roundMediaUpload';
+import { resolveShareableRoundMedia } from './roundMediaUpload';
 import { useRoundDetailsState } from './hooks/useRoundDetailsState';
 import ChatSafetySheet from '../chat/components/ChatSafetySheet';
+import { styles } from './roundDetailsStyles';
+import { useRoundMediaPicker } from './hooks/useRoundMediaPicker';
 
 type ReportSheetState =
     | null
@@ -274,80 +273,9 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
             setNextRoundQuestionMedia(asset);
         }
     }, []);
-
-    const pickFromLibrary = async (target: 'answer' | 'next_question', assetType: 'image' | 'video') => {
-        try {
-            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-            if (status !== 'granted') {
-                Alert.alert('Permission Required', 'Allow photo library access to share media.');
-                return;
-            }
-            const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: assetType === 'image' ? ['images'] : ['videos'],
-                allowsEditing: true,
-                aspect: [4, 3],
-                quality: 0.8,
-                videoMaxDuration: 60,
-            });
-            if (!result.canceled) {
-                const asset = result.assets[0];
-                const mimeType = asset.mimeType ?? (assetType === 'video' ? 'video/mp4' : 'image/jpeg');
-                setSelectedRoundMedia(target, { uri: asset.uri, mimeType, assetType });
-            }
-        } catch (e: any) {
-            Alert.alert('Error', e.message || String(e));
-        }
-    };
-
-    const takePhoto = async (target: 'answer' | 'next_question') => {
-        try {
-            const cam = await ImagePicker.requestCameraPermissionsAsync();
-            if (!cam.granted) {
-                Alert.alert('Permission Required', 'Allow camera access to take a photo.');
-                return;
-            }
-            const result = await ImagePicker.launchCameraAsync({
-                mediaTypes: ['images'],
-                allowsEditing: true,
-                aspect: [4, 3],
-                quality: 0.8,
-            });
-            if (!result.canceled) {
-                const asset = result.assets[0];
-                setSelectedRoundMedia(target, {
-                    uri: asset.uri,
-                    mimeType: asset.mimeType ?? 'image/jpeg',
-                    assetType: 'image',
-                });
-            }
-        } catch (e: any) {
-            Alert.alert('Error', e.message || String(e));
-        }
-    };
-
-    const recordVideo = async (target: 'answer' | 'next_question') => {
-        try {
-            const cam = await ImagePicker.requestCameraPermissionsAsync();
-            if (!cam.granted) {
-                Alert.alert('Permission Required', 'Allow camera access to record video.');
-                return;
-            }
-            const result = await ImagePicker.launchCameraAsync({
-                mediaTypes: ['videos'],
-                videoMaxDuration: 60,
-            });
-            if (!result.canceled) {
-                const asset = result.assets[0];
-                setSelectedRoundMedia(target, {
-                    uri: asset.uri,
-                    mimeType: asset.mimeType ?? 'video/mp4',
-                    assetType: 'video',
-                });
-            }
-        } catch (e: any) {
-            Alert.alert('Error', e.message || String(e));
-        }
-    };
+    const { pickFromLibrary, takePhoto, recordVideo } = useRoundMediaPicker({
+        onMediaSelected: setSelectedRoundMedia,
+    });
 
     const startRoundMutation = useMutation({
         mutationFn: async (question: string) => {
@@ -652,106 +580,34 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
 
                 {/* PARTICIPANT – Your Answer (show when they have an answer in this round, or when ACCEPTED + ACTIVE for form) */}
                 {!isOwner && (myAnswer || (myApplication?.status === 'ACCEPTED' && roundDisplayStatus === 'ACTIVE')) && (
-                    <View style={styles.section}>
-                        <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Your answer</Text>
-
-                        {myAnswer ? (
-                            <View style={[styles.answerSubmitted, { backgroundColor: myAnswer.is_eliminated ? 'rgba(239,68,68,0.08)' : 'rgba(22,163,74,0.08)', borderColor: myAnswer.is_eliminated ? 'rgba(239,68,68,0.3)' : 'rgba(22,163,74,0.3)' }]}>
-                                {myAnswer.answer_text?.trim() ? (
-                                    <Text style={[styles.answerSubmittedText, { color: theme.colors.onSurface }]}>"{myAnswer.answer_text}"</Text>
-                                ) : (
-                                    <Text style={[styles.answerSubmittedText, { color: theme.colors.onSurface }]}>Voice answer</Text>
-                                )}
-                                <View style={styles.answerSubmittedBadge}>
-                                    {myAnswer.is_eliminated ? (
-                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                            <MaterialCommunityIcons name="account-off" size={18} color="#EF4444" />
-                                            <Text style={[styles.answerSubmittedBadgeText, { color: '#EF4444' }]}>Eliminated</Text>
-                                        </View>
-                                    ) : (
-                                        <>
-                                            <MaterialCommunityIcons name="check-circle" color="#16a34a" size={18} />
-                                            <Text style={styles.answerSubmittedBadgeText}>Submitted</Text>
-                                        </>
-                                    )}
-                                </View>
-                                {myAnswer.media && (
-                                    <View style={{ marginTop: 12 }}>
-                                        {isAudioMedia(myAnswer.media) ? (
-                                            <AudioMessagePlayer uri={myAnswer.media.url} label="Audio answer" />
-                                        ) : isVideoMedia(myAnswer.media) ? (
-                                            <VideoThumbnailPlayer uri={myAnswer.media.url} width={200} height={120} onPress={() => { setVideoViewerUri(myAnswer.media.url); setVideoViewerVisible(true); }} />
-                                        ) : (
-                                            <Image source={{ uri: myAnswer.media?.url }} style={{ width: 120, height: 120, borderRadius: 8 }} />
-                                        )}
-                                    </View>
-                                )}
-                            </View>
-                        ) : (
-                            <View style={[styles.flatBlock, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant || theme.colors.outline + '40' }]}>
-                                <TextInput
-                                    placeholder="Type your answer here..."
-                                    placeholderTextColor={theme.colors.outline}
-                                    multiline
-                                    numberOfLines={4}
-                                    value={answerText}
-                                    onChangeText={setAnswerText}
-                                    selection={answerSelection}
-                                    onSelectionChange={(event) => setAnswerSelection(event.nativeEvent.selection)}
-                                    style={[styles.flatTextArea, { color: theme.colors.onSurface, borderColor: theme.colors.outlineVariant || theme.colors.outline + '50' }]}
-                                />
-                                {answerMedia && (
-                                    <View style={{ marginBottom: 12, position: 'relative', alignSelf: 'flex-start' }}>
-                                        {isRoundMediaReviewing(answerMedia) ? (
-                                            <Chip compact icon="clock-outline" style={{ alignSelf: 'flex-start', marginBottom: 8 }}>
-                                                Reviewing video
-                                            </Chip>
-                                        ) : null}
-                                        {answerMedia.assetType === 'image' ? (
-                                            <Image source={{ uri: answerMedia.uri }} style={{ width: 120, height: 120, borderRadius: 8 }} />
-                                        ) : answerMedia.assetType === 'video' ? (
-                                            <VideoThumbnailPlayer uri={answerMedia.uri} width={160} height={100} onPress={() => { setVideoViewerUri(answerMedia.uri); setVideoViewerVisible(true); }} />
-                                        ) : (
-                                            <AudioMessagePlayer uri={answerMedia.uri} label="Audio answer" compact />
-                                        )}
-                                        <TouchableOpacity
-                                            style={{ position: 'absolute', top: -8, right: -8, backgroundColor: theme.colors.error, borderRadius: 12, padding: 4 }}
-                                            onPress={() => setAnswerMedia(null)}
-                                        >
-                                            <MaterialCommunityIcons name="close" size={16} color="#fff" />
-                                        </TouchableOpacity>
-                                    </View>
-                                )}
-                                <RoundMediaActions
-                                    onOpenFile={() => setRoundMediaSheet({ target: 'answer', source: 'file' })}
-                                    onOpenCamera={() => setRoundMediaSheet({ target: 'answer', source: 'camera' })}
-                                    onEmojiSelected={handleAnswerEmoji}
-                                    onToggleVoice={answerAudioRecorder.isRecording ? answerAudioRecorder.stopRecording : answerAudioRecorder.startRecording}
-                                    isRecording={answerAudioRecorder.isRecording}
-                                    durationMillis={answerAudioRecorder.durationMillis}
-                                    disabled={submitAnswerMutation.isPending}
-                                />
-                                <TouchableOpacity
-                                    activeOpacity={0.8}
-                                    style={[styles.primaryButton, { backgroundColor: theme.colors.primary, marginTop: 12 }]}
-                                    onPress={async () => {
-                                        if (answerMedia) {
-                                            const ok = await confirmMediaShareWithAiScan();
-                                            if (!ok) return;
-                                        }
-                                        submitAnswerMutation.mutate({ rId: roundToShow.id, text: answerText });
-                                    }}
-                                    disabled={(!answerText.trim() && !answerMedia) || submitAnswerMutation.isPending}
-                                >
-                                    {submitAnswerMutation.isPending ? (
-                                        <ActivityIndicator size="small" color="#fff" />
-                                    ) : (
-                                        <Text style={styles.primaryButtonText}>Submit answer</Text>
-                                    )}
-                                </TouchableOpacity>
-                            </View>
-                        )}
-                    </View>
+                    <RoundParticipantAnswerSection
+                        answerText={answerText}
+                        durationMillis={answerAudioRecorder.durationMillis}
+                        isRecording={answerAudioRecorder.isRecording}
+                        media={answerMedia}
+                        myAnswer={myAnswer}
+                        selection={answerSelection}
+                        submitPending={submitAnswerMutation.isPending}
+                        theme={theme}
+                        onChangeAnswerText={setAnswerText}
+                        onEmojiSelected={handleAnswerEmoji}
+                        onOpenCamera={() => setRoundMediaSheet({ target: 'answer', source: 'camera' })}
+                        onOpenFile={() => setRoundMediaSheet({ target: 'answer', source: 'file' })}
+                        onOpenVideo={(uri) => {
+                            setVideoViewerUri(uri);
+                            setVideoViewerVisible(true);
+                        }}
+                        onRemoveMedia={() => setAnswerMedia(null)}
+                        onSelectionChange={setAnswerSelection}
+                        onSubmitAnswer={async () => {
+                            if (answerMedia) {
+                                const ok = await confirmMediaShareWithAiScan();
+                                if (!ok) return;
+                            }
+                            submitAnswerMutation.mutate({ rId: roundToShow.id, text: answerText });
+                        }}
+                        onToggleVoice={answerAudioRecorder.isRecording ? answerAudioRecorder.stopRecording : answerAudioRecorder.startRecording}
+                    />
                 )}
 
                 {isOwner && (
@@ -882,50 +738,3 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
     );
 }
 
-const styles = StyleSheet.create({
-    container: { flex: 1 },
-    scrollContent: { padding: 16, paddingBottom: 40 },
-    section: { marginBottom: 28 },
-    sectionTitle: { fontSize: 16, fontWeight: '800', marginBottom: 4 },
-    flatBlock: {
-        padding: 16,
-        borderRadius: 12,
-        borderWidth: 1,
-        gap: 12,
-    },
-    flatTextArea: {
-        minHeight: 120,
-        textAlignVertical: 'top',
-        padding: 14,
-        borderRadius: 10,
-        borderWidth: 1,
-        fontSize: 16,
-    },
-    primaryButton: {
-        paddingVertical: 14,
-        borderRadius: 10,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    primaryButtonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-    answerSubmitted: {
-        padding: 16,
-        borderRadius: 12,
-        borderWidth: 1,
-    },
-    answerSubmittedText: { fontSize: 16, lineHeight: 24, fontStyle: 'italic' },
-    answerSubmittedBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 },
-    answerSubmittedBadgeText: { color: '#16a34a', fontWeight: '700', fontSize: 14 },
-    mediaPreviewBox: {
-        alignSelf: 'flex-start',
-        borderWidth: 1,
-        borderRadius: 12,
-        padding: 8,
-        gap: 6,
-    },
-    questionMediaImage: {
-        width: 120,
-        height: 120,
-        borderRadius: 8,
-    },
-});

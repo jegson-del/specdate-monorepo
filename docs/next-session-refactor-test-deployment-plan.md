@@ -130,10 +130,10 @@ Suggested mobile design:
 
 Open decisions:
 
-- Archive file format: plain text for readability, or JSONL for easier rehydration. Best option may be JSONL plus a generated plain text export if needed.
-- Whether to archive messages with media as text references only, or include media URLs/paths.
-- Whether moderation/report evidence must remain in DB longer than normal chats.
-- Whether archive threshold is exactly 30 days or configurable via env.
+- Archive file format: plain text for readability, or JSONL for easier rehydration. Best option may be JSONL plus a generated plain text export if needed. this which ever is easiest and smoothest that works with code base struture 
+- Whether to archive messages with media as text references only, or include media URLs/paths., which is better may be media url would make things easier to load on mobile 
+- Whether moderation/report evidence must remain in DB longer than normal chats. we use env value too but this should default 30 days 
+- Whether archive threshold is exactly 30 days or configurable via env. let use env number of days for achrive default 30 days if no env value 
 
 ## 5. Order For Tomorrow
 

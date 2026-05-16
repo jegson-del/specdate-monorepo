@@ -1,15 +1,25 @@
 import React, { useMemo, useState, useCallback } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
-import { Text, useTheme, Avatar, IconButton, Button, Surface, Divider, ActivityIndicator } from 'react-native-paper';
+import { View, ScrollView } from 'react-native';
+import { Text, useTheme, Avatar, IconButton, ActivityIndicator } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { UserService } from '../../services/users';
 import { ModerationService, type ReportTargetType } from '../../services/moderation';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { ProfileImageGrid, ImageViewerModal } from './components';
+import {
+    ImageViewerModal,
+    ProfileAboutSection,
+    ProfileActivitySection,
+    ProfileBioSection,
+    ProfileIdealDatesSection,
+    ProfileLifestyleSection,
+    PublicProfilePhotosSection,
+} from './components';
 import { toImageUri } from '../../utils/imageUrl';
 import ChatSafetySheet from '../chat/components/ChatSafetySheet';
+import { DUMMY_IMAGES, formatAge, normalizeStringArray } from './profileViewerUtils';
+import { styles } from './profileViewerStyles';
 
 type SafetySheetState =
     | null
@@ -17,51 +27,6 @@ type SafetySheetState =
     | { mode: 'report'; targetType: ReportTargetType; targetId: number; label: string }
     | { mode: 'block'; userId: number; name: string }
     | { mode: 'success'; title: string; subtitle: string; afterDismiss?: () => void };
-
-function formatAge(dob?: string) {
-    if (!dob) return null;
-    const d = new Date(dob);
-    if (Number.isNaN(d.getTime())) return null;
-    return new Date().getFullYear() - d.getFullYear();
-}
-
-function cmToFeetInches(cm: number) {
-    const realFeet = (cm * 0.393701) / 12;
-    const feet = Math.floor(realFeet);
-    const inches = Math.round((realFeet - feet) * 12);
-    return `${feet}'${inches === 12 ? 0 : inches}"`;
-}
-
-function normalizeStringArray(value: unknown): string[] {
-    if (!Array.isArray(value)) return [];
-    return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
-}
-
-function getIdealDateIcon(label: string) {
-    const key = label.toLowerCase();
-    if (key.includes('dinner') || key.includes('brunch') || key.includes('dessert') || key.includes('cooking')) return 'silverware-fork-knife';
-    if (key.includes('coffee')) return 'coffee-outline';
-    if (key.includes('swimming') || key.includes('beach')) return 'swim';
-    if (key.includes('cinema')) return 'movie-open-outline';
-    if (key.includes('music') || key.includes('dancing') || key.includes('karaoke')) return 'music-note-outline';
-    if (key.includes('hiking')) return 'hiking';
-    if (key.includes('gallery') || key.includes('museum')) return 'palette-outline';
-    if (key.includes('arcade') || key.includes('bowling')) return 'gamepad-variant-outline';
-    if (key.includes('wine')) return 'glass-wine';
-    if (key.includes('trip')) return 'car-outline';
-    if (key.includes('book')) return 'book-open-page-variant-outline';
-    if (key.includes('comedy')) return 'microphone-variant';
-    if (key.includes('fitness') || key.includes('gym')) return 'dumbbell';
-    if (key.includes('picnic')) return 'basket-outline';
-    return 'heart-outline';
-}
-
-const DUMMY_IMAGES = [
-    'https://picsum.photos/seed/profile-a/600/800',
-    'https://picsum.photos/seed/profile-b/600/800',
-    'https://picsum.photos/seed/profile-c/600/800',
-    'https://picsum.photos/seed/profile-d/600/800',
-];
 
 export default function ProfileViewerScreen({ route, navigation }: any) {
     const { userId } = route.params || {};
@@ -277,197 +242,25 @@ export default function ProfileViewerScreen({ route, navigation }: any) {
                     </View>
                 </View>
 
-                {/* Stats */}
-                <Surface style={[styles.section, { backgroundColor: theme.colors.elevation.level1 }]} elevation={0}>
-                    <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
-                        Activity
-                    </Text>
-                    <View style={styles.statsRow}>
-                        <View style={styles.statItem}>
-                            <View style={[styles.statIconWrap, { backgroundColor: theme.colors.primaryContainer }]}>
-                                <MaterialCommunityIcons name="clipboard-edit-outline" size={22} color={theme.colors.primary} />
-                            </View>
-                            <Text variant="headlineSmall" style={[styles.statValue, { color: theme.colors.onSurface }]}>
-                                {specsCreated}
-                            </Text>
-                            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>Specs created</Text>
-                        </View>
-                        <View style={[styles.statDivider, { backgroundColor: theme.colors.outline }]} />
-                        <View style={styles.statItem}>
-                            <View style={[styles.statIconWrap, { backgroundColor: theme.colors.secondaryContainer }]}>
-                                <MaterialCommunityIcons name="account-group" size={22} color={theme.colors.secondary} />
-                            </View>
-                            <Text variant="headlineSmall" style={[styles.statValue, { color: theme.colors.onSurface }]}>
-                                {specsParticipated}
-                            </Text>
-                            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>Participated</Text>
-                        </View>
-                        <View style={[styles.statDivider, { backgroundColor: theme.colors.outline }]} />
-                        <View style={styles.statItem}>
-                            <View style={[styles.statIconWrap, { backgroundColor: theme.colors.elevation.level2 }]}>
-                                <MaterialCommunityIcons name="heart" size={22} color={theme.colors.primary} />
-                            </View>
-                            <Text variant="headlineSmall" style={[styles.statValue, { color: theme.colors.onSurface }]}>
-                                {datesCount}
-                            </Text>
-                            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>Dates</Text>
-                        </View>
-                    </View>
-                </Surface>
+                <ProfileActivitySection
+                    specsCreated={specsCreated}
+                    specsParticipated={specsParticipated}
+                    datesCount={datesCount}
+                />
 
-                {/* Photos */}
-                <Surface style={[styles.section, { backgroundColor: theme.colors.elevation.level1 }]} elevation={0}>
-                    <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
-                        Photos
-                    </Text>
-                    {imagesFilled.length > 0 ? (
-                        <>
-                            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 12 }}>
-                                {imagesFilled.length} photo{imagesFilled.length !== 1 ? 's' : ''}
-                            </Text>
-                            <ProfileImageGrid images={images} maxSlots={6} readOnly onImagePress={openViewer} />
-                        </>
-                    ) : (
-                        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                            No photos yet
-                        </Text>
-                    )}
-                </Surface>
+                <PublicProfilePhotosSection
+                    images={images}
+                    imagesFilled={imagesFilled}
+                    onImagePress={openViewer}
+                />
 
-                {(profile?.occupation || profile?.job_title || profile?.qualification || profile?.religion) && (
-                    <Surface style={[styles.section, { backgroundColor: theme.colors.elevation.level1 }]} elevation={0}>
-                        <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
-                            About
-                        </Text>
-                        {profile?.occupation && (
-                            <View style={styles.infoRow}>
-                                <MaterialCommunityIcons name="briefcase" size={20} color={theme.colors.primary} />
-                                <Text variant="bodyLarge" style={{ color: theme.colors.onSurface, marginLeft: 12 }}>
-                                    {profile.occupation}
-                                </Text>
-                            </View>
-                        )}
-                        {profile?.job_title && (
-                            <View style={styles.infoRow}>
-                                <MaterialCommunityIcons name="briefcase-account" size={20} color={theme.colors.primary} />
-                                <Text variant="bodyLarge" style={{ color: theme.colors.onSurface, marginLeft: 12 }}>
-                                    {profile.job_title}
-                                </Text>
-                            </View>
-                        )}
-                        {profile?.qualification && (
-                            <View style={styles.infoRow}>
-                                <MaterialCommunityIcons name="school" size={20} color={theme.colors.primary} />
-                                <Text variant="bodyLarge" style={{ color: theme.colors.onSurface, marginLeft: 12 }}>
-                                    {profile.qualification}
-                                </Text>
-                            </View>
-                        )}
-                        {profile?.religion && (
-                            <View style={styles.infoRow}>
-                                <MaterialCommunityIcons name="book-open-variant" size={20} color={theme.colors.primary} />
-                                <Text variant="bodyLarge" style={{ color: theme.colors.onSurface, marginLeft: 12 }}>
-                                    {profile.religion}
-                                </Text>
-                            </View>
-                        )}
-                    </Surface>
-                )}
+                <ProfileAboutSection profile={profile} />
 
-                {profile?.hobbies && (
-                    <Surface style={[styles.section, { backgroundColor: theme.colors.elevation.level1 }]} elevation={0}>
-                        <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
-                            Bio / Hobbies
-                        </Text>
-                        <Text variant="bodyLarge" style={{ color: theme.colors.onSurface, lineHeight: 24 }}>
-                            {profile.hobbies}
-                        </Text>
-                    </Surface>
-                )}
+                <ProfileBioSection hobbies={profile?.hobbies} />
 
-                {idealDates.length > 0 && (
-                    <Surface style={[styles.section, { backgroundColor: theme.colors.elevation.level1 }]} elevation={0}>
-                        <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
-                            Ideal Dates
-                        </Text>
-                        <View style={styles.idealDateGrid}>
-                            {idealDates.map((date) => (
-                                <View
-                                    key={date}
-                                    style={[
-                                        styles.idealDateChip,
-                                        {
-                                            backgroundColor: theme.colors.primaryContainer,
-                                            borderColor: theme.colors.primary + '33',
-                                        },
-                                    ]}
-                                >
-                                    <MaterialCommunityIcons name={getIdealDateIcon(date) as any} size={17} color={theme.colors.primary} />
-                                    <Text style={[styles.idealDateText, { color: theme.colors.onSurface }]} numberOfLines={1}>
-                                        {date}
-                                    </Text>
-                                </View>
-                            ))}
-                        </View>
-                    </Surface>
-                )}
+                <ProfileIdealDatesSection idealDates={idealDates} />
 
-                <Surface style={[styles.section, { backgroundColor: theme.colors.elevation.level1 }]} elevation={0}>
-                    <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
-                        Lifestyle
-                    </Text>
-                    <View style={styles.lifestyleRow}>
-                        <View style={styles.lifestyleLabel}>
-                            <MaterialCommunityIcons name="smoking" size={20} color={theme.colors.onSurfaceVariant} />
-                            <Text variant="bodyLarge" style={{ color: theme.colors.onSurface }}>
-                                Smoker
-                            </Text>
-                        </View>
-                        <Text variant="bodyLarge" style={{ color: theme.colors.onSurfaceVariant }}>
-                            {profile?.is_smoker ? 'Yes' : 'No'}
-                        </Text>
-                    </View>
-                    <Divider style={styles.divider} />
-                    <View style={styles.lifestyleRow}>
-                        <View style={styles.lifestyleLabel}>
-                            <MaterialCommunityIcons name="glass-cocktail" size={20} color={theme.colors.onSurfaceVariant} />
-                            <Text variant="bodyLarge" style={{ color: theme.colors.onSurface }}>
-                                Drinking
-                            </Text>
-                        </View>
-                        <Text variant="bodyLarge" style={{ color: theme.colors.onSurfaceVariant, textTransform: 'capitalize' }}>
-                            {profile?.drinking || 'No'}
-                        </Text>
-                    </View>
-                    <Divider style={styles.divider} />
-                    <View style={styles.lifestyleRow}>
-                        <View style={styles.lifestyleLabel}>
-                            <MaterialCommunityIcons name="pill" size={20} color={theme.colors.onSurfaceVariant} />
-                            <Text variant="bodyLarge" style={{ color: theme.colors.onSurface }}>
-                                Drug Use
-                            </Text>
-                        </View>
-                        <Text variant="bodyLarge" style={{ color: theme.colors.onSurfaceVariant }}>
-                            {profile?.is_drug_user ? 'Yes' : 'No'}
-                        </Text>
-                    </View>
-                    {profile?.height != null && (
-                        <>
-                            <Divider style={styles.divider} />
-                            <View style={styles.lifestyleRow}>
-                                <View style={styles.lifestyleLabel}>
-                                    <MaterialCommunityIcons name="human-male-height" size={20} color={theme.colors.onSurfaceVariant} />
-                                    <Text variant="bodyLarge" style={{ color: theme.colors.onSurface }}>
-                                        Height
-                                    </Text>
-                                </View>
-                                <Text variant="bodyLarge" style={{ color: theme.colors.onSurfaceVariant }}>
-                                    {profile.height} cm ({cmToFeetInches(profile.height)})
-                                </Text>
-                            </View>
-                        </>
-                    )}
-                </Surface>
+                <ProfileLifestyleSection profile={profile} />
             </ScrollView>
 
             {viewerVisible && (
@@ -514,123 +307,3 @@ export default function ProfileViewerScreen({ route, navigation }: any) {
         </View>
     );
 }
-
-const styles = StyleSheet.create({
-    container: { flex: 1 },
-    centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    scrollContent: {},
-    topNav: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 8,
-        marginBottom: 8,
-    },
-    backBtn: { margin: 0 },
-    screenTitle: {
-        fontWeight: '800',
-        fontSize: 20,
-        letterSpacing: -0.5,
-    },
-    header: {
-        alignItems: 'center',
-        marginBottom: 32,
-        paddingHorizontal: 16,
-    },
-    nameText: { fontWeight: 'bold' },
-    usernameText: { marginTop: 2, fontWeight: '700' },
-    headerMeta: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginTop: 8,
-        flexWrap: 'wrap',
-        justifyContent: 'center',
-    },
-    section: {
-        marginHorizontal: 16,
-        marginBottom: 20,
-        padding: 20,
-        borderRadius: 20,
-        overflow: 'hidden',
-        borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.05)',
-    },
-    viewPhotosBtn: {
-        marginTop: 16,
-        alignSelf: 'stretch',
-    },
-    sectionTitle: {
-        marginBottom: 16,
-        fontWeight: '800',
-        textTransform: 'uppercase',
-        fontSize: 11,
-        letterSpacing: 1.2,
-    },
-    infoRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 12,
-    },
-    idealDateGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 8,
-    },
-    idealDateChip: {
-        maxWidth: '48%',
-        minHeight: 34,
-        borderRadius: 999,
-        borderWidth: 1,
-        paddingHorizontal: 10,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-    },
-    idealDateText: {
-        flexShrink: 1,
-        fontSize: 12,
-        fontWeight: '800',
-    },
-    lifestyleRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingVertical: 12,
-    },
-    lifestyleLabel: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-    },
-    divider: {
-        marginVertical: 4,
-        opacity: 0.3,
-    },
-    statsRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-around',
-        paddingVertical: 8,
-    },
-    statItem: {
-        alignItems: 'center',
-        flex: 1,
-    },
-    statIconWrap: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 8,
-    },
-    statValue: {
-        fontWeight: '900',
-        marginBottom: 2,
-    },
-    statDivider: {
-        width: 1,
-        height: 40,
-        opacity: 0.3,
-    },
-});

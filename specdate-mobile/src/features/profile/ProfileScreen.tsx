@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Platform, TouchableOpacity, Image, RefreshControl } from 'react-native';
-import { Text, Button, useTheme, TextInput, SegmentedButtons, Searchbar, Avatar, IconButton, Surface, Divider, ActivityIndicator, HelperText } from 'react-native-paper';
+import { View, ScrollView, Alert, Platform, RefreshControl } from 'react-native';
+import { Text, Button, useTheme, TextInput, SegmentedButtons, Searchbar, IconButton, Surface, Divider, HelperText } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { z } from 'zod';
@@ -9,44 +9,25 @@ import { ProfileService } from '../../services/profile';
 import { useUser } from '../../hooks/useUser';
 import { useQueryClient } from '@tanstack/react-query';
 import * as Location from 'expo-location';
-import * as ImagePicker from 'expo-image-picker';
 import { Dropdown } from 'react-native-paper-dropdown';
 import { IDEAL_DATE_OPTIONS, JOB_TITLE_OPTIONS, OCCUPATION_OPTIONS, QUALIFICATION_OPTIONS, RELIGION_OPTIONS } from '../../constants/profileOptions';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { ProfileImageGrid, ImageViewerModal } from './components';
-import { MediaModerationError, MediaService } from '../../services/media';
-import { confirmMediaShareWithAiScan } from '../../utils/confirmMediaShareWithAiScan';
+import { ImageViewerModal, ProfileHeader, ProfilePhotosSection, ProfileWalletSection } from './components';
 import { toImageUri, imageUriWithCacheBust } from '../../utils/imageUrl';
 import { MultiSelectModal } from '../specs/components/MultiSelectModal';
-import { MediaPickerSheet, UploadProgressModal, type UploadProgressState } from '../../components';
-
-// --- OPTIONS & CONSTANTS ---
-const OTHER_VALUE = '__other__';
-const HEIGHT_OPTIONS = Array.from({ length: 121 }, (_, i) => {
-    const cm = i + 130;
-    const realFeet = (cm * 0.393701) / 12;
-    const feet = Math.floor(realFeet);
-    const inches = Math.round((realFeet - feet) * 12);
-    return { label: `${cm} cm (${feet}'${inches}")`, value: String(cm) };
-});
-
-function normalizeStringArray(value: unknown): string[] {
-    if (Array.isArray(value)) {
-        return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
-    }
-    return [];
-}
-const ETHNICITY_OPTIONS = [
-    'Asian', 'Black / African Descent', 'Hispanic / Latino', 'Middle Eastern',
-    'Native American / Indigenous', 'Pacific Islander', 'South Asian', 'White / Caucasian',
-    'Multiracial / Mixed', 'Prefer not to say',
-];
-const DRINKING_OPTIONS = [
-    { label: 'No', value: 'no' },
-    { label: 'Socially', value: 'socially' },
-    { label: 'Occasionally', value: 'occasionally' },
-];
+import { MediaPickerSheet, UploadProgressModal } from '../../components';
+import { useProfileMediaUpload } from './hooks/useProfileMediaUpload';
+import {
+    DRINKING_OPTIONS,
+    ETHNICITY_OPTIONS,
+    HEIGHT_OPTIONS,
+    OTHER_VALUE,
+    formatYYYYMMDD,
+    latestAdultDob,
+    normalizeStringArray,
+} from './profileScreenOptions';
+import { styles } from './profileScreenStyles';
 
 type ProfileMediaSheetState = {
     type: 'avatar' | 'profile_gallery';
@@ -65,20 +46,6 @@ try {
     DateTimePickerAndroid = null;
 }
 
-function formatYYYYMMDD(d: Date) {
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
-}
-
-function latestAdultDob() {
-    const d = new Date();
-    d.setFullYear(d.getFullYear() - 18);
-    d.setHours(23, 59, 59, 999);
-    return d;
-}
-
 export default function ProfileScreen({ navigation, route }: any) {
     const theme = useTheme();
     const insets = useSafeAreaInsets();
@@ -90,8 +57,6 @@ export default function ProfileScreen({ navigation, route }: any) {
     // --- STATE ---
     const [loading, setLoading] = useState(false);
     const [locLoading, setLocLoading] = useState(false);
-    const [imgLoading, setImgLoading] = useState(false);
-    const [uploadProgress, setUploadProgress] = useState<UploadProgressState>(null);
 
     // UI Local State
     const [showDobPicker, setShowDobPicker] = useState(false);
@@ -117,6 +82,15 @@ export default function ProfileScreen({ navigation, route }: any) {
     const [viewerVisible, setViewerVisible] = useState(false);
     const [viewerInitialIndex, setViewerInitialIndex] = useState(0);
     const [profileMediaSheet, setProfileMediaSheet] = useState<ProfileMediaSheetState>(null);
+    const { imgLoading, uploadProgress, takePhotoWithCamera, pickFromGallery } = useProfileMediaUpload({
+        user,
+        queryClient,
+        refetchUser,
+        localAvatarMediaId,
+        setLocalAvatarUri,
+        setLocalAvatarMediaId,
+        setImages,
+    });
 
     const [form, setForm] = useState<Partial<ProfileFormData>>({
         username: '',
@@ -250,151 +224,6 @@ export default function ProfileScreen({ navigation, route }: any) {
     }, [form.occupation, form.job_title, form.qualification, form.ethnicity]);
 
     // --- HANDLERS ---
-    const ensureMediaLibraryPermission = async (): Promise<boolean> => {
-        const existing = await ImagePicker.getMediaLibraryPermissionsAsync();
-        if (existing.status === 'granted') return true;
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        return status === 'granted';
-    };
-
-    const ensureCameraPermission = async (): Promise<boolean> => {
-        const existing = await ImagePicker.getCameraPermissionsAsync();
-        if (existing.status === 'granted') return true;
-        const { status } = await ImagePicker.requestCameraPermissionsAsync();
-        return status === 'granted';
-    };
-
-    const uploadImageAndRefresh = async (uri: string, type: 'avatar' | 'profile_gallery', mediaId?: number, replaceSlotIndex?: number) => {
-        const confirmed = await confirmMediaShareWithAiScan();
-        if (!confirmed) {
-            return;
-        }
-        setImgLoading(true);
-        const label = type === 'avatar' ? 'avatar' : 'profile photo';
-        let keepProgressOpen = false;
-        try {
-            setUploadProgress({
-                title: 'Uploading media',
-                message: `Uploading your ${label}.`,
-            });
-            const uploaded = await MediaService.upload(uri, type, mediaId);
-            setUploadProgress({
-                title: 'Reviewing media',
-                message: `Checking your ${label} with our safety review.`,
-            });
-            const media = await MediaService.waitForModeration(uploaded);
-            const uploadedUrl = media?.url && (media.url as string).startsWith('http') ? media.url : null;
-            // Optimistic update: show the new image immediately using the URL returned from upload
-            if (uploadedUrl) {
-                const cacheBustedUrl = imageUriWithCacheBust(uploadedUrl, Date.now()) ?? uploadedUrl;
-                queryClient.setQueryData(['user'], (old: any) => {
-                    if (!old) return old;
-                    if (type === 'avatar') {
-                        return {
-                            ...old,
-                            profile: {
-                                ...(old.profile || {}),
-                                avatar: uploadedUrl,
-                                avatar_media_id: media?.id ?? mediaId ?? old.profile?.avatar_media_id,
-                                updated_at: new Date().toISOString(),
-                            },
-                        };
-                    }
-                    const prev = (old.images || []) as string[];
-                    const nextImages = [...prev];
-                    if (replaceSlotIndex != null) {
-                        nextImages[replaceSlotIndex] = uploadedUrl;
-                    } else {
-                        nextImages.push(uploadedUrl);
-                    }
-                    return { ...old, images: nextImages.filter(Boolean).slice(0, 6) };
-                });
-
-                if (type === 'avatar') {
-                    setLocalAvatarUri(cacheBustedUrl);
-                    setLocalAvatarMediaId(media?.id ?? mediaId);
-                } else {
-                    setImages((prev) => {
-                        if (replaceSlotIndex != null) {
-                            const next = [...prev];
-                            next[replaceSlotIndex] = uploadedUrl;
-                            return [...next, ...new Array(6).fill(null)].slice(0, 6);
-                        }
-                        const filled = prev.filter(Boolean) as string[];
-                        return [...filled, uploadedUrl, ...new Array(6 - filled.length - 1).fill(null)].slice(0, 6);
-                    });
-                }
-            }
-            await queryClient.invalidateQueries({ queryKey: ['user'] });
-            await refetchUser();
-            Alert.alert('Success', 'Image uploaded successfully.');
-        } catch (e: any) {
-            const msg = e?.message || e?.response?.data?.message || 'Upload failed. Try again.';
-            if (e instanceof MediaModerationError || ['flagged', 'failed', 'timeout'].includes(String(e?.status ?? ''))) {
-                keepProgressOpen = true;
-                setUploadProgress({
-                    title: 'Image not saved',
-                    message: msg,
-                    status: 'error',
-                    dismissLabel: 'OK',
-                    onDismiss: () => setUploadProgress(null),
-                });
-            } else {
-                Alert.alert('Upload Failed', msg);
-            }
-        } finally {
-            if (!keepProgressOpen) {
-                setUploadProgress(null);
-            }
-            setImgLoading(false);
-        }
-    };
-
-    const takePhotoWithCamera = async (type: 'avatar' | 'profile_gallery', replaceSlotIndex?: number) => {
-        const granted = await ensureCameraPermission();
-        if (!granted) {
-            Alert.alert('Camera access needed', 'Allow camera access to take a new photo.');
-            return;
-        }
-        const result = await ImagePicker.launchCameraAsync({
-            mediaTypes: ['images'],
-            allowsEditing: type === 'avatar',
-            aspect: type === 'avatar' ? [1, 1] : undefined,
-            quality: 0.8,
-        });
-        if (!result.canceled && result.assets[0]) {
-            const mediaId = type === 'profile_gallery' && replaceSlotIndex != null
-                ? (user as any)?.profile_gallery_media?.[replaceSlotIndex]?.id
-                : type === 'avatar'
-                    ? localAvatarMediaId ?? (user as any)?.profile?.avatar_media_id
-                    : undefined;
-            await uploadImageAndRefresh(result.assets[0].uri, type, mediaId, replaceSlotIndex);
-        }
-    };
-
-    /** replaceSlotIndex: when set for profile_gallery, backend updates that slot (media_id) instead of creating. */
-    const pickFromGallery = async (type: 'avatar' | 'profile_gallery', replaceSlotIndex?: number) => {
-        const granted = await ensureMediaLibraryPermission();
-        if (!granted) {
-            Alert.alert('Photo access needed', 'Allow access to your photos to pick an image.');
-            return;
-        }
-        const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ['images'],
-            allowsEditing: type === 'avatar',
-            aspect: type === 'avatar' ? [1, 1] : undefined,
-            quality: 0.8,
-        });
-        if (!result.canceled && result.assets[0]) {
-            const mediaId = type === 'profile_gallery' && replaceSlotIndex != null
-                ? (user as any)?.profile_gallery_media?.[replaceSlotIndex]?.id
-                : type === 'avatar'
-                    ? localAvatarMediaId ?? (user as any)?.profile?.avatar_media_id
-                    : undefined;
-            await uploadImageAndRefresh(result.assets[0].uri, type, mediaId, replaceSlotIndex);
-        }
-    };
-
     const openDobPicker = () => {
         if (Platform.OS === 'android' && DateTimePickerAndroid) {
             DateTimePickerAndroid.open({
@@ -530,125 +359,29 @@ export default function ProfileScreen({ navigation, route }: any) {
                     />
                 </View>
 
-                {/* Header */}
-                <View style={styles.header}>
-                    <View style={styles.avatarContainer}>
-                        <Avatar.Image
-                            size={120}
-                            source={{ uri: avatarUri }}
-                            style={{ backgroundColor: theme.colors.surfaceVariant }}
-                        />
-                        <TouchableOpacity
-                            style={[styles.editBadge, { backgroundColor: theme.colors.primary }]}
-                            onPress={() => {
-                                if (imgLoading) return;
-                                setProfileMediaSheet({ type: 'avatar' });
-                            }}
-                            activeOpacity={0.8}
-                            disabled={imgLoading}
-                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                            accessible
-                            accessibilityRole="button"
-                            accessibilityLabel="Edit avatar"
-                        >
-                            {imgLoading ? (
-                                <ActivityIndicator size={18} color={theme.colors.onPrimary} />
-                            ) : (
-                                <MaterialCommunityIcons name="pencil" size={18} color={theme.colors.onPrimary} />
-                            )}
-                        </TouchableOpacity>
-                    </View>
-                    <Text variant="headlineMedium" style={[styles.nameText, { color: theme.colors.onSurface }]}>
-                        {form?.full_name || 'Add full name'}
-                    </Text>
-                    {!!accountUsername && (
-                        <Text variant="bodyMedium" style={[styles.usernameText, { color: theme.colors.onSurfaceVariant }]}>
-                            {accountUsername}
-                        </Text>
-                    )}
-                    <View style={styles.headerMeta}>
-                        <MaterialCommunityIcons name="map-marker" size={14} color={theme.colors.onSurfaceVariant} />
-                        <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant, marginLeft: 4 }}>
-                            {form?.city || user?.profile?.city || 'Add location'}
-                        </Text>
-                        {form?.dob && (
-                            <>
-                                <Text style={{ color: theme.colors.onSurfaceVariant, marginHorizontal: 8 }}>•</Text>
-                                <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-                                    {new Date().getFullYear() - new Date(form?.dob ?? '').getFullYear()} y/o
-                                </Text>
-                            </>
-                        )}
-                    </View>
-                </View>
+                <ProfileHeader
+                    avatarUri={avatarUri}
+                    fullName={form?.full_name}
+                    accountUsername={accountUsername}
+                    locationLabel={form?.city || user?.profile?.city}
+                    dob={form?.dob}
+                    imgLoading={imgLoading}
+                    onEditAvatar={() => {
+                        if (imgLoading) return;
+                        setProfileMediaSheet({ type: 'avatar' });
+                    }}
+                />
+                <ProfileWalletSection
+                    credits={user?.balance?.credits ?? 0}
+                    onTransactionsPress={() => navigation.navigate('CreditsTransactions')}
+                    onTopUpPress={() => navigation.navigate('TopUpCredits')}
+                />
 
-                {/* Balance / Wallet */}
-                <Surface style={[styles.walletSection, { backgroundColor: theme.colors.elevation.level1 }]} elevation={0}>
-                    <View style={styles.walletHeader}>
-                        <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.primary, marginBottom: 0 }]}>
-                            Wallet
-                        </Text>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                            <TouchableOpacity
-                                onPress={() => navigation.navigate('CreditsTransactions')}
-                                style={[styles.walletTopUp, { backgroundColor: theme.colors.primaryContainer }]}
-                                activeOpacity={0.8}
-                            >
-                                <MaterialCommunityIcons name="history" size={18} color={theme.colors.primary} />
-                                <Text variant="labelMedium" style={{ color: theme.colors.primary, fontWeight: '700', marginLeft: 6 }}>
-                                    Transactions
-                                </Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                onPress={() => navigation.navigate('TopUpCredits')}
-                                style={[styles.walletTopUp, { backgroundColor: theme.colors.primaryContainer }]}
-                                activeOpacity={0.8}
-                            >
-                                <MaterialCommunityIcons name="plus-circle" size={18} color={theme.colors.primary} />
-                                <Text variant="labelMedium" style={{ color: theme.colors.primary, fontWeight: '700', marginLeft: 6 }}>
-                                    Buy credits
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                    <View style={styles.walletRow}>
-                        <View style={[styles.walletCard, { backgroundColor: theme.colors.primary }]}>
-                            <View style={styles.walletBalanceRow}>
-                                <View style={styles.walletCoinWrap}>
-                                    <Image
-                                        source={require('../../../assets/specdate_coin.png')}
-                                        style={styles.walletCoin}
-                                        resizeMode="contain"
-                                    />
-                                </View>
-                                <View style={styles.walletBalanceCopy}>
-                                    <Text style={styles.walletBalanceLabel}>Credit balance</Text>
-                                    <Text style={styles.walletBalanceHint}>1 credit creates 1 spec</Text>
-                                </View>
-                                <Text style={styles.walletAmount}>
-                                    {user?.balance?.credits ?? 0}
-                                </Text>
-                            </View>
-                        </View>
-                    </View>
-                </Surface>
-
-                {/* Info Text */}
-                <Surface style={[styles.section, { backgroundColor: theme.colors.elevation.level1 }]} elevation={0}>
-                    <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
-                        Public Photos
-                    </Text>
-                    <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 12 }}>
-                        Add up to 6 photos to show off your best self.
-                    </Text>
-                    <ProfileImageGrid
-                        images={imagesWithCacheBust}
-                        maxSlots={6}
-                        readOnly={false}
-                        onImagePress={openImageViewer}
-                        onEditSlot={(index) => setProfileMediaSheet({ type: 'profile_gallery', index })}
-                    />
-                </Surface>
+                <ProfilePhotosSection
+                    images={imagesWithCacheBust}
+                    onImagePress={openImageViewer}
+                    onEditSlot={(index) => setProfileMediaSheet({ type: 'profile_gallery', index })}
+                />
 
                 {/* Form Fields */}
                 <Surface style={[styles.section, { backgroundColor: theme.colors.elevation.level1 }]} elevation={0}>
@@ -1037,198 +770,3 @@ export default function ProfileScreen({ navigation, route }: any) {
     );
 }
 
-const styles = StyleSheet.create({
-    container: { flex: 1 },
-    scrollContent: {},
-    topNav: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 8,
-        marginBottom: 8,
-    },
-    backButton: {
-        margin: 0,
-    },
-    screenTitle: {
-        fontWeight: '800',
-        fontSize: 20,
-        letterSpacing: -0.5,
-    },
-    header: {
-        alignItems: 'center',
-        marginBottom: 32,
-        paddingHorizontal: 16,
-    },
-    avatarContainer: {
-        position: 'relative',
-        marginBottom: 16,
-    },
-    editBadge: {
-        position: 'absolute',
-        bottom: 0,
-        right: 0,
-        borderRadius: 20,
-        width: 40,
-        height: 40,
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 10,
-        elevation: 4,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 4,
-    },
-    headerMeta: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginTop: 8,
-    },
-    nameText: {
-        fontWeight: 'bold',
-    },
-    usernameText: {
-        marginTop: 2,
-        fontWeight: '700',
-    },
-    section: {
-        marginHorizontal: 16,
-        marginBottom: 20,
-        padding: 20,
-        borderRadius: 20,
-        overflow: 'hidden',
-        borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.05)',
-    },
-    walletSection: {
-        marginHorizontal: 16,
-        marginBottom: 20,
-        padding: 20,
-        borderRadius: 20,
-        overflow: 'hidden',
-        borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.05)',
-    },
-    walletHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: 16,
-    },
-    walletTopUp: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 14,
-        paddingVertical: 8,
-        borderRadius: 999,
-    },
-    walletRow: {
-        flexDirection: 'row',
-        gap: 12,
-    },
-    walletCard: {
-        flex: 1,
-        borderRadius: 16,
-        padding: 16,
-        minHeight: 92,
-        justifyContent: 'center',
-    },
-    walletCoinWrap: {
-        width: 52,
-        height: 52,
-        borderRadius: 16,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'rgba(255,255,255,0.18)',
-    },
-    walletCoin: {
-        width: 42,
-        height: 42,
-    },
-    walletBalanceRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-    },
-    walletAmount: {
-        color: '#FFFFFF',
-        fontWeight: '900',
-        fontSize: 34,
-        lineHeight: 38,
-        marginLeft: 'auto',
-    },
-    walletBalanceCopy: {
-        flex: 1,
-    },
-    walletBalanceLabel: {
-        color: '#FFFFFF',
-        fontWeight: '900',
-        fontSize: 16,
-    },
-    walletBalanceHint: {
-        color: 'rgba(255,255,255,0.82)',
-        fontWeight: '700',
-        fontSize: 12,
-        marginTop: 2,
-        lineHeight: 16,
-    },
-    sectionTitle: {
-        marginBottom: 20,
-        fontWeight: '800',
-        textTransform: 'uppercase',
-        fontSize: 11,
-        letterSpacing: 1.2,
-    },
-    input: {
-        backgroundColor: 'transparent',
-        paddingHorizontal: 0,
-    },
-    inputContent: {
-        paddingHorizontal: 0,
-    },
-    divider: {
-        marginVertical: 8,
-        opacity: 0.3,
-    },
-    rowInput: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingVertical: 8,
-    },
-    rowBetween: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingVertical: 12,
-    },
-    lifestyleRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingVertical: 12,
-        flexWrap: 'wrap',
-    },
-    lifestyleLabel: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-        flex: 1,
-        minWidth: 140,
-    },
-    lifestyleLabelText: {
-        fontWeight: '600',
-    },
-    lifestylePills: {
-        flexGrow: 1,
-        minWidth: 200,
-    },
-    saveButton: {
-        marginHorizontal: 16,
-        marginTop: 8,
-        marginBottom: 8,
-        borderRadius: 16,
-        elevation: 2,
-    },
-});

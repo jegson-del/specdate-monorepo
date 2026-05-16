@@ -1,0 +1,117 @@
+import { StyleSheet } from 'react-native';
+
+export const styles = StyleSheet.create({
+    container: { flex: 1 },
+    centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    scrollContent: {},
+    topNav: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 8,
+        marginBottom: 8,
+    },
+    backBtn: { margin: 0 },
+    screenTitle: {
+        fontWeight: '800',
+        fontSize: 20,
+        letterSpacing: -0.5,
+    },
+    header: {
+        alignItems: 'center',
+        marginBottom: 32,
+        paddingHorizontal: 16,
+    },
+    nameText: { fontWeight: 'bold' },
+    usernameText: { marginTop: 2, fontWeight: '700' },
+    headerMeta: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 8,
+        flexWrap: 'wrap',
+        justifyContent: 'center',
+    },
+    section: {
+        marginHorizontal: 16,
+        marginBottom: 20,
+        padding: 20,
+        borderRadius: 20,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.05)',
+    },
+    sectionTitle: {
+        marginBottom: 16,
+        fontWeight: '800',
+        textTransform: 'uppercase',
+        fontSize: 11,
+        letterSpacing: 1.2,
+    },
+    infoRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    idealDateGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+    },
+    idealDateChip: {
+        maxWidth: '48%',
+        minHeight: 34,
+        borderRadius: 999,
+        borderWidth: 1,
+        paddingHorizontal: 10,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    idealDateText: {
+        flexShrink: 1,
+        fontSize: 12,
+        fontWeight: '800',
+    },
+    lifestyleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 12,
+    },
+    lifestyleLabel: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+    },
+    divider: {
+        marginVertical: 4,
+        opacity: 0.3,
+    },
+    statsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-around',
+        paddingVertical: 8,
+    },
+    statItem: {
+        alignItems: 'center',
+        flex: 1,
+    },
+    statIconWrap: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 8,
+    },
+    statValue: {
+        fontWeight: '900',
+        marginBottom: 2,
+    },
+    statDivider: {
+        width: 1,
+        height: 40,
+        opacity: 0.3,
+    },
+});

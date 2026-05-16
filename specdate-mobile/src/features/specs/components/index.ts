@@ -12,6 +12,7 @@ export { RoundOwnerControls } from './RoundOwnerControls';
 export { RoundQuestionCard } from './RoundQuestionCard';
 export { RoundResponsesList } from './RoundResponsesList';
 export { RoundMediaActions } from './RoundMediaActions';
+export { RoundParticipantAnswerSection } from './RoundParticipantAnswerSection';
 export { SpecActionsRow } from './SpecActionsRow';
 export { SpecFooterActions } from './SpecFooterActions';
 export { SpecHero } from './SpecHero';
