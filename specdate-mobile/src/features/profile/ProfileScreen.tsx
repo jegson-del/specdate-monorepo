@@ -19,7 +19,7 @@ import { MediaModerationError, MediaService } from '../../services/media';
 import { confirmMediaShareWithAiScan } from '../../utils/confirmMediaShareWithAiScan';
 import { toImageUri, imageUriWithCacheBust } from '../../utils/imageUrl';
 import { MultiSelectModal } from '../specs/components/MultiSelectModal';
-import { UploadProgressModal, type UploadProgressState } from '../../components';
+import { MediaPickerSheet, UploadProgressModal, type UploadProgressState } from '../../components';
 
 // --- OPTIONS & CONSTANTS ---
 const OTHER_VALUE = '__other__';
@@ -47,6 +47,11 @@ const DRINKING_OPTIONS = [
     { label: 'Socially', value: 'socially' },
     { label: 'Occasionally', value: 'occasionally' },
 ];
+
+type ProfileMediaSheetState = {
+    type: 'avatar' | 'profile_gallery';
+    index?: number;
+} | null;
 
 // --- DATE PICKER SETUP ---
 let DateTimePicker: any = null;
@@ -107,8 +112,10 @@ export default function ProfileScreen({ navigation }: any) {
     const [localAvatarMediaId, setLocalAvatarMediaId] = useState<number | undefined>(undefined);
     const [viewerVisible, setViewerVisible] = useState(false);
     const [viewerInitialIndex, setViewerInitialIndex] = useState(0);
+    const [profileMediaSheet, setProfileMediaSheet] = useState<ProfileMediaSheetState>(null);
 
     const [form, setForm] = useState<Partial<ProfileFormData>>({
+        username: '',
         full_name: '',
         dob: '',
         sex: 'Male',
@@ -134,10 +141,15 @@ export default function ProfileScreen({ navigation }: any) {
 
     // Cache-bust avatar and gallery URIs so Image components refetch when profile/avatar updates (same URL, new content)
     const profileUpdatedAt = user?.profile?.updated_at ?? null;
+    const accountUsername = useMemo(() => {
+        const raw = String(form?.username || user?.username || user?.name || '').trim();
+        if (!raw) return '';
+        return raw.startsWith('@') ? raw : `@${raw}`;
+    }, [form?.username, user?.username, user?.name]);
     const avatarUri = useMemo(
         () => imageUriWithCacheBust(localAvatarUri || toImageUri(user?.profile?.avatar), profileUpdatedAt) ||
-            `https://ui-avatars.com/api/?name=${encodeURIComponent(form?.full_name || user?.name || 'User')}&size=512&background=7C3AED&color=ffffff`,
-        [localAvatarUri, user?.profile?.avatar, profileUpdatedAt, form?.full_name, user?.name]
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(form?.full_name || accountUsername || 'User')}&size=512&background=7C3AED&color=ffffff`,
+        [localAvatarUri, user?.profile?.avatar, profileUpdatedAt, form?.full_name, accountUsername]
     );
     const imagesWithCacheBust = useMemo(
         () => images.map((u) => (u ? (imageUriWithCacheBust(u, profileUpdatedAt) ?? u) : null)),
@@ -180,7 +192,8 @@ export default function ProfileScreen({ navigation }: any) {
         setLocalAvatarUri(toImageUri(profile?.avatar));
         setLocalAvatarMediaId(profile?.avatar_media_id);
         setForm({
-            full_name: profile?.full_name || user.name || '',
+            username: user.username || user.name || '',
+            full_name: profile?.full_name || '',
             dob: profile?.dob ? formatYYYYMMDD(new Date(profile.dob)) : '',
             sex: profile?.sex || 'Male',
             occupation: profile?.occupation || '',
@@ -412,6 +425,21 @@ export default function ProfileScreen({ navigation }: any) {
                     : 'Please check the highlighted fields.';
                 Alert.alert("Validation Error", message);
             } else {
+                const apiErrors = error?.response?.data?.errors ?? error?.response?.data?.data?.errors;
+                if (apiErrors && typeof apiErrors === 'object') {
+                    const fieldErrors: Record<string, string> = {};
+                    Object.entries(apiErrors).forEach(([field, messages]) => {
+                        if (Array.isArray(messages)) {
+                            fieldErrors[field] = String(messages[0] ?? '');
+                        } else if (typeof messages === 'string') {
+                            fieldErrors[field] = messages;
+                        }
+                    });
+                    setErrors(fieldErrors);
+                    const message = Object.values(fieldErrors).filter(Boolean).join('\n') || 'Please check the highlighted fields.';
+                    Alert.alert("Validation Error", message);
+                    return;
+                }
                 console.error(error);
                 Alert.alert("Error", "Failed to update profile.");
             }
@@ -486,11 +514,7 @@ export default function ProfileScreen({ navigation }: any) {
                             style={[styles.editBadge, { backgroundColor: theme.colors.primary }]}
                             onPress={() => {
                                 if (imgLoading) return;
-                                Alert.alert('Change avatar', '', [
-                                    { text: 'Cancel', style: 'cancel' },
-                                    { text: 'Take photo', onPress: () => takePhotoWithCamera('avatar') },
-                                    { text: 'Choose from library', onPress: () => pickFromGallery('avatar') },
-                                ]);
+                                setProfileMediaSheet({ type: 'avatar' });
                             }}
                             activeOpacity={0.8}
                             disabled={imgLoading}
@@ -507,8 +531,13 @@ export default function ProfileScreen({ navigation }: any) {
                         </TouchableOpacity>
                     </View>
                     <Text variant="headlineMedium" style={[styles.nameText, { color: theme.colors.onSurface }]}>
-                        {form?.full_name || user?.name || 'Your Name'}
+                        {form?.full_name || 'Add full name'}
                     </Text>
+                    {!!accountUsername && (
+                        <Text variant="bodyMedium" style={[styles.usernameText, { color: theme.colors.onSurfaceVariant }]}>
+                            {accountUsername}
+                        </Text>
+                    )}
                     <View style={styles.headerMeta}>
                         <MaterialCommunityIcons name="map-marker" size={14} color={theme.colors.onSurfaceVariant} />
                         <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant, marginLeft: 4 }}>
@@ -589,13 +618,7 @@ export default function ProfileScreen({ navigation }: any) {
                         maxSlots={6}
                         readOnly={false}
                         onImagePress={openImageViewer}
-                        onEditSlot={(index) => {
-                            Alert.alert('Photo', '', [
-                                { text: 'Cancel', style: 'cancel' },
-                                { text: 'Take photo', onPress: () => takePhotoWithCamera('profile_gallery', index) },
-                                { text: 'Choose from library', onPress: () => pickFromGallery('profile_gallery', index) },
-                            ]);
-                        }}
+                        onEditSlot={(index) => setProfileMediaSheet({ type: 'profile_gallery', index })}
                     />
                 </Surface>
 
@@ -604,6 +627,21 @@ export default function ProfileScreen({ navigation }: any) {
                     <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
                         Basic Details
                     </Text>
+
+                    <TextInput
+                        mode="flat"
+                        label="Username"
+                        value={form?.username}
+                        onChangeText={(t) => updateForm({ username: t })}
+                        style={styles.input}
+                        error={!!errors.username}
+                        contentStyle={styles.inputContent}
+                        underlineColor="transparent"
+                        autoCapitalize="none"
+                    />
+                    {!!errors.username && <HelperText type="error" visible>{errors.username}</HelperText>}
+
+                    <Divider style={styles.divider} />
 
                     <TextInput
                         mode="flat"
@@ -908,7 +946,30 @@ export default function ProfileScreen({ navigation }: any) {
                 images={imagesFilled}
                 initialIndex={viewerInitialIndex}
                 onClose={() => setViewerVisible(false)}
-                onReplace={(index) => { setViewerVisible(false); pickFromGallery('profile_gallery', index); }}
+                onReplace={(index) => {
+                    setViewerVisible(false);
+                    setProfileMediaSheet({ type: 'profile_gallery', index });
+                }}
+            />
+
+            <MediaPickerSheet
+                visible={profileMediaSheet !== null}
+                title={profileMediaSheet?.type === 'avatar' ? 'Change avatar' : 'Photo'}
+                onDismiss={() => setProfileMediaSheet(null)}
+                options={profileMediaSheet ? [
+                    {
+                        icon: 'camera-outline',
+                        label: 'Take photo',
+                        helper: 'Use your camera now',
+                        onPress: () => takePhotoWithCamera(profileMediaSheet.type, profileMediaSheet.index),
+                    },
+                    {
+                        icon: 'image-outline',
+                        label: 'Choose from library',
+                        helper: 'Pick an existing photo',
+                        onPress: () => pickFromGallery(profileMediaSheet.type, profileMediaSheet.index),
+                    },
+                ] : []}
             />
 
             <UploadProgressModal progress={uploadProgress} />
@@ -967,6 +1028,10 @@ const styles = StyleSheet.create({
     },
     nameText: {
         fontWeight: 'bold',
+    },
+    usernameText: {
+        marginTop: 2,
+        fontWeight: '700',
     },
     section: {
         marginHorizontal: 16,

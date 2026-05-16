@@ -94,9 +94,23 @@ const SpecCard = memo(({ item, theme, homeColors, tagColor, withAlpha, onPress }
 
                             {/* Meta Rows */}
                             <View style={styles.metaRow}>
-                                <MaterialCommunityIcons name="map-marker" size={20} color={theme.colors.primary} />
+                                {locationFlag ? (
+                                    <View
+                                        style={[
+                                            styles.locationFlagBadge,
+                                            {
+                                                backgroundColor: withAlpha(theme.colors.primary, 0.1),
+                                                borderColor: withAlpha(theme.colors.primary, 0.2),
+                                            },
+                                        ]}
+                                    >
+                                        <Text style={styles.locationFlagText}>{locationFlag}</Text>
+                                    </View>
+                                ) : (
+                                    <MaterialCommunityIcons name="map-marker" size={20} color={theme.colors.primary} />
+                                )}
                                 <Text style={[styles.metaText, { color: homeColors.cardSubtext }]} numberOfLines={1}>
-                                    {locationFlag ? `${locationFlag} ${locationLabel}` : locationLabel}
+                                    {locationLabel}
                                 </Text>
                             </View>
 
@@ -217,6 +231,18 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
+    },
+    locationFlagBadge: {
+        width: 30,
+        height: 24,
+        borderRadius: 8,
+        borderWidth: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    locationFlagText: {
+        fontSize: 18,
+        lineHeight: 22,
     },
     metaText: {
         fontSize: 11,

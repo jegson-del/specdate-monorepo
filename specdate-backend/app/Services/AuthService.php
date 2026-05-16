@@ -78,7 +78,7 @@ class AuthService
                     'message' => 'SMS is not configured. Please use email verification.',
                 ];
             }
-            $body = 'Your SpecDate verification code is: ' . $code . '. It expires in 10 minutes.';
+            $body = 'Your Date Usher verification code is: ' . $code . '. It expires in 10 minutes.';
             $sent = $this->sendSmsViaTwilio($from, trim($target), $body, $sid, $token);
             if ($sent) {
                 return [
@@ -195,6 +195,7 @@ class AuthService
             'password' => Hash::make($data['password']),
             'role' => $role,
             'terms_accepted' => filter_var($data['terms_accepted'] ?? false, FILTER_VALIDATE_BOOLEAN),
+            'email_verified_at' => now(),
         ]);
 
         if ($user->role === 'provider') {

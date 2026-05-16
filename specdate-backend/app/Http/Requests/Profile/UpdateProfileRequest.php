@@ -3,12 +3,20 @@
 namespace App\Http\Requests\Profile;
 
 use App\Http\Requests\ApiFormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateProfileRequest extends ApiFormRequest
 {
     public function rules(): array
     {
         return [
+            'username' => [
+                'nullable',
+                'string',
+                'min:3',
+                'max:255',
+                Rule::unique('users', 'username')->ignore($this->user()?->id),
+            ],
             'latitude' => 'nullable|numeric|between:-90,90',
             'longitude' => 'nullable|numeric|between:-180,180',
             'dob' => 'nullable|date|before_or_equal:' . now()->subYears(18)->toDateString(),

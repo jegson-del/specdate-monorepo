@@ -76,7 +76,8 @@ export default function ProfileViewerScreen({ route, navigation }: any) {
     });
 
     const profile = user?.profile;
-    const displayName = profile?.full_name || user?.name || 'Unknown';
+    const displayName = profile?.full_name || user?.username || user?.name || 'Unknown';
+    const accountUsername = user?.username ? (user.username.startsWith('@') ? user.username : `@${user.username}`) : null;
     const avatarUri =
         toImageUri(profile?.avatar) ||
         `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&size=512&background=7C3AED&color=ffffff`;
@@ -246,6 +247,11 @@ export default function ProfileViewerScreen({ route, navigation }: any) {
                     <Text variant="headlineMedium" style={[styles.nameText, { color: theme.colors.onSurface }]}>
                         {displayName}
                     </Text>
+                    {accountUsername ? (
+                        <Text variant="bodyMedium" style={[styles.usernameText, { color: theme.colors.onSurfaceVariant }]}>
+                            {accountUsername}
+                        </Text>
+                    ) : null}
                     <View style={styles.headerMeta}>
                         {location !== '—' && (
                             <>
@@ -524,6 +530,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
     },
     nameText: { fontWeight: 'bold' },
+    usernameText: { marginTop: 2, fontWeight: '700' },
     headerMeta: {
         flexDirection: 'row',
         alignItems: 'center',

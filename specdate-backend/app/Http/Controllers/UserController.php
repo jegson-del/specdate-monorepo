@@ -99,6 +99,7 @@ class UserController extends Controller
         $public = [
             'id' => $user->id,
             'name' => $user->name,
+            'username' => $user->username,
             'profile' => $profile ? [
                 'full_name' => $profile->full_name,
                 'avatar' => $avatarUrl ?? $profile->avatar ?? null,

@@ -24,6 +24,7 @@ export const registerSchema = z.object({
 });
 
 export const profileSchema = z.object({
+    username: z.string().trim().min(3, "Username must be at least 3 characters").max(255, "Username is too long"),
     full_name: z.string().min(2, "Full Name is required"),
     dob: z
         .string()

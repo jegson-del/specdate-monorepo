@@ -3,6 +3,7 @@ import { api } from './api';
 export type PublicProfile = {
     id: number;
     name: string;
+    username?: string | null;
     profile: {
         full_name?: string;
         avatar?: string | null;

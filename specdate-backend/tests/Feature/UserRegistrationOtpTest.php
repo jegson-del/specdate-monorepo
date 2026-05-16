@@ -7,6 +7,8 @@ use App\Models\User;
 use App\Services\DeviceFingerprintService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class UserRegistrationOtpTest extends TestCase
@@ -70,11 +72,38 @@ class UserRegistrationOtpTest extends TestCase
             'mobile' => '+447700900123',
             'role' => 'user',
         ]);
+        $this->assertNotNull(User::where('email', 'mobile-user@example.com')->firstOrFail()->email_verified_at);
         $this->assertDatabaseHas('user_profiles', [
             'country' => 'United Kingdom',
             'country_code' => 'GB',
         ]);
         $this->assertFalse(Cache::has('otp:mobile:+447700900123'));
+    }
+
+    public function test_mobile_sms_otp_uses_date_usher_branding(): void
+    {
+        Config::set('services.twilio', [
+            'sid' => 'AC_test_sid',
+            'token' => 'test_token',
+            'from' => '+15551234567',
+        ]);
+        Http::fake([
+            'api.twilio.com/*' => Http::response(['sid' => 'SM_test'], 201),
+        ]);
+
+        $this->postJson('/api/send-otp', [
+            'channel' => 'mobile',
+            'target' => '+447700900123',
+        ])->assertOk()
+            ->assertJsonPath('data.success', true);
+
+        Http::assertSent(function ($request) {
+            $body = (string) ($request['Body'] ?? '');
+
+            return str_contains($body, 'Your Date Usher verification code is:')
+                && !str_contains($body, 'SpecDate')
+                && !str_contains($body, 'Specdate');
+        });
     }
 
     public function test_duplicate_phone_registration_is_blocked(): void

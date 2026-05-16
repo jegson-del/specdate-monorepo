@@ -1,6 +1,6 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, TextInput, Image } from 'react-native';
-import { Text, useTheme, Button, ActivityIndicator, IconButton, Chip } from 'react-native-paper';
+import { Text, useTheme, Button, ActivityIndicator, Chip } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -10,14 +10,14 @@ import { MediaModerationError } from '../../services/media';
 import { useUser } from '../../hooks/useUser';
 import { insertEmojiAtSelection, type TextSelection } from '../../utils/emojiText';
 import { MediaPickerSheet, UploadProgressModal, VideoViewerModal, type UploadProgressState } from '../../components';
-import { AudioMessagePlayer, CloseRoundModal, LastManStandingModal, PrivateRoundState, RoundMediaActions, RoundQuestionCard, RoundResponsesList, useRoundAudioRecorder, VideoThumbnailPlayer } from './components';
+import { AudioMessagePlayer, CloseRoundModal, LastManStandingModal, PrivateRoundState, RoundHeader, RoundMediaActions, RoundOwnerControls, RoundQuestionCard, RoundResponsesList, useRoundAudioRecorder, VideoThumbnailPlayer } from './components';
 import type { RoundMediaAsset } from './components';
 import * as ImagePicker from 'expo-image-picker';
 import { confirmMediaShareWithAiScan } from '../../utils/confirmMediaShareWithAiScan';
 import { ModerationService, type ReportTargetType } from '../../services/moderation';
 import { isAudioMedia, isVideoMedia } from './specDetailsUtils';
 import { isRoundMediaReviewing, resolveShareableRoundMedia } from './roundMediaUpload';
-import { isClosedSpecStatus } from './specStatus';
+import { useRoundDetailsState } from './hooks/useRoundDetailsState';
 import ChatSafetySheet from '../chat/components/ChatSafetySheet';
 
 type ReportSheetState =
@@ -81,27 +81,16 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
     }, [specId, queryClient]);
 
 
-    const roundFromSpec = useMemo(() => {
-        if (!spec?.rounds || roundId == null) return null;
-        const found = spec.rounds.find((r: any) => String(r.id) === String(roundId));
-        if (found) lastRoundRef.current = found;
-        return found;
-    }, [spec, roundId]);
-
-    const isOwner = useMemo(() => {
-        if (spec?.user_id == null || user?.id == null) return false;
-        return String(spec.user_id) === String(user.id);
-    }, [spec, user]);
-
-    const myApplication = useMemo(() => {
-        if (!spec?.applications || !user) return null;
-        return spec.applications.find((a: any) => a.user_id === user.id);
-    }, [spec, user]);
-
-    const canViewRoundDetails = useMemo(() => {
-        const status = String(myApplication?.status ?? '').toUpperCase();
-        return isOwner || status === 'ACCEPTED' || status === 'ELIMINATED';
-    }, [isOwner, myApplication?.status]);
+    const {
+        answers,
+        canViewRoundDetails,
+        isOwner,
+        myAnswer,
+        myApplication,
+        roundDisplayStatus,
+        roundToShow,
+        unresponsiveParticipants,
+    } = useRoundDetailsState({ lastRoundRef, roundId, spec, user });
 
     // --- Mutations ---
 
@@ -460,28 +449,6 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
         });
     }
 
-    // --- Computed ---
-    const resolvedRound =
-        roundFromSpec ??
-        (lastRoundRef.current && String(lastRoundRef.current.id) === String(roundId) ? lastRoundRef.current : null);
-    const roundToShow = resolvedRound;
-    const specIsClosed = isClosedSpecStatus(spec?.status);
-
-    // Participants = accepted applicants only; exclude spec owner (role: owner, not participant).
-    const activeParticipants = useMemo(() => {
-        if (!spec?.applications) return [];
-        const ownerId = spec.user_id != null ? String(spec.user_id) : null;
-        return spec.applications.filter(
-            (a: any) => a.user_role === 'participant' && a.status === 'ACCEPTED' && (!ownerId || String(a.user_id) !== ownerId)
-        );
-    }, [spec]);
-
-    const unresponsiveParticipants = useMemo(() => {
-        if (!roundToShow || roundToShow.status !== 'ACTIVE') return [];
-        const answeredIds = new Set((roundToShow.answers || []).map((a: any) => a.user_id));
-        return activeParticipants.filter((a: any) => !answeredIds.has(a.user_id));
-    }, [roundToShow, activeParticipants]);
-
     const handleCloseRoundPress = () => {
         if (unresponsiveParticipants.length > 0) {
             setCloseRoundModalVisible(true);
@@ -614,30 +581,19 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
         );
     }
 
-    const myAnswer = roundToShow.answers?.find((a: any) => a.user_id === user?.id);
-
-    // Filter participants who are ACTIVE in this round?
-    // Actually, backend returns answers.
-    // For owner view: we show all answers.
-    const answers = roundToShow.answers || [];
-
-    const roundDisplayStatus = specIsClosed ? 'COMPLETED' : String(roundToShow.status || '');
     const statusColor = roundDisplayStatus === 'ACTIVE' ? '#16a34a' : roundDisplayStatus === 'REVIEWING' ? '#ca8a04' : theme.colors.outline;
 
     return (
         <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
             {/* Header – flat, high contrast */}
-            <View style={[styles.header, { paddingTop: insets.top + 8, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: theme.colors.outlineVariant || theme.colors.outline + '30' }]}>
-                <IconButton icon="arrow-left" onPress={() => navigation.goBack()} size={24} iconColor={theme.colors.onSurface} />
-                <View style={styles.headerCenter}>
-                    <Text style={[styles.headerTitle, { color: theme.colors.onSurface }]}>Round {roundToShow.round_number}</Text>
-                    <View style={[styles.headerStatusPill, { backgroundColor: (theme.colors as any).surfaceVariant || theme.colors.elevation?.level2 }]}>
-                        <View style={[styles.headerStatusDot, { backgroundColor: statusColor }]} />
-                        <Text style={[styles.headerStatusText, { color: theme.colors.onSurface }]}>{roundDisplayStatus}</Text>
-                    </View>
-                </View>
-                <View style={{ width: 48 }} />
-            </View>
+            <RoundHeader
+                onBack={() => navigation.goBack()}
+                roundNumber={roundToShow.round_number}
+                status={roundDisplayStatus}
+                statusColor={statusColor}
+                theme={theme}
+                topInset={insets.top}
+            />
 
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
@@ -662,101 +618,37 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
                     }}
                 />
 
-                {/* OWNER ACTIONS – flat sections */}
-                {isOwner && (
-                    <View style={styles.section}>
-                        <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>Owner controls</Text>
-
-                        {roundDisplayStatus === 'ACTIVE' && (
-                            <TouchableOpacity
-                                activeOpacity={0.8}
-                                style={[styles.primaryButton, { backgroundColor: theme.colors.error }]}
-                                onPress={handleCloseRoundPress}
-                                disabled={closeRoundMutation.isPending}
-                            >
-                                {closeRoundMutation.isPending ? (
-                                    <ActivityIndicator size="small" color="#fff" />
-                                ) : (
-                                    <Text style={styles.primaryButtonText}>Close round & review</Text>
-                                )}
-                            </TouchableOpacity>
-                        )}
-
-                        {roundDisplayStatus === 'REVIEWING' && (
-                            <View style={[styles.flatBlock, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant || theme.colors.outline + '40' }]}>
-                                <Text style={[styles.flatBlockHint, { color: theme.colors.onSurfaceVariant }]}>Tap Eliminate next to an answer to remove that participant.</Text>
-                                <View style={[styles.divider, { backgroundColor: theme.colors.outlineVariant || theme.colors.outline + '30' }]} />
-                                <Text style={[styles.flatBlockLabel, { color: theme.colors.onSurfaceVariant }]}>Next round question</Text>
-                                <TextInput
-                                    placeholder="e.g. What's your hidden talent?"
-                                    placeholderTextColor={theme.colors.outline}
-                                    value={nextRoundQuestion}
-                                    onChangeText={setNextRoundQuestion}
-                                    selection={nextRoundQuestionSelection}
-                                    onSelectionChange={(event) => setNextRoundQuestionSelection(event.nativeEvent.selection)}
-                                    multiline
-                                    numberOfLines={4}
-                                    style={[styles.flatTextArea, { color: theme.colors.onSurface, borderColor: theme.colors.outlineVariant || theme.colors.outline + '50' }]}
-                                />
-                                {nextRoundQuestionMedia && (
-                                    <View style={[styles.mediaPreviewBox, { borderColor: theme.colors.outlineVariant || theme.colors.outline + '40' }]}>
-                                        {isRoundMediaReviewing(nextRoundQuestionMedia) ? (
-                                            <Chip compact icon="clock-outline" style={{ alignSelf: 'flex-start', marginBottom: 8 }}>
-                                                Reviewing video
-                                            </Chip>
-                                        ) : null}
-                                        {nextRoundQuestionMedia.assetType === 'image' ? (
-                                            <Image source={{ uri: nextRoundQuestionMedia.uri }} style={styles.questionMediaImage} />
-                                        ) : nextRoundQuestionMedia.assetType === 'video' ? (
-                                            <VideoThumbnailPlayer
-                                                uri={nextRoundQuestionMedia.uri}
-                                                width={160}
-                                                height={100}
-                                                onPress={() => { setVideoViewerUri(nextRoundQuestionMedia.uri); setVideoViewerVisible(true); }}
-                                            />
-                                        ) : (
-                                            <AudioMessagePlayer uri={nextRoundQuestionMedia.uri} label="Audio question" compact />
-                                        )}
-                                        <Button mode="text" compact onPress={() => setNextRoundQuestionMedia(null)}>
-                                            Remove
-                                        </Button>
-                                    </View>
-                                )}
-                                <RoundMediaActions
-                                    onOpenFile={() => setRoundMediaSheet({ target: 'next_question', source: 'file' })}
-                                    onOpenCamera={() => setRoundMediaSheet({ target: 'next_question', source: 'camera' })}
-                                    onEmojiSelected={handleNextRoundQuestionEmoji}
-                                    onToggleVoice={nextRoundAudioRecorder.isRecording ? nextRoundAudioRecorder.stopRecording : nextRoundAudioRecorder.startRecording}
-                                    isRecording={nextRoundAudioRecorder.isRecording}
-                                    durationMillis={nextRoundAudioRecorder.durationMillis}
-                                    disabled={startRoundMutation.isPending}
-                                />
-                                <TouchableOpacity
-                                    activeOpacity={0.8}
-                                    style={[styles.primaryButton, { backgroundColor: theme.colors.primary }]}
-                                    onPress={async () => {
-                                        if (nextRoundQuestionMedia) {
-                                            const ok = await confirmMediaShareWithAiScan();
-                                            if (!ok) return;
-                                        }
-                                        startRoundMutation.mutate(nextRoundQuestion);
-                                    }}
-                                    disabled={(!nextRoundQuestion.trim() && !nextRoundQuestionMedia) || startRoundMutation.isPending}
-                                >
-                                    {startRoundMutation.isPending ? (
-                                        <ActivityIndicator size="small" color="#fff" />
-                                    ) : (
-                                        <Text style={styles.primaryButtonText}>Start next round</Text>
-                                    )}
-                                </TouchableOpacity>
-                            </View>
-                        )}
-
-                        {roundDisplayStatus === 'COMPLETED' && (
-                            <Text style={[styles.hintText, { color: theme.colors.onSurfaceVariant }]}>This round is completed.</Text>
-                        )}
-                    </View>
-                )}
+                <RoundOwnerControls
+                    closePending={closeRoundMutation.isPending}
+                    durationMillis={nextRoundAudioRecorder.durationMillis}
+                    isOwner={isOwner}
+                    isRecording={nextRoundAudioRecorder.isRecording}
+                    media={nextRoundQuestionMedia}
+                    onChangeQuestion={setNextRoundQuestion}
+                    onCloseRound={handleCloseRoundPress}
+                    onEmojiSelected={handleNextRoundQuestionEmoji}
+                    onOpenCamera={() => setRoundMediaSheet({ target: 'next_question', source: 'camera' })}
+                    onOpenFile={() => setRoundMediaSheet({ target: 'next_question', source: 'file' })}
+                    onPreviewVideo={(uri) => {
+                        setVideoViewerUri(uri);
+                        setVideoViewerVisible(true);
+                    }}
+                    onRemoveMedia={() => setNextRoundQuestionMedia(null)}
+                    onSelectionChange={setNextRoundQuestionSelection}
+                    onStartNextRound={async () => {
+                        if (nextRoundQuestionMedia) {
+                            const ok = await confirmMediaShareWithAiScan();
+                            if (!ok) return;
+                        }
+                        startRoundMutation.mutate(nextRoundQuestion);
+                    }}
+                    onToggleVoice={nextRoundAudioRecorder.isRecording ? nextRoundAudioRecorder.stopRecording : nextRoundAudioRecorder.startRecording}
+                    question={nextRoundQuestion}
+                    roundStatus={roundDisplayStatus}
+                    selection={nextRoundQuestionSelection}
+                    startPending={startRoundMutation.isPending}
+                    theme={theme}
+                />
 
                 {/* PARTICIPANT – Your Answer (show when they have an answer in this round, or when ACCEPTED + ACTIVE for form) */}
                 {!isOwner && (myAnswer || (myApplication?.status === 'ACCEPTED' && roundDisplayStatus === 'ACTIVE')) && (
@@ -992,38 +884,15 @@ export default function RoundDetailsScreen({ route, navigation }: any) {
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 4,
-        backgroundColor: 'transparent',
-    },
-    headerCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    headerTitle: { fontSize: 18, fontWeight: '800', letterSpacing: -0.3 },
-    headerStatusPill: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        marginTop: 4,
-        paddingHorizontal: 10,
-        paddingVertical: 5,
-        borderRadius: 20,
-    },
-    headerStatusDot: { width: 6, height: 6, borderRadius: 3 },
-    headerStatusText: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
     scrollContent: { padding: 16, paddingBottom: 40 },
     section: { marginBottom: 28 },
     sectionTitle: { fontSize: 16, fontWeight: '800', marginBottom: 4 },
-    sectionSubtitle: { fontSize: 13, marginBottom: 12 },
     flatBlock: {
         padding: 16,
         borderRadius: 12,
         borderWidth: 1,
         gap: 12,
     },
-    flatBlockHint: { fontSize: 13, lineHeight: 20 },
-    flatBlockLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 0.3 },
-    divider: { height: 1 },
     flatTextArea: {
         minHeight: 120,
         textAlignVertical: 'top',
@@ -1039,7 +908,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     primaryButtonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-    hintText: { fontSize: 14 },
     answerSubmitted: {
         padding: 16,
         borderRadius: 12,

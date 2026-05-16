@@ -23,6 +23,18 @@ class ProfileService
      */
     public function updateProfile(User $user, array $data)
     {
+        if (array_key_exists('username', $data)) {
+            $username = trim((string) $data['username']);
+            unset($data['username']);
+
+            if ($username !== '' && $username !== $user->username) {
+                $user->forceFill([
+                    'username' => $username,
+                    'name' => $username,
+                ])->save();
+            }
+        }
+
         if (array_key_exists('country_code', $data) && $data['country_code'] !== null) {
             $data['country_code'] = strtoupper((string) $data['country_code']);
         }
