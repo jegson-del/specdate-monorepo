@@ -21,6 +21,10 @@ export const registerSchema = z.object({
             return dob <= latestAdultDob;
         }, { message: "You must be 18 or older to use DateUsher." }),
     password: z.string().min(8, "Password must be at least 8 characters"),
+    password_confirmation: z.string().min(1, "Please confirm your password"),
+}).refine((data) => data.password === data.password_confirmation, {
+    message: "Passwords do not match",
+    path: ["password_confirmation"],
 });
 
 export const profileSchema = z.object({
@@ -39,6 +43,7 @@ export const profileSchema = z.object({
     sex: z.enum(['Male', 'Female', 'Other'], { message: "Please select a gender" }),
     // Required for spec filter/creation and profile complete
     occupation: z.string().min(1, "Occupation is required"),
+    job_title: z.string().optional(),
     qualification: z.string().min(1, "Qualification is required"),
     sexual_orientation: z.string().min(1, "Sexual orientation is required"),
     hobbies: z.string().min(1, "Hobbies is required"),
@@ -55,6 +60,12 @@ export const profileSchema = z.object({
     height: z.coerce.number().min(50).max(300).optional(), // cm
     ethnicity: z.string().optional(),
     religion: z.string().optional(),
+}).refine((data) => {
+    if (['Student', 'Unemployed'].includes(data.occupation)) return true;
+    return !!data.job_title?.trim();
+}, {
+    message: "Job is required",
+    path: ["job_title"],
 });
 
 export type RegisterFormData = z.infer<typeof registerSchema>;

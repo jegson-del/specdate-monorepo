@@ -12,6 +12,7 @@ import type {
   AdminFinancialVoucherSummary,
   AdminAccess,
   AdminAccessPermission,
+  AdminInvite,
   AdminContactMessage,
   AdminContactThread,
   AdminContactTicket,
@@ -39,6 +40,7 @@ import type {
   AdminSuccessStoryStatus,
   AdminUser,
   AdminManagedUser,
+  ProviderInvite,
   AdminUserRole,
   AdminUserStatus,
   AdminUserRiskDetail,
@@ -343,6 +345,124 @@ export async function updateManagedAdminAccess(token: string, adminId: number, a
   }
 
   return result?.message || 'Admin access updated.'
+}
+
+export async function getAdminInvites(token: string, q = '', page = 1, perPage = 25) {
+  const query = new URLSearchParams({ page: String(page), per_page: String(perPage) })
+  if (q) query.set('q', q)
+
+  const response = await fetch(`${getApiBase()}/api/admin/management/admin-invites?${query.toString()}`, {
+    headers: adminHeaders(token),
+  })
+  const result = (await parseJson(response)) as ApiEnvelope<Paginated<AdminInvite>> | null
+
+  if (!response.ok || !result) {
+    throw new Error(pickApiError(result, 'Admin invites could not be loaded.'))
+  }
+
+  return paginatedResult(result.data, page, perPage)
+}
+
+export async function createAdminInvite(token: string, payload: { name?: string; email: string }) {
+  const response = await fetch(`${getApiBase()}/api/admin/management/admin-invites`, {
+    method: 'POST',
+    headers: {
+      ...adminHeaders(token),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  })
+  const result = (await parseJson(response)) as ApiEnvelope<AdminInvite> | null
+
+  if (!response.ok || !result) {
+    throw new Error(pickApiError(result, 'Admin invite could not be sent.'))
+  }
+
+  return result.data
+}
+
+export async function approveAdminInvite(token: string, inviteId: number) {
+  const response = await fetch(`${getApiBase()}/api/admin/management/admin-invites/${inviteId}/approve`, {
+    method: 'POST',
+    headers: adminHeaders(token),
+  })
+  const result = (await parseJson(response)) as ApiEnvelope<AdminInvite> | null
+
+  if (!response.ok || !result) {
+    throw new Error(pickApiError(result, 'Admin invite could not be approved.'))
+  }
+
+  return result.data
+}
+
+export async function revokeAdminInvite(token: string, inviteId: number) {
+  const response = await fetch(`${getApiBase()}/api/admin/management/admin-invites/${inviteId}/revoke`, {
+    method: 'POST',
+    headers: adminHeaders(token),
+  })
+  const result = (await parseJson(response)) as ApiEnvelope<AdminInvite> | null
+
+  if (!response.ok || !result) {
+    throw new Error(pickApiError(result, 'Admin invite could not be revoked.'))
+  }
+
+  return result.data
+}
+
+export async function getProviderInvites(token: string, q = '', page = 1, perPage = 25) {
+  const query = new URLSearchParams({ page: String(page), per_page: String(perPage) })
+  if (q) query.set('q', q)
+
+  const response = await fetch(`${getApiBase()}/api/admin/provider-invites?${query.toString()}`, {
+    headers: adminHeaders(token),
+  })
+  const result = (await parseJson(response)) as ApiEnvelope<Paginated<ProviderInvite>> | null
+
+  if (!response.ok || !result) {
+    throw new Error(pickApiError(result, 'Provider invites could not be loaded.'))
+  }
+
+  return paginatedResult(result.data, page, perPage)
+}
+
+export async function createProviderInvite(
+  token: string,
+  payload: {
+    provider_name: string
+    email: string
+    service_type?: string
+    personal_message?: string
+  },
+) {
+  const response = await fetch(`${getApiBase()}/api/admin/provider-invites`, {
+    method: 'POST',
+    headers: {
+      ...adminHeaders(token),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  })
+  const result = (await parseJson(response)) as ApiEnvelope<ProviderInvite> | null
+
+  if (!response.ok || !result) {
+    throw new Error(pickApiError(result, 'Provider invite could not be sent.'))
+  }
+
+  return result.data
+}
+
+export async function revokeProviderInvite(token: string, inviteId: number) {
+  const response = await fetch(`${getApiBase()}/api/admin/provider-invites/${inviteId}/revoke`, {
+    method: 'POST',
+    headers: adminHeaders(token),
+  })
+  const result = (await parseJson(response)) as ApiEnvelope<ProviderInvite> | null
+
+  if (!response.ok || !result) {
+    throw new Error(pickApiError(result, 'Provider invite could not be revoked.'))
+  }
+
+  return result.data
 }
 
 export async function getAdminFinancialVouchers(

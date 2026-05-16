@@ -3,12 +3,14 @@ import { AlertProvider } from './components/AlertProvider'
 import AdminContactPage from './pages/AdminContactPage'
 import AdminCreditFinancialsPage from './pages/AdminCreditFinancialsPage'
 import AdminManagementPage from './pages/AdminManagementPage'
+import AdminInvitePage from './pages/AdminInvitePage'
 import AdminMediaModerationPage from './pages/AdminMediaModerationPage'
 import AdminFinancialsPage from './pages/AdminFinancialsPage'
 import AdminVoucherFinancialsPage from './pages/AdminVoucherFinancialsPage'
 import AdminModerationCasesPage from './pages/AdminModerationCasesPage'
 import AdminModerationPage from './pages/AdminModerationPage'
 import AdminPage from './pages/AdminPage'
+import AdminProviderInvitesPage from './pages/AdminProviderInvitesPage'
 import AdminProvidersPage from './pages/AdminProvidersPage'
 import AdminRiskPage from './pages/AdminRiskPage'
 import AdminSupportPage from './pages/AdminSupportPage'
@@ -67,6 +69,7 @@ export default function App() {
           <Route path="/provider/setup-password" element={<ProviderPasswordSetupPage />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/admin/providers" element={<AdminProvidersPage />} />
+          <Route path="/admin/provider-invites" element={<AdminProviderInvitesPage />} />
           <Route path="/admin/financials" element={<AdminFinancialsPage />} />
           <Route path="/admin/financials/vouchers" element={<AdminVoucherFinancialsPage />} />
           <Route path="/admin/financials/credits" element={<AdminCreditFinancialsPage />} />
@@ -80,6 +83,7 @@ export default function App() {
           <Route path="/admin/success-stories" element={<AdminSuccessStoriesPage />} />
           <Route path="/admin/users" element={<AdminUsersPage />} />
           <Route path="/admin/admin-management" element={<AdminManagementPage />} />
+          <Route path="/admin/invite" element={<AdminInvitePage />} />
         </Routes>
       </BrowserRouter>
     </AlertProvider>

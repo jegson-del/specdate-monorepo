@@ -15,6 +15,7 @@ export type UserItem = {
     country?: string | null;
     country_code?: string | null;
     occupation?: string | null;
+    job_title?: string | null;
     avatar: string | null;
     sex?: string | null;
 };
@@ -31,7 +32,7 @@ const PersonCard = memo(({ item, theme, onPress }: Props) => {
     const initial = displayName.slice(0, 1).toUpperCase();
     const location = [item.city, item.country].filter(Boolean).join(', ') || 'Location pending';
     const flag = flagEmoji(item.country_code);
-    const meta = item.occupation?.trim() || item.sex?.trim() || 'DateUsher member';
+    const meta = item.job_title?.trim() || item.occupation?.trim() || item.sex?.trim() || 'DateUsher member';
     const badge = item.sex?.trim();
 
     return (

@@ -39,6 +39,10 @@ class ProfileService
             $data['country_code'] = strtoupper((string) $data['country_code']);
         }
 
+        if (array_key_exists('occupation', $data) && !$this->requiresJobTitle((string) $data['occupation'])) {
+            $data['job_title'] = null;
+        }
+
         Log::info("Updating profile for user: {$user->id}", $data);
 
         $profile = $user->profile;
@@ -95,6 +99,10 @@ class ProfileService
             }
         }
 
+        if ($this->requiresJobTitle((string) $profile->occupation) && trim((string) ($profile->job_title ?? '')) === '') {
+            return false;
+        }
+
         // Lifestyle booleans must be set (false is valid, null is not)
         $requiredBooleans = [
             'is_smoker',
@@ -108,5 +116,10 @@ class ProfileService
         }
 
         return true;
+    }
+
+    private function requiresJobTitle(string $occupation): bool
+    {
+        return !in_array(trim($occupation), ['', 'Student', 'Unemployed'], true);
     }
 }

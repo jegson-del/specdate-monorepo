@@ -39,6 +39,7 @@
 
             <div style="margin-top: 18px; padding: 16px; border-radius: 14px; background: #f8fafc; color: #111827; line-height: 1.6; white-space: pre-wrap;">{{ $messageBody }}</div>
         </div>
+        @include('emails.partials.footer')
     </div>
 </body>
 </html>

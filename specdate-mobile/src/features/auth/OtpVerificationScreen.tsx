@@ -44,7 +44,13 @@ export default function OtpVerificationScreen({ navigation, route }: any) {
                 }
 
                 Alert.alert("Success", "Account created! Welcome to DateUsher.", [
-                    { text: "Continue", onPress: () => navigation.navigate("Profile") }
+                    {
+                        text: "Continue",
+                        onPress: () => navigation.reset({
+                            index: 0,
+                            routes: [{ name: "Profile", params: { afterRegistration: true } }],
+                        }),
+                    }
                 ]);
             }
         } catch (error) {

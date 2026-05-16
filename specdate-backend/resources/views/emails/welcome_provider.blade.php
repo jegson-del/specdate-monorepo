@@ -22,6 +22,7 @@
             </div>
             <p style="margin: 0; color: #6b7280; line-height: 1.6;">We will contact you at {{ $user->email }} if we need anything else.</p>
         </div>
+        @include('emails.partials.footer')
     </div>
 </body>
 </html>

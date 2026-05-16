@@ -538,6 +538,33 @@ export type AdminManagedAdmin = {
   admin_access: AdminAccess
 }
 
+export type AdminInvite = {
+  id: number
+  name: string | null
+  email: string
+  status: 'pending' | 'awaiting_approval' | 'approved' | 'expired' | 'revoked'
+  expires_at: string
+  email_verified_at: string | null
+  registered_user_id: number | null
+  approved_at: string | null
+  revoked_at: string | null
+  created_at: string
+}
+
+export type ProviderInvite = {
+  id: number
+  provider_name: string
+  email: string
+  service_type: string | null
+  personal_message: string | null
+  status: 'pending' | 'accepted' | 'expired' | 'revoked'
+  expires_at: string
+  accepted_at: string | null
+  revoked_at: string | null
+  created_provider_profile_id: number | null
+  created_at: string
+}
+
 export type AdminFinancialPeriod = 'all' | 'day' | 'week' | 'month' | 'custom'
 
 export type AdminFinancialVoucherStatus =

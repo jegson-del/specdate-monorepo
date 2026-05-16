@@ -14,6 +14,7 @@
                 Thanks for joining DateUsher. Start exploring specs, meet intentional people, and choose memorable provider-backed dates.
             </p>
         </div>
+        @include('emails.partials.footer')
     </div>
 </body>
 </html>

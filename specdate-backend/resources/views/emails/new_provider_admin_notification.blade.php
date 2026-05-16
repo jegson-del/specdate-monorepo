@@ -48,6 +48,7 @@
             </table>
 
         </div>
+        @include('emails.partials.footer')
     </div>
 </body>
 </html>

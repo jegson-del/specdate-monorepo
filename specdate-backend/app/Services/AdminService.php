@@ -47,6 +47,15 @@ class AdminService
             throw new HttpException(403, 'Admin access required.');
         }
 
+        $access = $user->adminAccess()->first();
+        if (!$access || !$access->approved_at) {
+            Log::warning('Unapproved admin attempted login', [
+                'user_id' => $user->id,
+                'email' => $credentials['email'],
+            ]);
+            throw new HttpException(403, 'Admin account is awaiting approval.');
+        }
+
         $sent = $this->authService->sendOtp('email', $user->email);
         if (!($sent['success'] ?? false)) {
             Log::warning('Admin login OTP email failed', [

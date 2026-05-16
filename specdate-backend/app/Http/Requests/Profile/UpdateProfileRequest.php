@@ -23,6 +23,7 @@ class UpdateProfileRequest extends ApiFormRequest
             'full_name' => 'nullable|string|max:255',
             'sex' => 'nullable|string|max:50',
             'occupation' => 'nullable|string|max:255',
+            'job_title' => 'nullable|string|max:255',
             'qualification' => 'nullable|string|max:255',
             'hobbies' => 'nullable|string',
             'ideal_dates' => 'nullable|array|max:12',

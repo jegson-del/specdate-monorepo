@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Mail\OtpMail;
+use App\Models\AdminAccess;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
@@ -16,9 +17,8 @@ class AdminLoginOtpTest extends TestCase
     public function test_admin_password_login_requires_email_otp_before_token_is_issued(): void
     {
         Mail::fake();
-        $admin = User::factory()->create([
+        $admin = $this->approvedAdmin([
             'email' => 'admin@example.com',
-            'role' => 'admin',
         ]);
 
         $response = $this->postJson('/api/admin/login', [
@@ -38,9 +38,8 @@ class AdminLoginOtpTest extends TestCase
     public function test_admin_can_exchange_valid_otp_for_dashboard_token(): void
     {
         Mail::fake();
-        $admin = User::factory()->create([
+        $admin = $this->approvedAdmin([
             'email' => 'admin@example.com',
-            'role' => 'admin',
         ]);
 
         $login = $this->postJson('/api/admin/login', [
@@ -65,9 +64,8 @@ class AdminLoginOtpTest extends TestCase
     public function test_wrong_admin_otp_is_rejected_without_issuing_token(): void
     {
         Mail::fake();
-        $admin = User::factory()->create([
+        $admin = $this->approvedAdmin([
             'email' => 'admin@example.com',
-            'role' => 'admin',
         ]);
 
         $login = $this->postJson('/api/admin/login', [
@@ -87,9 +85,8 @@ class AdminLoginOtpTest extends TestCase
     public function test_expired_admin_login_challenge_is_rejected(): void
     {
         Mail::fake();
-        $admin = User::factory()->create([
+        $admin = $this->approvedAdmin([
             'email' => 'admin@example.com',
-            'role' => 'admin',
         ]);
 
         $login = $this->postJson('/api/admin/login', [
@@ -121,5 +118,16 @@ class AdminLoginOtpTest extends TestCase
         ])->assertForbidden();
 
         Mail::assertNothingSent();
+    }
+
+    private function approvedAdmin(array $attributes = []): User
+    {
+        $admin = User::factory()->create(array_merge(['role' => 'admin'], $attributes));
+        AdminAccess::create([
+            'admin_id' => $admin->id,
+            'approved_at' => now(),
+        ]);
+
+        return $admin;
     }
 }

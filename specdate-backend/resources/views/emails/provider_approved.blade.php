@@ -36,6 +36,7 @@
                 This secure link expires in 60 minutes. If it expires, contact DateUsher support and we will send a fresh setup link.
             </p>
         </div>
+        @include('emails.partials.footer')
     </div>
 </body>
 </html>

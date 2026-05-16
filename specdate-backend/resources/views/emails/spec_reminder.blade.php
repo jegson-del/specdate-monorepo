@@ -17,6 +17,7 @@
             </p>
             <p style="margin: 0; color: #6b7280; line-height: 1.6;">Open DateUsher to review the spec and get ready for the quest.</p>
         </div>
+        @include('emails.partials.footer')
     </div>
 </body>
 </html>

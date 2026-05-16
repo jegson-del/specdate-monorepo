@@ -334,7 +334,7 @@ export default function ProfileViewerScreen({ route, navigation }: any) {
                     )}
                 </Surface>
 
-                {(profile?.occupation || profile?.qualification || profile?.religion) && (
+                {(profile?.occupation || profile?.job_title || profile?.qualification || profile?.religion) && (
                     <Surface style={[styles.section, { backgroundColor: theme.colors.elevation.level1 }]} elevation={0}>
                         <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
                             About
@@ -344,6 +344,14 @@ export default function ProfileViewerScreen({ route, navigation }: any) {
                                 <MaterialCommunityIcons name="briefcase" size={20} color={theme.colors.primary} />
                                 <Text variant="bodyLarge" style={{ color: theme.colors.onSurface, marginLeft: 12 }}>
                                     {profile.occupation}
+                                </Text>
+                            </View>
+                        )}
+                        {profile?.job_title && (
+                            <View style={styles.infoRow}>
+                                <MaterialCommunityIcons name="briefcase-account" size={20} color={theme.colors.primary} />
+                                <Text variant="bodyLarge" style={{ color: theme.colors.onSurface, marginLeft: 12 }}>
+                                    {profile.job_title}
                                 </Text>
                             </View>
                         )}

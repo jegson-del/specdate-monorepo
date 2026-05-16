@@ -14,6 +14,7 @@
             <p style="display: inline-block; margin: 0; padding: 14px 20px; border-radius: 14px; background: #fdf2f8; color: #be185d; font-size: 30px; font-weight: 800; letter-spacing: 8px;">{{ $code }}</p>
             <p style="margin: 22px 0 0; color: #6b7280; font-size: 14px;">This code expires in 10 minutes. If you did not request it, you can ignore this email.</p>
         </div>
+        @include('emails.partials.footer')
     </div>
 </body>
 </html>

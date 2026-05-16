@@ -9,6 +9,7 @@ export type ProviderRegistrationPayload = {
   country_name: string
   phone: string
   notes: string
+  invite_token?: string
 }
 
 export type ProviderRegistrationErrorResponse = {
@@ -59,6 +60,25 @@ export async function sendProviderEmailOtp(email: string) {
         'We could not send the verification code. Please check the email and try again.',
       ),
     )
+  }
+}
+
+export async function validateProviderInvite(token: string) {
+  const query = new URLSearchParams({ token })
+  const response = await fetch(`${getApiBase()}/api/provider-invites/validate?${query.toString()}`, {
+    headers: { Accept: 'application/json' },
+  })
+  const result = await response.json().catch(() => null)
+
+  if (!response.ok) {
+    throw new Error(extractProviderRegistrationError(result, 'This provider invite is invalid or expired.'))
+  }
+
+  return result?.data as {
+    provider_name: string
+    email: string
+    service_type?: string | null
+    personal_message?: string | null
   }
 }
 

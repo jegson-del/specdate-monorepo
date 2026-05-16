@@ -110,6 +110,7 @@ class UserController extends Controller
                 'dob' => $profile->dob?->format('Y-m-d'),
                 'sex' => $profile->sex,
                 'occupation' => $profile->occupation,
+                'job_title' => $profile->job_title,
                 'qualification' => $profile->qualification,
                 'hobbies' => $profile->hobbies,
                 'ideal_dates' => $profile->ideal_dates ?? [],

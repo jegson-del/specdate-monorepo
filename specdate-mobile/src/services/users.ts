@@ -14,6 +14,7 @@ export type PublicProfile = {
         dob?: string;
         sex?: string;
         occupation?: string;
+        job_title?: string;
         qualification?: string;
         hobbies?: string;
         ideal_dates?: string[];

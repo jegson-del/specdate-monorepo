@@ -47,10 +47,20 @@ export default function AdminManagementPage() {
     >
       <AdminManagementPanel
         actionAdminId={adminManagement.actionAdminId}
+        actionInviteId={adminManagement.actionInviteId}
+        adminInvites={adminManagement.adminInvites}
         admins={adminManagement.admins}
+        invitePagination={adminManagement.invitePagination}
+        inviteQuery={adminManagement.inviteQuery}
+        isCreatingInvite={adminManagement.isCreatingInvite}
         isLoading={adminManagement.isLoading}
+        onApproveInvite={adminManagement.onApproveInvite}
+        onCreateInvite={adminManagement.createAdminInvite}
+        onInvitePageChange={adminManagement.setInvitePage}
+        onInviteQueryChange={adminManagement.setInviteQuery}
         onPageChange={adminManagement.setPage}
         onQueryChange={adminManagement.setQuery}
+        onRevokeInvite={adminManagement.onRevokeInvite}
         onSaveAccess={adminManagement.onSaveAccess}
         pagination={adminManagement.pagination}
         permissions={adminManagement.permissions}

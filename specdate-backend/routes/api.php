@@ -3,6 +3,7 @@
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AdminFinancialsController;
+use App\Http\Controllers\AdminInviteController;
 use App\Http\Controllers\AdminManagementController;
 use App\Http\Controllers\AdminContactController;
 use App\Http\Controllers\AdminMediaModerationController;
@@ -24,6 +25,7 @@ use App\Http\Controllers\MediaController;
 use App\Http\Controllers\ModerationAppealController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProviderController;
+use App\Http\Controllers\ProviderInviteController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\SpecController;
@@ -44,6 +46,10 @@ Route::get('/app-version', [AppVersionController::class, 'show']);
 Route::post('/public/contact', [SupportController::class, 'publicContact'])->middleware('throttle:5,1');
 Route::post('/provider-registrations', [ProviderController::class, 'registerInterest']);
 Route::post('/provider-password/setup', [ProviderController::class, 'setupPassword']);
+Route::get('/provider-invites/validate', [ProviderInviteController::class, 'showPublic']);
+Route::get('/admin-invites/validate', [AdminInviteController::class, 'showPublic']);
+Route::post('/admin-invites/send-otp', [AdminInviteController::class, 'sendOtp']);
+Route::post('/admin-invites/register', [AdminInviteController::class, 'register']);
 
 Route::middleware(['auth:sanctum', 'device.fingerprint'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
@@ -107,6 +113,13 @@ Route::middleware(['auth:sanctum', 'device.fingerprint'])->group(function () {
     Route::get('/admin/management/admins', [AdminManagementController::class, 'admins']);
     Route::get('/admin/management/permissions', [AdminManagementController::class, 'permissions']);
     Route::patch('/admin/management/admins/{admin}/access', [AdminManagementController::class, 'updateAccess']);
+    Route::get('/admin/management/admin-invites', [AdminInviteController::class, 'index']);
+    Route::post('/admin/management/admin-invites', [AdminInviteController::class, 'store']);
+    Route::post('/admin/management/admin-invites/{invite}/approve', [AdminInviteController::class, 'approve']);
+    Route::post('/admin/management/admin-invites/{invite}/revoke', [AdminInviteController::class, 'revoke']);
+    Route::get('/admin/provider-invites', [ProviderInviteController::class, 'index']);
+    Route::post('/admin/provider-invites', [ProviderInviteController::class, 'store']);
+    Route::post('/admin/provider-invites/{invite}/revoke', [ProviderInviteController::class, 'revoke']);
     Route::get('/admin/contact', [AdminContactController::class, 'index']);
     Route::get('/admin/contact/{ticket}', [AdminContactController::class, 'show']);
     Route::post('/admin/contact/{ticket}/reply', [AdminContactController::class, 'reply']);

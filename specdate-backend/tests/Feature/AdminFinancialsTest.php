@@ -337,6 +337,7 @@ class AdminFinancialsTest extends TestCase
 
         AdminAccess::create([
             'admin_id' => $admin->id,
+            'approved_at' => now(),
             'can_view_financial_vouchers' => $vouchers,
             'can_view_financial_credits' => $credits,
             'can_manage_admin_users' => $manageUsers,

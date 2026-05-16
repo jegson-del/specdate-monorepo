@@ -52,4 +52,59 @@ class ProfileUpdateTest extends TestCase
             'username' => 'availablealias',
         ]);
     }
+
+    public function test_working_occupation_requires_job_title_for_profile_completion(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+
+        $payload = $this->completeProfilePayload([
+            'occupation' => 'Self-employed',
+            'job_title' => '',
+        ]);
+
+        $this->putJson('/api/profile', $payload)->assertOk();
+        $this->assertFalse($user->fresh('profile')->profile_complete);
+
+        $this->putJson('/api/profile', $this->completeProfilePayload([
+            'occupation' => 'Self-employed',
+            'job_title' => 'Designer',
+        ]))->assertOk();
+        $this->assertTrue($user->fresh('profile')->profile_complete);
+    }
+
+    public function test_student_or_unemployed_profile_does_not_require_job_title(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+
+        $this->putJson('/api/profile', $this->completeProfilePayload([
+            'occupation' => 'Student',
+            'job_title' => '',
+        ]))->assertOk();
+
+        $profile = $user->fresh('profile')->profile;
+        $this->assertTrue($user->fresh('profile')->profile_complete);
+        $this->assertNull($profile->job_title);
+    }
+
+    private function completeProfilePayload(array $overrides = []): array
+    {
+        return array_merge([
+            'username' => 'profileuser',
+            'full_name' => 'Real Person',
+            'dob' => now()->subYears(25)->toDateString(),
+            'sex' => 'Female',
+            'city' => 'London',
+            'state' => 'England',
+            'country' => 'United Kingdom',
+            'occupation' => 'Employed (Private)',
+            'job_title' => 'Engineer',
+            'qualification' => 'Bachelor',
+            'sexual_orientation' => 'Heterosexual',
+            'hobbies' => 'Reading and cooking',
+            'is_smoker' => false,
+            'is_drug_user' => false,
+        ], $overrides);
+    }
 }

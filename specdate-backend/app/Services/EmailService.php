@@ -3,14 +3,18 @@
 namespace App\Services;
 
 use App\Mail\NewProviderAdminNotificationMail;
+use App\Mail\AdminInviteMail;
 use App\Mail\ContactFormSubmittedMail;
 use App\Mail\ContactTicketReplyMail;
 use App\Mail\OtpMail;
 use App\Mail\ProviderApprovedMail;
+use App\Mail\ProviderInviteMail;
 use App\Mail\SpecReminderMail;
 use App\Mail\WelcomeProviderMail;
 use App\Mail\WelcomeUserMail;
 use App\Models\Spec;
+use App\Models\AdminInvite;
+use App\Models\ProviderInvite;
 use App\Models\SupportTicket;
 use App\Models\User;
 use Illuminate\Mail\Mailable;
@@ -74,6 +78,26 @@ class EmailService
             new ProviderApprovedMail($user, $setupUrl),
             'Provider approval email queue failed',
             ['provider_user_id' => $user->id]
+        );
+    }
+
+    public function sendProviderInvite(ProviderInvite $invite, string $inviteUrl): bool
+    {
+        return $this->dispatch(
+            $invite->email,
+            new ProviderInviteMail($invite, $inviteUrl),
+            'Provider invite email queue failed',
+            ['provider_invite_id' => $invite->id, 'email' => $invite->email]
+        );
+    }
+
+    public function sendAdminInvite(AdminInvite $invite, string $inviteUrl): bool
+    {
+        return $this->dispatch(
+            $invite->email,
+            new AdminInviteMail($invite, $inviteUrl),
+            'Admin invite email queue failed',
+            ['admin_invite_id' => $invite->id, 'email' => $invite->email]
         );
     }
 

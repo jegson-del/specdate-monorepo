@@ -1,12 +1,13 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAlert } from '../components/AlertProvider'
 import { getCountryOptions, getValidCountryCodes } from '../data/countryOptions'
 import {
   PROVIDER_REGISTRATION_STORAGE_KEY,
   sendProviderEmailOtp,
+  validateProviderInvite,
   type ProviderRegistrationPayload,
 } from '../lib/providerRegistration'
 import {
@@ -40,6 +41,8 @@ const defaultValues: ProviderRegistrationFormInput = {
 export default function ProviderRegisterPage() {
   const { showAlert } = useAlert()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const inviteToken = searchParams.get('invite') || ''
   const countryOptions = useMemo(() => getCountryOptions(), [])
   const validCountryCodes = useMemo(() => getValidCountryCodes(), [])
   const schema = useMemo(
@@ -52,12 +55,35 @@ export default function ProviderRegisterPage() {
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<ProviderRegistrationFormInput>({
     resolver: zodResolver(schema),
     defaultValues,
     mode: 'onTouched',
   })
+
+  useEffect(() => {
+    if (!inviteToken) return
+    validateProviderInvite(inviteToken)
+      .then((invite) => {
+        setValue('businessName', invite.provider_name)
+        setValue('email', invite.email)
+        if (invite.service_type) setValue('serviceType', invite.service_type as ProviderRegistrationFormInput['serviceType'])
+        showAlert({
+          tone: 'info',
+          title: 'Invite loaded',
+          message: `Complete the application for ${invite.provider_name}.`,
+        })
+      })
+      .catch((error) => {
+        showAlert({
+          tone: 'error',
+          title: 'Invite unavailable',
+          message: error instanceof Error ? error.message : 'This provider invite is invalid or expired.',
+        })
+      })
+  }, [inviteToken, setValue, showAlert])
 
   const onValid = async (data: ProviderRegistrationFormInput) => {
     const parsed = asParsedOutput(data)
@@ -74,6 +100,7 @@ export default function ProviderRegisterPage() {
       country_name: country?.name ?? parsed.country,
       phone: parsed.phone,
       notes: parsed.notes ?? '',
+      invite_token: inviteToken || undefined,
     }
 
     setSubmitError(null)

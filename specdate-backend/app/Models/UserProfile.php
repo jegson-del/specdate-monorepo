@@ -10,7 +10,7 @@ class UserProfile extends Model
         'user_id',
         'latitude', 'longitude', 'city', 'state', 'country', 'country_code', 'continent',
         'dob', 'full_name', 'hobbies', 'ideal_dates',
-        'sex', 'occupation', 'qualification', 'sexual_orientation',
+        'sex', 'occupation', 'job_title', 'qualification', 'sexual_orientation',
         'height', 'ethnicity', 'religion',
         'is_smoker', 'is_drug_user', 'drinking',
         'profile_completed_at',

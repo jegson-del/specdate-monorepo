@@ -11,7 +11,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import { Dropdown } from 'react-native-paper-dropdown';
-import { IDEAL_DATE_OPTIONS, OCCUPATION_OPTIONS, QUALIFICATION_OPTIONS, RELIGION_OPTIONS } from '../../constants/profileOptions';
+import { IDEAL_DATE_OPTIONS, JOB_TITLE_OPTIONS, OCCUPATION_OPTIONS, QUALIFICATION_OPTIONS, RELIGION_OPTIONS } from '../../constants/profileOptions';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ProfileImageGrid, ImageViewerModal } from './components';
@@ -79,12 +79,13 @@ function latestAdultDob() {
     return d;
 }
 
-export default function ProfileScreen({ navigation }: any) {
+export default function ProfileScreen({ navigation, route }: any) {
     const theme = useTheme();
     const insets = useSafeAreaInsets();
     const queryClient = useQueryClient();
     const { data: user, isRefetching, refetch: refetchUser } = useUser();
     const adultDobLimit = latestAdultDob();
+    const afterRegistration = route?.params?.afterRegistration === true;
 
     // --- STATE ---
     const [loading, setLoading] = useState(false);
@@ -95,14 +96,17 @@ export default function ProfileScreen({ navigation }: any) {
     // UI Local State
     const [showDobPicker, setShowDobPicker] = useState(false);
     const [occupationSearch, setOccupationSearch] = useState('');
+    const [jobTitleSearch, setJobTitleSearch] = useState('');
     const [qualificationSearch, setQualificationSearch] = useState('');
     const [ethnicitySearch, setEthnicitySearch] = useState('');
 
     const [occupationSelect, setOccupationSelect] = useState<string | undefined>(undefined);
+    const [jobTitleSelect, setJobTitleSelect] = useState<string | undefined>(undefined);
     const [qualificationSelect, setQualificationSelect] = useState<string | undefined>(undefined);
     const [ethnicitySelect, setEthnicitySelect] = useState<string | undefined>(undefined);
 
     const [occupationOther, setOccupationOther] = useState('');
+    const [jobTitleOther, setJobTitleOther] = useState('');
     const [qualificationOther, setQualificationOther] = useState('');
     const [ethnicityOther, setEthnicityOther] = useState('');
 
@@ -120,6 +124,7 @@ export default function ProfileScreen({ navigation }: any) {
         dob: '',
         sex: 'Male',
         occupation: '',
+        job_title: '',
         qualification: '',
         hobbies: '',
         ideal_dates: [],
@@ -174,8 +179,10 @@ export default function ProfileScreen({ navigation }: any) {
         return [...filtered, { label: 'Other…', value: OTHER_VALUE }];
     };
     const occupationOptions = useMemo(() => getFilteredOptions(OCCUPATION_OPTIONS, occupationSearch), [occupationSearch]);
+    const jobTitleOptions = useMemo(() => getFilteredOptions(JOB_TITLE_OPTIONS, jobTitleSearch), [jobTitleSearch]);
     const qualificationOptions = useMemo(() => getFilteredOptions(QUALIFICATION_OPTIONS, qualificationSearch), [qualificationSearch]);
     const ethnicityOptions = useMemo(() => getFilteredOptions(ETHNICITY_OPTIONS, ethnicitySearch), [ethnicitySearch]);
+    const shouldShowJobTitle = !!form.occupation && !['Student', 'Unemployed'].includes(String(form.occupation));
 
     // Refetch user when Profile screen gains focus so form always pre-fills from latest server data
     useFocusEffect(
@@ -197,6 +204,7 @@ export default function ProfileScreen({ navigation }: any) {
             dob: profile?.dob ? formatYYYYMMDD(new Date(profile.dob)) : '',
             sex: profile?.sex || 'Male',
             occupation: profile?.occupation || '',
+            job_title: profile?.job_title || '',
             qualification: profile?.qualification || '',
             hobbies: profile?.hobbies || '',
             ideal_dates: normalizeStringArray(profile?.ideal_dates),
@@ -236,9 +244,10 @@ export default function ProfileScreen({ navigation }: any) {
             }
         };
         initDropdown(form.occupation, OCCUPATION_OPTIONS, setOccupationSelect, setOccupationOther);
+        initDropdown(form.job_title, JOB_TITLE_OPTIONS, setJobTitleSelect, setJobTitleOther);
         initDropdown(form.qualification, QUALIFICATION_OPTIONS, setQualificationSelect, setQualificationOther);
         initDropdown(form.ethnicity, ETHNICITY_OPTIONS, setEthnicitySelect, setEthnicityOther);
-    }, [form.occupation, form.qualification, form.ethnicity]);
+    }, [form.occupation, form.job_title, form.qualification, form.ethnicity]);
 
     // --- HANDLERS ---
     const ensureMediaLibraryPermission = async (): Promise<boolean> => {
@@ -411,7 +420,26 @@ export default function ProfileScreen({ navigation }: any) {
             profileSchema.parse(payload);
             await ProfileService.update(payload);
             await queryClient.invalidateQueries({ queryKey: ['user'] });
-            await refetchUser();
+            const refreshedUser = await refetchUser();
+            if (afterRegistration) {
+                if (refreshedUser.data?.profile_complete !== true) {
+                    Alert.alert(
+                        "Finish profile setup",
+                        "Please complete all required profile details before going to Home."
+                    );
+                    return;
+                }
+                Alert.alert("Success", "Profile completed. Welcome to DateUsher.", [
+                    {
+                        text: "Go to Home",
+                        onPress: () => navigation.reset({
+                            index: 0,
+                            routes: [{ name: 'Home' }],
+                        }),
+                    },
+                ], { cancelable: false });
+                return;
+            }
             Alert.alert("Success", "Profile updated!");
         } catch (error: any) {
             if (error instanceof z.ZodError) {
@@ -754,7 +782,11 @@ export default function ProfileScreen({ navigation }: any) {
                             setOccupationSelect(v);
                             setOccupationSearch('');
                             if (v === OTHER_VALUE) setForm((p) => ({ ...p, occupation: occupationOther }));
-                            else setForm((p) => ({ ...p, occupation: v || '' }));
+                            else setForm((p) => ({
+                                ...p,
+                                occupation: v || '',
+                                job_title: ['Student', 'Unemployed'].includes(String(v || '')) ? '' : p.job_title,
+                            }));
                         }}
                         CustomMenuHeader={() => (
                             <Searchbar placeholder="Search..." value={occupationSearch} onChangeText={setOccupationSearch} />
@@ -766,6 +798,33 @@ export default function ProfileScreen({ navigation }: any) {
                     )}
 
                     <Divider style={styles.divider} />
+
+                    {shouldShowJobTitle && (
+                        <>
+                            <Dropdown
+                                label="Job"
+                                placeholder="Select..."
+                                mode="flat"
+                                options={jobTitleOptions}
+                                value={jobTitleSelect}
+                                onSelect={(v) => {
+                                    setJobTitleSelect(v);
+                                    setJobTitleSearch('');
+                                    if (v === OTHER_VALUE) setForm((p) => ({ ...p, job_title: jobTitleOther }));
+                                    else setForm((p) => ({ ...p, job_title: v || '' }));
+                                }}
+                                CustomMenuHeader={() => (
+                                    <Searchbar placeholder="Search..." value={jobTitleSearch} onChangeText={setJobTitleSearch} />
+                                )}
+                            />
+                            {!!errors.job_title && <HelperText type="error" visible>{errors.job_title}</HelperText>}
+                            {jobTitleSelect === OTHER_VALUE && (
+                                <TextInput label="Specify Job" value={jobTitleOther} onChangeText={(t) => { setJobTitleOther(t); updateForm({ job_title: t }); }} mode="flat" style={styles.input} />
+                            )}
+
+                            <Divider style={styles.divider} />
+                        </>
+                    )}
 
                     <Dropdown
                         label="Qualification"

@@ -10,6 +10,34 @@ export const OCCUPATION_OPTIONS = [
   'Retired',
 ] as const;
 
+export const JOB_TITLE_OPTIONS = [
+  'Accountant',
+  'Artist',
+  'Banker',
+  'Beautician',
+  'Business owner',
+  'Chef',
+  'Consultant',
+  'Content creator',
+  'Customer service',
+  'Designer',
+  'Doctor',
+  'Driver',
+  'Engineer',
+  'Entrepreneur',
+  'Healthcare worker',
+  'Hospitality',
+  'IT / Software',
+  'Lawyer',
+  'Marketing',
+  'Nurse',
+  'Operations',
+  'Project manager',
+  'Sales',
+  'Teacher',
+  'Technician',
+] as const;
+
 export const QUALIFICATION_OPTIONS = [
   'High School',
   'Diploma',

@@ -44,7 +44,8 @@ class PublicUserDirectoryService
                         $profileQuery->where('full_name', 'like', "%{$search}%")
                             ->orWhere('city', 'like', "%{$search}%")
                             ->orWhere('country', 'like', "%{$search}%")
-                            ->orWhere('occupation', 'like', "%{$search}%");
+                            ->orWhere('occupation', 'like', "%{$search}%")
+                            ->orWhere('job_title', 'like', "%{$search}%");
                     });
             });
         }
@@ -111,6 +112,7 @@ class PublicUserDirectoryService
                     ->orWhere('city', 'like', "%{$search}%")
                     ->orWhere('country', 'like', "%{$search}%")
                     ->orWhere('occupation', 'like', "%{$search}%")
+                    ->orWhere('job_title', 'like', "%{$search}%")
                     ->orWhereHas('user', fn (Builder $userQuery) => $userQuery->where('name', 'like', "%{$search}%"));
             });
         }
@@ -223,6 +225,7 @@ class PublicUserDirectoryService
             'country' => $profile?->country,
             'country_code' => $this->countryCode((string) $profile?->country, $profile?->country_code),
             'occupation' => $profile?->occupation,
+            'job_title' => $profile?->job_title,
             'avatar' => $avatarMedia?->url ?? $profile?->avatar,
             'sex' => $profile?->sex,
         ];

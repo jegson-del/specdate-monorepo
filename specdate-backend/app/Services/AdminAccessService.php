@@ -12,6 +12,7 @@ class AdminAccessService
     public const FINANCIAL_VOUCHERS = 'can_view_financial_vouchers';
     public const FINANCIAL_CREDITS = 'can_view_financial_credits';
     public const MANAGE_ADMIN_USERS = 'can_manage_admin_users';
+    public const MANAGE_PROVIDER_INVITES = 'can_manage_provider_invites';
     public const MANAGE_CONTACT_MESSAGES = 'can_manage_contact_messages';
     public const MANAGE_SUCCESS_STORIES = 'can_manage_success_stories';
 
@@ -19,6 +20,7 @@ class AdminAccessService
         self::FINANCIAL_VOUCHERS => 'Voucher financials',
         self::FINANCIAL_CREDITS => 'Credit financials',
         self::MANAGE_ADMIN_USERS => 'Admin management',
+        self::MANAGE_PROVIDER_INVITES => 'Provider invites',
         self::MANAGE_CONTACT_MESSAGES => 'Contact messages',
         self::MANAGE_SUCCESS_STORIES => 'Success stories',
     ];
@@ -43,6 +45,10 @@ class AdminAccessService
             : $admin->adminAccess()->first();
 
         if (! $access) {
+            return false;
+        }
+
+        if (! $access->approved_at) {
             return false;
         }
 
@@ -109,6 +115,7 @@ class AdminAccessService
             self::FINANCIAL_VOUCHERS => 'Admin voucher financial access required.',
             self::FINANCIAL_CREDITS => 'Admin credit financial access required.',
             self::MANAGE_ADMIN_USERS => 'Admin management access required.',
+            self::MANAGE_PROVIDER_INVITES => 'Provider invite access required.',
             self::MANAGE_CONTACT_MESSAGES => 'Admin contact message access required.',
             self::MANAGE_SUCCESS_STORIES => 'Admin success story access required.',
             default => 'Admin access permission required.',

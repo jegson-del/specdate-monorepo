@@ -70,6 +70,7 @@
             </div>
 
         </div>
+        @include('emails.partials.footer')
 
     </div>
 

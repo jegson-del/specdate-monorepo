@@ -11,6 +11,7 @@ use App\Services\AuthService;
 use App\Services\DateVoucherService;
 use App\Services\EmailService;
 use App\Services\PhoneBlacklistService;
+use App\Services\ProviderInviteService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Http\Request;
@@ -29,7 +30,8 @@ class ProviderController extends Controller
         private DateVoucherService $dateVoucherService,
         private AuthService $authService,
         private EmailService $emailService,
-        private PhoneBlacklistService $phoneBlacklistService
+        private PhoneBlacklistService $phoneBlacklistService,
+        private ProviderInviteService $providerInviteService
     )
     {
     }
@@ -246,6 +248,7 @@ class ProviderController extends Controller
             'phone' => ['required', 'string', 'max:20', 'regex:/^\+[1-9]\d{6,14}$/', 'unique:users,mobile'],
             'notes' => 'nullable|string|max:2000',
             'otp_code' => 'required|string|size:6',
+            'invite_token' => 'nullable|string',
         ]);
 
         $data['email'] = strtolower(trim($data['email']));
@@ -293,6 +296,14 @@ class ProviderController extends Controller
 
             return $user->load('providerProfile.categories');
         });
+
+        if (!empty($data['invite_token'])) {
+            $this->providerInviteService->accept(
+                (string) $data['invite_token'],
+                (int) $user->providerProfile->id,
+                $user->email
+            );
+        }
 
         $this->emailService->sendWelcomeProvider($user);
         $this->emailService->sendNewProviderAdminNotification($user);

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Image as RNImage, Platform, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, Platform, TouchableOpacity, KeyboardAvoidingView } from 'react-native';
 import { Text, TextInput, Button, IconButton, useTheme, Checkbox } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MotiView } from 'moti';
@@ -73,6 +73,8 @@ export default function RegisterScreen({ navigation }: any) {
     const [loading, setLoading] = useState(false);
     const [termsAccepted, setTermsAccepted] = useState(false);
     const [showDobPicker, setShowDobPicker] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
     // Form State
     const [form, setForm] = useState({
@@ -89,6 +91,7 @@ export default function RegisterScreen({ navigation }: any) {
         country: '',
         country_code: '',
         continent: '',
+        password_confirmation: '',
     });
 
     const [locLoading, setLocLoading] = useState(false);
@@ -213,9 +216,11 @@ export default function RegisterScreen({ navigation }: any) {
         setLoading(true);
         try {
             const target = form.mobile.trim();
+            const registrationForm = { ...form };
+            delete (registrationForm as { password_confirmation?: string }).password_confirmation;
             await AuthService.sendOtp('mobile', target);
             navigation.navigate('OtpVerification', {
-                formData: { ...form, name: form.username, terms_accepted: true },
+                formData: { ...registrationForm, name: form.username, terms_accepted: true },
                 channel: 'mobile',
                 target,
             });
@@ -247,7 +252,16 @@ export default function RegisterScreen({ navigation }: any) {
                 },
             ]}
         >
-            <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+            <KeyboardAvoidingView
+                style={styles.keyboardAvoider}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                keyboardVerticalOffset={0}
+            >
+                <ScrollView
+                    contentContainerStyle={styles.content}
+                    keyboardShouldPersistTaps="handled"
+                    keyboardDismissMode="on-drag"
+                >
                 <View style={styles.topBar}>
                     <IconButton
                         icon="arrow-left"
@@ -367,9 +381,28 @@ export default function RegisterScreen({ navigation }: any) {
                                 label="Password"
                                 value={form.password}
                                 onChangeText={(t) => setForm({ ...form, password: t })}
-                                secureTextEntry
+                                secureTextEntry={!showPassword}
                                 style={styles.input}
                                 left={<TextInput.Icon icon="lock" />}
+                                right={<TextInput.Icon icon={showPassword ? 'eye-off' : 'eye'} onPress={() => setShowPassword((value) => !value)} />}
+                                textContentType="newPassword"
+                                textColor={theme.colors.onBackground}
+                                cursorColor={theme.colors.primary}
+                                selectionColor={theme.colors.primary}
+                                outlineColor={theme.colors.outline}
+                                activeOutlineColor={theme.colors.primary}
+                                placeholderTextColor={theme.colors.outline}
+                            />
+                            <TextInput
+                                mode="outlined"
+                                label="Confirm Password"
+                                value={form.password_confirmation}
+                                onChangeText={(t) => setForm({ ...form, password_confirmation: t })}
+                                secureTextEntry={!showConfirmPassword}
+                                style={styles.input}
+                                left={<TextInput.Icon icon="lock-check" />}
+                                right={<TextInput.Icon icon={showConfirmPassword ? 'eye-off' : 'eye'} onPress={() => setShowConfirmPassword((value) => !value)} />}
+                                textContentType="newPassword"
                                 textColor={theme.colors.onBackground}
                                 cursorColor={theme.colors.primary}
                                 selectionColor={theme.colors.primary}
@@ -440,7 +473,8 @@ export default function RegisterScreen({ navigation }: any) {
                     )}
                 </MotiView>
 
-            </ScrollView>
+                </ScrollView>
+            </KeyboardAvoidingView>
         </View>
     );
 }
@@ -449,9 +483,12 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
     },
+    keyboardAvoider: {
+        flex: 1,
+    },
     content: {
         paddingHorizontal: 24,
-        paddingBottom: 24,
+        paddingBottom: 48,
         // Leave room for the absolute-positioned back arrow.
         paddingTop: 60,
     },
