@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\ChatService;
+use App\Services\ChatMessageArchiveService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -11,7 +12,10 @@ class ChatController extends Controller
 {
     use ApiResponse;
 
-    public function __construct(private ChatService $chatService)
+    public function __construct(
+        private ChatService $chatService,
+        private ChatMessageArchiveService $archiveService,
+    )
     {
     }
 
@@ -50,6 +54,30 @@ class ChatController extends Controller
                 $request->integer('before_id') ?: null
             );
             return $this->sendResponse($payload, 'Chat retrieved successfully.');
+        } catch (HttpException $e) {
+            return $this->sendError($e->getMessage(), [], $e->getStatusCode());
+        }
+    }
+
+    public function archives(Request $request, int $thread)
+    {
+        try {
+            return $this->sendResponse(
+                $this->archiveService->listArchives($request->user(), $thread),
+                'Chat archives retrieved successfully.'
+            );
+        } catch (HttpException $e) {
+            return $this->sendError($e->getMessage(), [], $e->getStatusCode());
+        }
+    }
+
+    public function archive(Request $request, int $thread, int $archive)
+    {
+        try {
+            return $this->sendResponse(
+                $this->archiveService->getArchive($request->user(), $thread, $archive),
+                'Chat archive retrieved successfully.'
+            );
         } catch (HttpException $e) {
             return $this->sendError($e->getMessage(), [], $e->getStatusCode());
         }

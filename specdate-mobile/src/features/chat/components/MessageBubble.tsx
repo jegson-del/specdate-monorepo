@@ -20,6 +20,7 @@ function formatTime(value: string) {
 }
 
 export default function MessageBubble({ message, isMine, theme, onOpenVideo, onReport, onOpenMenu }: Props) {
+  const canOpenActions = !message.archived && Boolean(onOpenMenu || onReport);
   const mediaUrl = message.media?.url;
   const mediaKind = String(message.media?.type ?? '');
   const mimeType = String(message.media?.mime_type ?? '');
@@ -33,7 +34,7 @@ export default function MessageBubble({ message, isMine, theme, onOpenVideo, onR
 
   return (
     <View style={[styles.row, isMine ? styles.mineRow : styles.theirRow]}>
-      {!isMine ? (
+      {!isMine && canOpenActions ? (
         <IconButton
           icon="dots-horizontal"
           size={18}
@@ -46,7 +47,7 @@ export default function MessageBubble({ message, isMine, theme, onOpenVideo, onR
       <TouchableOpacity
         activeOpacity={0.9}
         onLongPress={() => {
-          if (!isMine) onReport?.(message);
+          if (!isMine && canOpenActions) onReport?.(message);
         }}
         style={[
           styles.bubble,

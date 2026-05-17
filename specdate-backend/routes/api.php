@@ -77,6 +77,8 @@ Route::middleware(['auth:sanctum', 'device.fingerprint'])->group(function () {
     Route::get('/chats', [ChatController::class, 'index']);
     Route::post('/providers/{provider}/chat', [ChatController::class, 'openProviderThread'])->middleware('account.active');
     Route::get('/chats/{thread}', [ChatController::class, 'show']);
+    Route::get('/chats/{thread}/archives', [ChatController::class, 'archives']);
+    Route::get('/chats/{thread}/archives/{archive}', [ChatController::class, 'archive']);
     Route::post('/chats/{thread}/messages', [ChatController::class, 'sendMessage'])->middleware('account.active');
     Route::post('/chats/{thread}/read', [ChatController::class, 'markRead']);
     Route::get('/blocks', [BlockController::class, 'index']);

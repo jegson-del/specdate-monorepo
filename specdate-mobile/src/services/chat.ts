@@ -61,12 +61,25 @@ export type ChatMessage = {
   read_at?: string | null;
   created_at: string;
   sender?: ChatUser | null;
+  archived?: boolean;
 };
 
 export type ChatThreadPagination = {
   per_page: number;
   has_more: boolean;
   next_before_id?: number | null;
+};
+
+export type ChatArchive = {
+  id: number;
+  chat_thread_id: number;
+  from_message_id: number;
+  to_message_id: number;
+  from_sent_at: string;
+  to_sent_at: string;
+  message_count: number;
+  status: string;
+  stored_at?: string | null;
 };
 
 export const ChatService = {
@@ -80,6 +93,20 @@ export const ChatService = {
     return response.data as {
       success: boolean;
       data: { thread: ChatThread; messages: ChatMessage[]; pagination: ChatThreadPagination };
+      message: string;
+    };
+  },
+
+  async getArchives(threadId: number | string) {
+    const response = await api.get(`/chats/${threadId}/archives`);
+    return response.data as { success: boolean; data: ChatArchive[]; message: string };
+  },
+
+  async getArchive(threadId: number | string, archiveId: number | string) {
+    const response = await api.get(`/chats/${threadId}/archives/${archiveId}`);
+    return response.data as {
+      success: boolean;
+      data: { archive: ChatArchive; messages: ChatMessage[] };
       message: string;
     };
   },

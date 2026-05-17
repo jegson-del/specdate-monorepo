@@ -4,7 +4,7 @@ import { Avatar, IconButton, Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
-import { ChatMessage, ChatService } from '../../services/chat';
+import { ChatArchive, ChatMessage, ChatService } from '../../services/chat';
 import { MediaModerationError, MediaService, moderationFailureMessage, type MediaUploadType } from '../../services/media';
 import { ModerationService, type ReportTargetType } from '../../services/moderation';
 import { useUser } from '../../hooks/useUser';
@@ -40,6 +40,9 @@ export default function ChatThreadScreen({ route, navigation }: any) {
   const [safetyLoading, setSafetyLoading] = React.useState(false);
   const [safetyError, setSafetyError] = React.useState<string | null>(null);
   const [loadingOlder, setLoadingOlder] = React.useState(false);
+  const [archives, setArchives] = React.useState<ChatArchive[] | null>(null);
+  const [nextArchiveIndex, setNextArchiveIndex] = React.useState(0);
+  const [archiveExhausted, setArchiveExhausted] = React.useState(false);
   const [mediaProgress, setMediaProgress] = React.useState<UploadProgressState>(null);
 
   const { data, isLoading } = useQuery({
@@ -159,6 +162,7 @@ export default function ChatThreadScreen({ route, navigation }: any) {
   }, []);
 
   const openMessageActions = React.useCallback((message: ChatMessage) => {
+    if (message.archived) return;
     const mediaId = message.media?.id ? Number(message.media.id) : undefined;
     setSafetyError(null);
     setSafetySheet({ mode: 'message_actions', messageId: Number(message.id), mediaId });
@@ -287,6 +291,9 @@ export default function ChatThreadScreen({ route, navigation }: any) {
 
   React.useEffect(() => {
     if (!threadId) return;
+    setArchives(null);
+    setNextArchiveIndex(0);
+    setArchiveExhausted(false);
     ChatService.markRead(threadId).finally(() => {
       queryClient.invalidateQueries({ queryKey: ['chat-threads'] });
       queryClient.invalidateQueries({ queryKey: ['user'] });
@@ -340,32 +347,70 @@ export default function ChatThreadScreen({ route, navigation }: any) {
   const otherPartyLabel = isProviderChat ? (currentUserIsProvider ? 'customer' : 'provider') : 'user';
   const otherPartyTitle = otherPartyLabel.charAt(0).toUpperCase() + otherPartyLabel.slice(1);
   const name = thread?.other_user?.name || (isProviderChat ? otherPartyTitle : 'Your match');
+  const canLoadHotMessages = Boolean(pagination?.has_more && pagination.next_before_id);
+  const canLoadOlder = Boolean(payload) && (canLoadHotMessages || !archiveExhausted);
   const loadOlderMessages = React.useCallback(async () => {
-    if (!threadId || loadingOlder || !pagination?.has_more || !pagination.next_before_id) return;
+    if (!threadId || loadingOlder) return;
 
     try {
       setLoadingOlder(true);
       shouldAutoScrollRef.current = false;
-      const response = await ChatService.getThread(threadId, { before_id: pagination.next_before_id, per_page: 25 });
+      if (canLoadHotMessages) {
+        const response = await ChatService.getThread(threadId, { before_id: pagination?.next_before_id ?? undefined, per_page: 25 });
+        queryClient.setQueryData(['chat-thread', String(threadId)], (current: any) => {
+          if (!current?.data) return response;
+          const existing = new Set((current.data.messages || []).map((message: ChatMessage) => Number(message.id)));
+          const older = (response.data.messages || []).filter((message) => !existing.has(Number(message.id)));
+          return {
+            ...current,
+            data: {
+              ...current.data,
+              messages: [...older, ...(current.data.messages || [])],
+              pagination: response.data.pagination,
+            },
+          };
+        });
+        return;
+      }
+
+      let archiveList = archives;
+      if (archiveList === null) {
+        const archiveResponse = await ChatService.getArchives(threadId);
+        archiveList = archiveResponse.data || [];
+        setArchives(archiveList);
+      }
+
+      const archive = archiveList[nextArchiveIndex];
+      if (!archive) {
+        setArchiveExhausted(true);
+        return;
+      }
+
+      const archiveResponse = await ChatService.getArchive(threadId, archive.id);
       queryClient.setQueryData(['chat-thread', String(threadId)], (current: any) => {
-        if (!current?.data) return response;
+        if (!current?.data) return current;
         const existing = new Set((current.data.messages || []).map((message: ChatMessage) => Number(message.id)));
-        const older = (response.data.messages || []).filter((message) => !existing.has(Number(message.id)));
+        const older = (archiveResponse.data.messages || []).filter((message) => !existing.has(Number(message.id)));
         return {
           ...current,
           data: {
             ...current.data,
             messages: [...older, ...(current.data.messages || [])],
-            pagination: response.data.pagination,
           },
         };
       });
+
+      const nextIndex = nextArchiveIndex + 1;
+      setNextArchiveIndex(nextIndex);
+      if (nextIndex >= archiveList.length) {
+        setArchiveExhausted(true);
+      }
     } catch (e: any) {
       Alert.alert('Could not load older messages', e?.response?.data?.message || 'Please try again.');
     } finally {
       setLoadingOlder(false);
     }
-  }, [loadingOlder, pagination?.has_more, pagination?.next_before_id, queryClient, threadId]);
+  }, [archiveExhausted, archives, canLoadHotMessages, loadingOlder, nextArchiveIndex, pagination?.next_before_id, queryClient, threadId]);
 
   return (
     <KeyboardAvoidingView
@@ -417,18 +462,18 @@ export default function ChatThreadScreen({ route, navigation }: any) {
             isMine={Number(item.sender_id) === Number(user?.id)}
             theme={theme}
             onOpenVideo={setVideoViewerUri}
-            onReport={openMessageActions}
-            onOpenMenu={openMessageActions}
+            onReport={item.archived ? undefined : openMessageActions}
+            onOpenMenu={item.archived ? undefined : openMessageActions}
           />
         )}
         ListHeaderComponent={
-          pagination?.has_more ? (
+          canLoadOlder ? (
             <View style={styles.loadOlderWrap}>
               <Text
                 onPress={loadOlderMessages}
                 style={[styles.loadOlderText, { color: theme.colors.primary }]}
               >
-                {loadingOlder ? 'Loading older messages...' : 'Load older messages'}
+                {loadingOlder ? 'Loading older messages...' : canLoadHotMessages ? 'Load older messages' : 'Load archived messages'}
               </Text>
             </View>
           ) : null

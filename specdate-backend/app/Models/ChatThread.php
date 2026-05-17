@@ -57,6 +57,11 @@ class ChatThread extends Model
         return $this->hasMany(ChatMessage::class);
     }
 
+    public function messageArchives()
+    {
+        return $this->hasMany(ChatMessageArchive::class);
+    }
+
     public function lastMessage()
     {
         return $this->belongsTo(ChatMessage::class, 'last_message_id');
