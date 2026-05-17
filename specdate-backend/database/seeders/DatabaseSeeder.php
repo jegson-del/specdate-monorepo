@@ -22,6 +22,17 @@ class DatabaseSeeder extends Seeder
             CreditProductSeeder::class,
         ]);
 
+        if (app()->environment('production')) {
+            return;
+        }
+
+        if ((bool) env('SEED_DEMO_DATA', false)) {
+            $this->call([
+                FilterTestSeeder::class,
+                DummyParticipantsSeeder::class,
+            ]);
+        }
+
         User::factory()->create([
             'name' => 'Test User',
             'email' => 'test@example.com',

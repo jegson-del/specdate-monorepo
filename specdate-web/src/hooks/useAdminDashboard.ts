@@ -1,12 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAlert } from '../components/AlertProvider'
+import { setStoredAdminToken, useAdminToken } from './useAdminToken'
+import { useAdminRealtime } from './useAdminRealtime'
 import {
   adminLogin,
-  adminTokenKey,
   approveAdminMedia,
   approveProviderApplication,
   decideAdminModerationAppeal,
+  getAdminActivity,
   getAdminDashboard,
   getAdminMediaModerationQueue,
   getAdminMe,
@@ -76,6 +78,7 @@ type AdminLoginVariables = {
 }
 
 const adminQueryKeys = {
+  activity: ['admin', 'activity'] as const,
   dashboard: ['admin', 'dashboard'] as const,
   me: ['admin', 'me'] as const,
   providers: (status: ProviderApplicationStatus, page: number, perPage: number) =>
@@ -116,7 +119,7 @@ export function useAdminDashboard({
 }: AdminDashboardOptions = {}) {
   const { showAlert } = useAlert()
   const queryClient = useQueryClient()
-  const [token, setToken] = useState(() => localStorage.getItem(adminTokenKey) || '')
+  const token = useAdminToken()
   const [mediaStatus, setMediaStatus] = useState<AdminMediaModerationStatus>('needs_review')
   const [moderationAppealStatus, setModerationAppealStatus] =
     useState<AdminModerationAppealStatus>('open')
@@ -143,9 +146,15 @@ export function useAdminDashboard({
 
   const isAuthenticated = Boolean(token)
 
+  useAdminRealtime({
+    enabled: isAuthenticated,
+    queryClient,
+    showAlert,
+    token,
+  })
+
   const clearSession = useCallback(() => {
-    localStorage.removeItem(adminTokenKey)
-    setToken('')
+    setStoredAdminToken('')
     queryClient.removeQueries({ queryKey: adminQueryKeys.root })
   }, [queryClient])
 
@@ -161,16 +170,24 @@ export function useAdminDashboard({
     enabled: isAuthenticated && loadDashboard,
     queryKey: adminQueryKeys.dashboard,
     queryFn: () => getAdminDashboard(token),
-    refetchInterval: 30_000,
-    staleTime: 15_000,
+    refetchInterval: 120_000,
+    staleTime: 60_000,
+  })
+
+  const activityQuery = useQuery({
+    enabled: isAuthenticated && loadDashboard,
+    queryKey: adminQueryKeys.activity,
+    queryFn: () => getAdminActivity(token, 25),
+    refetchInterval: 120_000,
+    staleTime: 60_000,
   })
 
   const providersQuery = useQuery({
     enabled: isAuthenticated && loadProviders,
     queryKey: adminQueryKeys.providers(providerStatus, providerPage, providerPerPage),
     queryFn: () => getProviderApplications(token, providerStatus, providerPage, providerPerPage),
-    refetchInterval: 20_000,
-    staleTime: 10_000,
+    refetchInterval: 120_000,
+    staleTime: 60_000,
   })
 
   const providerDetailQuery = useQuery({
@@ -184,16 +201,16 @@ export function useAdminDashboard({
     enabled: isAuthenticated && loadReports,
     queryKey: adminQueryKeys.reports(reportStatus, reportPage, reportPerPage),
     queryFn: () => getAdminReports(token, reportStatus, reportPage, reportPerPage),
-    refetchInterval: 20_000,
-    staleTime: 10_000,
+    refetchInterval: 120_000,
+    staleTime: 60_000,
   })
 
   const mediaModerationQuery = useQuery({
     enabled: isAuthenticated && loadMediaModeration,
     queryKey: adminQueryKeys.mediaModeration(mediaStatus, mediaPage, mediaPerPage),
     queryFn: () => getAdminMediaModerationQueue(token, mediaStatus, mediaPage, mediaPerPage),
-    refetchInterval: 20_000,
-    staleTime: 10_000,
+    refetchInterval: 120_000,
+    staleTime: 60_000,
   })
 
   const moderationAppealsQuery = useQuery({
@@ -210,8 +227,8 @@ export function useAdminDashboard({
         moderationAppealPage,
         moderationAppealPerPage,
       ),
-    refetchInterval: 20_000,
-    staleTime: 10_000,
+    refetchInterval: 120_000,
+    staleTime: 60_000,
   })
 
   const moderationCasesQuery = useQuery({
@@ -236,8 +253,8 @@ export function useAdminDashboard({
         moderationCasePage,
         moderationCasePerPage,
       ),
-    refetchInterval: 20_000,
-    staleTime: 10_000,
+    refetchInterval: 120_000,
+    staleTime: 60_000,
   })
 
   const moderationCaseDetailQuery = useQuery({
@@ -251,8 +268,8 @@ export function useAdminDashboard({
     enabled: isAuthenticated && loadSupport,
     queryKey: adminQueryKeys.support(supportStatus, supportPage, supportPerPage),
     queryFn: () => getAdminSupportTickets(token, supportStatus, supportPage, supportPerPage),
-    refetchInterval: 10_000,
-    staleTime: 5_000,
+    refetchInterval: 120_000,
+    staleTime: 60_000,
   })
 
   const supportTicketDetailQuery = useQuery({
@@ -264,6 +281,7 @@ export function useAdminDashboard({
 
   useEffect(() => {
     const hasAuthFailure = [
+      activityQuery.error,
       meQuery.error,
       dashboardQuery.error,
       mediaModerationQuery.error,
@@ -283,6 +301,7 @@ export function useAdminDashboard({
       message: 'Please sign in again to continue.',
     })
   }, [
+    activityQuery.error,
     clearSession,
     dashboardQuery.error,
     mediaModerationQuery.error,
@@ -340,7 +359,7 @@ export function useAdminDashboard({
       })
     },
     onSuccess: (result) => {
-      if ('requires_otp' in result) {
+      if (result.requires_otp === true) {
         showAlert({
           tone: 'success',
           title: 'Check your email',
@@ -349,8 +368,7 @@ export function useAdminDashboard({
         return
       }
 
-      localStorage.setItem(adminTokenKey, result.token)
-      setToken(result.token)
+      setStoredAdminToken(result.token)
       queryClient.setQueryData(adminQueryKeys.me, result.user)
       showAlert({
         tone: 'success',
@@ -656,6 +674,7 @@ export function useAdminDashboard({
 
   return {
     admin: meQuery.data ?? null,
+    activityItems: activityQuery.data?.items ?? [],
     approvingId: approveProviderMutation.isPending ? approveProviderMutation.variables : null,
     approveProvider: (providerId: number) => approveProviderMutation.mutate(providerId),
     clearSession,
@@ -663,6 +682,7 @@ export function useAdminDashboard({
     isAuthenticated,
     isLoading:
       meQuery.isFetching ||
+      activityQuery.isFetching ||
       dashboardQuery.isFetching ||
       mediaModerationQuery.isFetching ||
       moderationAppealsQuery.isFetching ||

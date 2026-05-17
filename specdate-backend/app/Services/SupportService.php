@@ -13,6 +13,7 @@ class SupportService
     public function __construct(
         private NotificationService $notificationService,
         private EmailService $emailService,
+        private AdminActivityService $adminActivityService,
     )
     {
     }
@@ -65,6 +66,19 @@ class SupportService
         });
 
         $this->notifyAdmins($ticket, 'New support ticket', "{$user->name} opened a support ticket.");
+        $this->adminActivityService->record(
+            'support_ticket_created',
+            'New support ticket',
+            "{$user->name} opened a support ticket.",
+            '/admin/support',
+            SupportTicket::class,
+            (int) $ticket->id,
+            [
+                'category' => $ticket->category,
+                'subject' => $ticket->subject,
+                'user_id' => $user->id,
+            ],
+        );
 
         return $ticket->fresh(['user:id,name,username,email', 'messages.sender:id,name,username']);
     }
@@ -103,6 +117,19 @@ class SupportService
 
         $this->emailService->sendContactFormSubmitted($ticket, $messageBody);
         $this->notifyAdmins($ticket, 'New public contact message', "{$ticket->contact_name} submitted the website contact form.");
+        $this->adminActivityService->record(
+            'contact_message_created',
+            'New website contact message',
+            "{$ticket->contact_name} submitted the website contact form.",
+            '/admin/contact',
+            SupportTicket::class,
+            (int) $ticket->id,
+            [
+                'category' => $ticket->category,
+                'contact_email' => $ticket->contact_email,
+                'subject' => $ticket->subject,
+            ],
+        );
 
         return $ticket->fresh(['user:id,name,username,email', 'messages.sender:id,name,username']);
     }
@@ -182,6 +209,19 @@ class SupportService
             }
         } else {
             $this->notifyAdmins($ticket, 'Support message', "{$user->name} replied to a support ticket.");
+            $this->adminActivityService->record(
+                'support_message_created',
+                'Support ticket reply',
+                "{$user->name} replied to a support ticket.",
+                '/admin/support',
+                SupportTicket::class,
+                (int) $ticket->id,
+                [
+                    'ticket_id' => $ticket->id,
+                    'message_id' => $message->id,
+                    'user_id' => $user->id,
+                ],
+            );
         }
 
         return $message;

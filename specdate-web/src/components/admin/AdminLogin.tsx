@@ -26,7 +26,7 @@ export function AdminLogin({ isSubmitting, onLogin }: AdminLoginProps) {
 
   const handlePasswordSubmit = async () => {
     const result = await Promise.resolve(onLogin(email, password)).catch(() => undefined)
-    if (result && 'requires_otp' in result) {
+    if (result?.requires_otp === true) {
       setPendingChallenge({
         email: result.email,
         expiresIn: result.expires_in,

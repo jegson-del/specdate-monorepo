@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
+import { useAdminToken } from './useAdminToken'
 import {
-  adminTokenKey,
   getAdminIpRiskEvents,
   getAdminRiskUsers,
   getAdminUserRisk,
@@ -9,7 +9,7 @@ import {
 import type { AdminIpRiskEventType, AdminRiskSeverity } from '../types/admin'
 
 export function useAdminRisk() {
-  const [token] = useState(() => localStorage.getItem(adminTokenKey) || '')
+  const token = useAdminToken()
   const [riskUserQuery, setRiskUserQuery] = useState('')
   const [riskUsersPage, setRiskUsersPage] = useState(1)
   const [ipEventType, setIpEventType] = useState<AdminIpRiskEventType>('all')

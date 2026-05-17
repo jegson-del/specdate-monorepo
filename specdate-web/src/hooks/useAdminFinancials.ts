@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
+import { useAdminToken } from './useAdminToken'
 import {
-  adminTokenKey,
   getProviderApplications,
   getAdminFinancialCredits,
   getAdminFinancialVouchers,
@@ -53,7 +53,7 @@ function defaultCreditFilters(): AdminFinancialCreditFilters {
 }
 
 export function useAdminVoucherFinancials() {
-  const [token] = useState(() => localStorage.getItem(adminTokenKey) || '')
+  const token = useAdminToken()
   const [page, setPage] = useState(1)
   const [providerPage, setProviderPage] = useState(1)
   const [providerCountry, setProviderCountryValue] = useState('')
@@ -131,7 +131,7 @@ export function useAdminVoucherFinancials() {
 }
 
 export function useAdminCreditFinancials() {
-  const [token] = useState(() => localStorage.getItem(adminTokenKey) || '')
+  const token = useAdminToken()
   const [page, setPage] = useState(1)
   const [filters, setFilters] = useState<AdminFinancialCreditFilters>(() => defaultCreditFilters())
 

@@ -8,6 +8,7 @@ use App\Models\ProviderCategory;
 use App\Models\ProviderProfile;
 use App\Models\User;
 use App\Services\AuthService;
+use App\Services\AdminActivityService;
 use App\Services\DateVoucherService;
 use App\Services\EmailService;
 use App\Services\PhoneBlacklistService;
@@ -31,7 +32,8 @@ class ProviderController extends Controller
         private AuthService $authService,
         private EmailService $emailService,
         private PhoneBlacklistService $phoneBlacklistService,
-        private ProviderInviteService $providerInviteService
+        private ProviderInviteService $providerInviteService,
+        private AdminActivityService $adminActivityService,
     )
     {
     }
@@ -307,6 +309,21 @@ class ProviderController extends Controller
 
         $this->emailService->sendWelcomeProvider($user);
         $this->emailService->sendNewProviderAdminNotification($user);
+        $this->adminActivityService->record(
+            'provider_application_created',
+            'New provider application',
+            "{$user->providerProfile?->company_name} submitted a provider application.",
+            '/admin/providers',
+            ProviderProfile::class,
+            (int) $user->providerProfile->id,
+            [
+                'business_name' => $user->providerProfile?->company_name,
+                'email' => $user->email,
+                'provider_id' => $user->providerProfile?->id,
+                'service_type' => $data['service_type'],
+                'user_id' => $user->id,
+            ],
+        );
 
         return response()->json([
             'message' => 'Provider registration received. We will review your application and contact you by email.',

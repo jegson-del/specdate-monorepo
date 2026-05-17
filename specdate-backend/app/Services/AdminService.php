@@ -56,6 +56,19 @@ class AdminService
             throw new HttpException(403, 'Admin account is awaiting approval.');
         }
 
+        if ($this->shouldBypassLoginOtp($user)) {
+            Log::info('Admin login OTP bypass used for review account', [
+                'user_id' => $user->id,
+                'email' => $user->email,
+            ]);
+
+            return [
+                'requires_otp' => false,
+                'user' => $this->adminPayload($user),
+                'token' => $user->createToken('admin_dashboard')->plainTextToken,
+            ];
+        }
+
         $sent = $this->authService->sendOtp('email', $user->email);
         if (!($sent['success'] ?? false)) {
             Log::warning('Admin login OTP email failed', [
@@ -291,5 +304,16 @@ class AdminService
     private function adminLoginAttemptKey(string $challenge): string
     {
         return 'admin_login_attempts:' . hash('sha256', $challenge);
+    }
+
+    private function shouldBypassLoginOtp(User $user): bool
+    {
+        if (!config('admin.login_otp.review_bypass_enabled', false)) {
+            return false;
+        }
+
+        $bypassEmail = strtolower(trim((string) config('admin.login_otp.review_bypass_email', '')));
+
+        return $bypassEmail !== '' && hash_equals($bypassEmail, strtolower($user->email));
     }
 }

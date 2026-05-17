@@ -12,6 +12,7 @@ import type {
   AdminFinancialVoucherSummary,
   AdminAccess,
   AdminAccessPermission,
+  AdminActivityFeed,
   AdminInvite,
   AdminContactMessage,
   AdminContactThread,
@@ -73,6 +74,7 @@ export type AdminLoginChallenge = {
 }
 
 export type AdminLoginSession = {
+  requires_otp?: false
   user: AdminUser
   token: string
 }
@@ -127,7 +129,7 @@ export async function adminLogin(email: string, password: string) {
     },
     body: JSON.stringify({ email, password }),
   })
-  const result = (await parseJson(response)) as ApiEnvelope<AdminLoginChallenge> | null
+  const result = (await parseJson(response)) as ApiEnvelope<AdminLoginResult> | null
 
   if (!response.ok || !result) {
     throw new Error(pickApiError(result, 'Check the admin email and password.'))
@@ -183,6 +185,20 @@ export async function getAdminDashboard(token: string) {
 
   if (!response.ok || !result) {
     throw new Error(pickApiError(result, 'Dashboard data could not be loaded.'))
+  }
+
+  return result.data
+}
+
+export async function getAdminActivity(token: string, limit = 25) {
+  const query = new URLSearchParams({ limit: String(limit) })
+  const response = await fetch(`${getApiBase()}/api/admin/activity?${query.toString()}`, {
+    headers: adminHeaders(token),
+  })
+  const result = (await parseJson(response)) as ApiEnvelope<AdminActivityFeed> | null
+
+  if (!response.ok || !result) {
+    throw new Error(pickApiError(result, 'Admin activity could not be loaded.'))
   }
 
   return result.data

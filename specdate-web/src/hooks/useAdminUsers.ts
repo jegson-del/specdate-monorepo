@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useAlert } from '../components/AlertProvider'
+import { useAdminToken } from './useAdminToken'
 import {
-  adminTokenKey,
   banAdminUser,
   getAdminUser,
   getAdminUsers,
@@ -16,7 +16,7 @@ import type { AdminUserRole, AdminUserStatus } from '../types/admin'
 export function useAdminUsers() {
   const { showAlert } = useAlert()
   const queryClient = useQueryClient()
-  const [token] = useState(() => localStorage.getItem(adminTokenKey) || '')
+  const token = useAdminToken()
   const [query, setQuery] = useState('')
   const [role, setRole] = useState<AdminUserRole>('all')
   const [status, setStatus] = useState<AdminUserStatus>('all')

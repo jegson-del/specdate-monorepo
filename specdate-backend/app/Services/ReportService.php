@@ -23,6 +23,7 @@ class ReportService
         private MediaService $mediaService,
         private ModerationCaseService $moderationCaseService,
         private ReporterRiskService $reporterRiskService,
+        private AdminActivityService $adminActivityService,
     )
     {
     }
@@ -38,7 +39,7 @@ class ReportService
             throw new HttpException(422, 'You cannot report your own content.');
         }
 
-        return DB::transaction(function () use ($reporter, $reportedUserId, $targetType, $targetId, $data) {
+        $report = DB::transaction(function () use ($reporter, $reportedUserId, $targetType, $targetId, $data) {
             $report = Report::create([
                 'reporter_id' => $reporter->id,
                 'reporter_ip_address' => $data['reporter_ip_address'] ?? null,
@@ -55,6 +56,24 @@ class ReportService
 
             return $report;
         });
+
+        $this->adminActivityService->record(
+            'report_created',
+            'New moderation report',
+            "A {$targetType} report needs review.",
+            '/admin/moderation',
+            Report::class,
+            (int) $report->id,
+            [
+                'reason' => $report->reason,
+                'reported_user_id' => $report->reported_user_id,
+                'reporter_id' => $reporter->id,
+                'target_id' => $targetId,
+                'target_type' => $targetType,
+            ],
+        );
+
+        return $report;
     }
 
     public function index(User $admin, ?string $status, int $perPage): LengthAwarePaginator

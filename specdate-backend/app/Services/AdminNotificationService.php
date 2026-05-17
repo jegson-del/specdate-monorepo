@@ -8,7 +8,10 @@ use App\Models\User;
 
 class AdminNotificationService
 {
-    public function __construct(private NotificationService $notificationService)
+    public function __construct(
+        private NotificationService $notificationService,
+        private AdminActivityService $adminActivityService,
+    )
     {
     }
 
@@ -48,5 +51,20 @@ class AdminNotificationService
                 $title,
                 $message
             ));
+
+        $this->adminActivityService->record(
+            'media_needs_review',
+            $title,
+            $message,
+            '/admin/media-moderation',
+            Media::class,
+            (int) $media->id,
+            [
+                'event' => $event,
+                'media_id' => $media->id,
+                'media_type' => $media->type,
+                'moderation_status' => $media->moderation_status,
+            ],
+        );
     }
 }

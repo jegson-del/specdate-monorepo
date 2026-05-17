@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useAlert } from '../components/AlertProvider'
+import { useAdminToken } from './useAdminToken'
 import {
-  adminTokenKey,
   deleteAdminContact,
   getAdminContactThread,
   getAdminContactTickets,
@@ -14,7 +14,7 @@ import type { AdminSupportTicketStatus } from '../types/admin'
 export function useAdminContact() {
   const { showAlert } = useAlert()
   const queryClient = useQueryClient()
-  const [token] = useState(() => localStorage.getItem(adminTokenKey) || '')
+  const token = useAdminToken()
   const [status, setStatusState] = useState<AdminSupportTicketStatus>('pending_admin')
   const [page, setPage] = useState(1)
   const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null)

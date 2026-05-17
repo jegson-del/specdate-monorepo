@@ -24,9 +24,13 @@ class AdminController extends Controller
         ]);
 
         try {
+            $result = $this->adminService->login($credentials);
+
             return $this->sendResponse(
-                $this->adminService->login($credentials),
-                'Admin verification code sent.'
+                $result,
+                ($result['requires_otp'] ?? false)
+                    ? 'Admin verification code sent.'
+                    : 'Admin logged in successfully.'
             );
         } catch (HttpException $e) {
             return $this->sendError($e->getMessage(), [], $e->getStatusCode());

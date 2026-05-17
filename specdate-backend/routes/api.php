@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AdminActivityController;
 use App\Http\Controllers\AdminFinancialsController;
 use App\Http\Controllers\AdminInviteController;
 use App\Http\Controllers\AdminManagementController;
@@ -107,6 +108,7 @@ Route::middleware(['auth:sanctum', 'device.fingerprint'])->group(function () {
     Route::patch('/admin/moderation/appeals/{appeal}', [ModerationAppealController::class, 'adminUpdate']);
     Route::get('/admin/me', [AdminController::class, 'me']);
     Route::get('/admin/dashboard', [AdminController::class, 'dashboard']);
+    Route::get('/admin/activity', [AdminActivityController::class, 'index']);
     Route::get('/admin/financials/vouchers', [AdminFinancialsController::class, 'vouchers']);
     Route::get('/admin/financials/credits', [AdminFinancialsController::class, 'credits']);
     Route::get('/admin/risk/users', [AdminRiskController::class, 'users']);

@@ -14,3 +14,7 @@ Broadcast::channel('spec.{specId}', function ($user, $specId) {
 Broadcast::channel('chat.{threadId}', function ($user, $threadId) {
     return app(\App\Services\ChatService::class)->userCanAccessThread($user, (int) $threadId);
 });
+
+Broadcast::channel('admin.dashboard', function ($user) {
+    return $user?->role === 'admin';
+});

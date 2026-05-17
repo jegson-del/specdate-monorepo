@@ -5,9 +5,12 @@ namespace Tests\Feature;
 use App\Mail\OtpMail;
 use App\Models\AdminAccess;
 use App\Models\User;
+use Database\Seeders\AdminSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class AdminLoginOtpTest extends TestCase
@@ -118,6 +121,87 @@ class AdminLoginOtpTest extends TestCase
         ])->assertForbidden();
 
         Mail::assertNothingSent();
+    }
+
+    public function test_review_admin_can_bypass_login_otp_when_env_flag_is_enabled(): void
+    {
+        Mail::fake();
+        Config::set('admin.login_otp.review_bypass_enabled', true);
+        Config::set('admin.login_otp.review_bypass_email', 'tayojegede1981@gmail.com');
+
+        $admin = $this->approvedAdmin([
+            'email' => 'tayojegede1981@gmail.com',
+        ]);
+
+        $this->postJson('/api/admin/login', [
+            'email' => $admin->email,
+            'password' => 'password',
+        ])
+            ->assertOk()
+            ->assertJsonPath('message', 'Admin logged in successfully.')
+            ->assertJsonPath('data.requires_otp', false)
+            ->assertJsonPath('data.user.email', $admin->email)
+            ->assertJsonStructure(['data' => ['token']]);
+
+        Mail::assertNothingSent();
+        $this->assertFalse(Cache::has('otp:email:' . strtolower($admin->email)));
+    }
+
+    public function test_review_admin_still_requires_login_otp_when_env_flag_is_disabled(): void
+    {
+        Mail::fake();
+        Config::set('admin.login_otp.review_bypass_enabled', false);
+        Config::set('admin.login_otp.review_bypass_email', 'tayojegede1981@gmail.com');
+
+        $admin = $this->approvedAdmin([
+            'email' => 'tayojegede1981@gmail.com',
+        ]);
+
+        $this->postJson('/api/admin/login', [
+            'email' => $admin->email,
+            'password' => 'password',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.requires_otp', true)
+            ->assertJsonMissingPath('data.token');
+
+        Mail::assertSent(OtpMail::class, fn (OtpMail $mail) => $mail->hasTo($admin->email));
+    }
+
+    public function test_review_otp_bypass_does_not_apply_to_other_admins(): void
+    {
+        Mail::fake();
+        Config::set('admin.login_otp.review_bypass_enabled', true);
+        Config::set('admin.login_otp.review_bypass_email', 'tayojegede1981@gmail.com');
+
+        $admin = $this->approvedAdmin([
+            'email' => 'other-admin@example.com',
+        ]);
+
+        $this->postJson('/api/admin/login', [
+            'email' => $admin->email,
+            'password' => 'password',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.requires_otp', true)
+            ->assertJsonMissingPath('data.token');
+
+        Mail::assertSent(OtpMail::class, fn (OtpMail $mail) => $mail->hasTo($admin->email));
+    }
+
+    public function test_admin_seeder_grants_all_current_admin_access_permissions(): void
+    {
+        $this->seed(AdminSeeder::class);
+
+        $admin = User::where('email', 'tayojegede1981@gmail.com')->firstOrFail();
+        $access = $admin->adminAccess()->firstOrFail();
+        $permissions = collect(Schema::getColumnListing('admin_accesses'))
+            ->filter(fn (string $column) => str_starts_with($column, 'can_'))
+            ->values();
+
+        $this->assertSame('admin', $admin->role);
+        $this->assertNotNull($access->approved_at);
+        $permissions->each(fn (string $permission) => $this->assertTrue((bool) $access->{$permission}, $permission));
     }
 
     private function approvedAdmin(array $attributes = []): User

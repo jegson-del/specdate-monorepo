@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useAlert } from '../components/AlertProvider'
+import { useAdminToken } from './useAdminToken'
 import {
-  adminTokenKey,
   createAdminSuccessStory,
   deleteAdminSuccessStory,
   getAdminSuccessStories,
@@ -16,7 +16,7 @@ import type {
 export function useAdminSuccessStories() {
   const { showAlert } = useAlert()
   const queryClient = useQueryClient()
-  const [token] = useState(() => localStorage.getItem(adminTokenKey) || '')
+  const token = useAdminToken()
   const [status, setStatusState] = useState<AdminSuccessStoryStatus>('all')
   const [page, setPage] = useState(1)
 

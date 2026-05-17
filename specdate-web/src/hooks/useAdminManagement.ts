@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useAlert } from '../components/AlertProvider'
+import { useAdminToken } from './useAdminToken'
 import {
-  adminTokenKey,
   approveAdminInvite,
   createAdminInvite,
   getAdminAccessPermissions,
@@ -16,7 +16,7 @@ import type { AdminAccess } from '../types/admin'
 export function useAdminManagement() {
   const { showAlert } = useAlert()
   const queryClient = useQueryClient()
-  const [token] = useState(() => localStorage.getItem(adminTokenKey) || '')
+  const token = useAdminToken()
   const [query, setQuery] = useState('')
   const [inviteQuery, setInviteQuery] = useState('')
   const [page, setPage] = useState(1)

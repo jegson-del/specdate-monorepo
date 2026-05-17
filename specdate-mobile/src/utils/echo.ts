@@ -2,8 +2,13 @@ import Echo from 'laravel-echo';
 import Pusher from 'pusher-js';
 import { getApiBaseUrl, getAuthToken } from '../services/api';
 
+declare global {
+    // eslint-disable-next-line no-var
+    var Pusher: typeof import('pusher-js').default;
+}
+
 // Required for laravel-echo to find the globally available Pusher library
-(global as any).Pusher = Pusher;
+globalThis.Pusher = Pusher;
 
 // Key and cluster must match backend .env (PUSHER_APP_KEY, PUSHER_APP_CLUSTER) for real-time RoundAnswered / RoundStarted
 export const echo = new Echo({

@@ -51,6 +51,24 @@ export type DashboardData = {
   recent_providers: ProviderApplication[]
 }
 
+export type AdminActivityEvent = {
+  id: number
+  type: string
+  title: string
+  body: string | null
+  route: string | null
+  source_type: string | null
+  source_id: number | null
+  metadata: Record<string, unknown>
+  counts?: Record<string, number>
+  created_at: string
+}
+
+export type AdminActivityFeed = {
+  counts: Record<string, number>
+  items: AdminActivityEvent[]
+}
+
 export type AdminReportStatus = 'all' | 'open' | 'reviewing' | 'resolved' | 'dismissed'
 
 export type AdminReportAction = 'none' | 'hide_content' | 'suspend_user' | 'delete_media'

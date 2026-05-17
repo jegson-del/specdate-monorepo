@@ -45,6 +45,7 @@ export default function AdminPage() {
       <StatGrid stats={adminDashboard.dashboard?.stats ?? {}} />
       <AnalyticsPanels dashboard={adminDashboard.dashboard} />
       <ActivityFeed
+        activities={adminDashboard.activityItems}
         providers={adminDashboard.providers}
         reports={adminDashboard.reports}
         supportTickets={adminDashboard.supportTickets}
