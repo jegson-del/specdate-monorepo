@@ -172,6 +172,7 @@ class AdminLargeListPaginationTest extends TestCase
         AdminAccess::create([
             'admin_id' => $admin->id,
             'can_manage_admin_users' => true,
+            'approved_at' => now(),
         ]);
 
         return $admin;

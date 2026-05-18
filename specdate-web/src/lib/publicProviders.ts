@@ -1,3 +1,5 @@
+import { getApiOrigin } from './apiBase'
+
 export type PublicProviderCategory = {
   id: number
   name: string
@@ -45,7 +47,7 @@ type Paginated<T> = {
 const fallbackImage = '/bg.png'
 
 export function publicApiBase() {
-  return (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+  return getApiOrigin()
 }
 
 export function providerImage(provider: PublicProvider) {

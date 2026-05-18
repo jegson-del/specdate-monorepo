@@ -1,3 +1,5 @@
+import { getApiOrigin } from './apiBase'
+
 export type ProviderRegistrationPayload = {
   business_name: string
   service_type: string
@@ -21,7 +23,7 @@ export type ProviderRegistrationErrorResponse = {
 export const PROVIDER_REGISTRATION_STORAGE_KEY = 'dateusher.providerRegistration.pending'
 
 export function getApiBase() {
-  return (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+  return getApiOrigin()
 }
 
 export function extractProviderRegistrationError(result: unknown, fallback: string) {

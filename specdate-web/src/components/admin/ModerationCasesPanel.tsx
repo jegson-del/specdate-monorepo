@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import type {
   AdminModerationCase,
   AdminModerationCaseDetail,
@@ -126,6 +126,7 @@ export function ModerationCasesPanel({
           </table>
         </div>
         <CaseDetailPanel
+          key={selectedCase?.id ?? 'empty'}
           selectedCase={selectedCase}
           onUpdateCaseStatus={onUpdateCaseStatus}
           updatingCaseId={updatingCaseId}
@@ -206,10 +207,6 @@ function CaseDetailPanel({
   updatingCaseId: number | null
 }) {
   const [decisionNote, setDecisionNote] = useState('')
-
-  useEffect(() => {
-    setDecisionNote('')
-  }, [selectedCase?.id])
 
   if (!selectedCase) {
     return (

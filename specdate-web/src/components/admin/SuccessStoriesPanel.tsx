@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type {
   AdminPagination,
   AdminSuccessStory,
@@ -101,6 +101,7 @@ export function SuccessStoriesPanel({
       </div>
 
       <StoryForm
+        key={editingStory?.id ?? 'new'}
         editingStory={editingStory}
         onCancelEdit={() => setEditingStory(null)}
         onCreate={onCreate}
@@ -195,29 +196,7 @@ function StoryForm({
   onCreate: (payload: AdminSuccessStoryPayload) => void
   onUpdate: (storyId: number, payload: Partial<AdminSuccessStoryPayload>) => void
 }) {
-  const [form, setForm] = useState<StoryFormState>(emptyForm)
-
-  useEffect(() => {
-    if (!editingStory) {
-      setForm(emptyForm)
-      return
-    }
-
-    setForm({
-      attribution: editingStory.attribution ?? '',
-      body: editingStory.body,
-      image_url: editingStory.image_url ?? '',
-      is_featured: editingStory.is_featured,
-      location: editingStory.location ?? '',
-      provider_profile_id: editingStory.provider_profile_id ? String(editingStory.provider_profile_id) : '',
-      published_at: toDateTimeLocal(editingStory.published_at),
-      rating: editingStory.rating ? String(editingStory.rating) : '',
-      sort_order: String(editingStory.sort_order),
-      status: editingStory.status,
-      story_type: editingStory.story_type,
-      title: editingStory.title,
-    })
-  }, [editingStory])
+  const [form, setForm] = useState<StoryFormState>(() => storyToForm(editingStory))
 
   const canSubmit = form.title.trim().length >= 3 && form.body.trim().length >= 10
 
@@ -351,6 +330,27 @@ function formPayload(form: StoryFormState): AdminSuccessStoryPayload {
     status: form.status,
     story_type: form.story_type.trim() || 'date',
     title: form.title.trim(),
+  }
+}
+
+function storyToForm(story: AdminSuccessStory | null): StoryFormState {
+  if (!story) {
+    return emptyForm
+  }
+
+  return {
+    attribution: story.attribution ?? '',
+    body: story.body,
+    image_url: story.image_url ?? '',
+    is_featured: story.is_featured,
+    location: story.location ?? '',
+    provider_profile_id: story.provider_profile_id ? String(story.provider_profile_id) : '',
+    published_at: toDateTimeLocal(story.published_at),
+    rating: story.rating ? String(story.rating) : '',
+    sort_order: String(story.sort_order),
+    status: story.status,
+    story_type: story.story_type,
+    title: story.title,
   }
 }
 

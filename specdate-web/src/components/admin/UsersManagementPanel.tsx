@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type {
   AdminManagedUser,
   AdminPagination,
@@ -123,6 +123,7 @@ export function UsersManagementPanel({
           </table>
         </div>
         <UserDetailPanel
+          key={selectedUser?.id ?? 'empty'}
           isUpdating={Boolean(selectedUserId && actionUserId === selectedUserId)}
           onSaveNote={onSaveNote}
           onUpdateUserStatus={onUpdateUserStatus}
@@ -189,13 +190,8 @@ function UserDetailPanel({
   onUpdateUserStatus: UsersManagementPanelProps['onUpdateUserStatus']
   user: AdminManagedUser | null
 }) {
-  const [note, setNote] = useState('')
-  const [banReason, setBanReason] = useState('')
-
-  useEffect(() => {
-    setNote(user?.admin_note ?? '')
-    setBanReason(user?.ban_reason ?? '')
-  }, [user])
+  const [note, setNote] = useState(user?.admin_note ?? '')
+  const [banReason, setBanReason] = useState(user?.ban_reason ?? '')
 
   if (!user) {
     return (

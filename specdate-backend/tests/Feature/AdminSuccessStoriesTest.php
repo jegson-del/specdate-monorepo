@@ -35,6 +35,7 @@ class AdminSuccessStoriesTest extends TestCase
         AdminAccess::create([
             'admin_id' => $admin->id,
             'can_manage_success_stories' => true,
+            'approved_at' => now(),
         ]);
         $providerUser = User::factory()->create(['role' => 'provider']);
         $provider = ProviderProfile::create([
@@ -91,6 +92,7 @@ class AdminSuccessStoriesTest extends TestCase
         AdminAccess::create([
             'admin_id' => $admin->id,
             'can_manage_success_stories' => true,
+            'approved_at' => now(),
         ]);
 
         Sanctum::actingAs($admin);

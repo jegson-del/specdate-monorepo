@@ -49,6 +49,7 @@ import type {
   ProviderApplication,
   ProviderApplicationStatus,
 } from '../types/admin'
+import { getApiOrigin } from './apiBase'
 
 type ApiEnvelope<T> = {
   success: boolean
@@ -107,7 +108,7 @@ export type AdminFinancialCreditFilters = {
 export const adminTokenKey = 'dateusher_admin_token'
 
 export function getApiBase() {
-  return (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+  return getApiOrigin()
 }
 
 export function pickApiError(result: unknown, fallback: string) {

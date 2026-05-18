@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { AdminPagination, ProviderApplication, ProviderApplicationStatus } from '../../types/admin'
 import { AdminPaginationBar, AdminPaginationSummary } from './AdminPaginationBar'
 
@@ -95,6 +95,7 @@ export function ProviderApplicationsTable({
           </table>
         </div>
         <ProviderDetailPanel
+          key={selectedProvider?.id ?? 'empty'}
           isUpdating={Boolean(selectedProviderId && updatingProviderId === selectedProviderId)}
           onApprove={onApprove}
           onReject={onReject}
@@ -178,13 +179,8 @@ function ProviderDetailPanel({
   onSaveNote: (providerId: number, note: string) => void
   provider: ProviderApplication | null
 }) {
-  const [adminNote, setAdminNote] = useState('')
-  const [rejectReason, setRejectReason] = useState('')
-
-  useEffect(() => {
-    setAdminNote(provider?.admin_note ?? '')
-    setRejectReason(provider?.rejection_reason ?? '')
-  }, [provider])
+  const [adminNote, setAdminNote] = useState(provider?.admin_note ?? '')
+  const [rejectReason, setRejectReason] = useState(provider?.rejection_reason ?? '')
 
   if (!provider) {
     return (

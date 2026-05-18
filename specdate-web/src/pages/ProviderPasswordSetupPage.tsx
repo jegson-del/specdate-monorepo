@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link, useSearchParams } from 'react-router-dom'
 import { AppDownload } from '../components/AppDownload'
+import { getApiOrigin } from '../lib/apiBase'
 import {
   providerPasswordSetupSchema,
   type ProviderPasswordSetupInput,
@@ -38,7 +39,7 @@ export default function ProviderPasswordSetupPage() {
     mode: 'onTouched',
   })
 
-  const apiBase = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+  const apiBase = getApiOrigin()
   const hasLinkData = Boolean(email && token)
 
   const extractErrorMessage = (result: unknown) => {

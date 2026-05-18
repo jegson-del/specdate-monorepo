@@ -11,30 +11,35 @@ import { Seo } from '../components/Seo'
 
 export default function ProviderDetailPage() {
   const { providerId = '' } = useParams()
-  const [provider, setProvider] = useState<PublicProvider | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [state, setState] = useState<{
+    error: string | null
+    provider: PublicProvider | null
+    providerId: string
+    status: 'loading' | 'loaded' | 'error'
+  }>({
+    error: null,
+    provider: null,
+    providerId,
+    status: 'loading',
+  })
 
   useEffect(() => {
     let cancelled = false
-    setIsLoading(true)
-    setError(null)
 
     fetchPublicProvider(providerId)
       .then((result) => {
         if (!cancelled) {
-          setProvider(result)
+          setState({ error: null, provider: result, providerId, status: 'loaded' })
         }
       })
       .catch((err) => {
         if (!cancelled) {
-          setProvider(null)
-          setError(err instanceof Error ? err.message : 'Provider could not be loaded.')
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setIsLoading(false)
+          setState({
+            error: err instanceof Error ? err.message : 'Provider could not be loaded.',
+            provider: null,
+            providerId,
+            status: 'error',
+          })
         }
       })
 
@@ -42,6 +47,9 @@ export default function ProviderDetailPage() {
       cancelled = true
     }
   }, [providerId])
+
+  const isLoading = state.providerId !== providerId || state.status === 'loading'
+  const { error, provider } = state
 
   if (isLoading) {
     return <ProviderShell body={<div className="h-[70vh] animate-pulse rounded-lg bg-white/10" />} />

@@ -37,6 +37,7 @@ class AdminContactTest extends TestCase
         AdminAccess::create([
             'admin_id' => $admin->id,
             'can_manage_contact_messages' => true,
+            'approved_at' => now(),
         ]);
         $ticket = SupportTicket::create([
             'user_id' => null,
