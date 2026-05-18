@@ -1,10 +1,11 @@
 import React from 'react';
 import { Alert, FlatList } from 'react-native';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
 import { UploadProgressState } from '../../../components';
 import { ChatMessage, ChatService } from '../../../services/chat';
 import {
+  MediaItem,
   MediaModerationError,
   MediaService,
   moderationFailureMessage,
@@ -12,19 +13,42 @@ import {
 } from '../../../services/media';
 import { confirmMediaShareWithAiScan } from '../../../utils/confirmMediaShareWithAiScan';
 import { useRoundAudioRecorder, type RoundMediaAsset } from '../../specs/components';
+import { useAppendChatMessage } from './useChatMessageCache';
+
+type ReviewableChatAsset = RoundMediaAsset & { assetType: 'image' | 'video' };
+
+type NeedsReviewDraftInput = {
+  asset: ReviewableChatAsset;
+  media: MediaItem;
+  uploadType: MediaUploadType;
+  moderationStatus?: string | null;
+};
 
 type UseSendChatMessageParams = {
   listRef: React.RefObject<FlatList<ChatMessage> | null>;
+  onNeedsReviewDraft?: (draft: NeedsReviewDraftInput) => void;
   shouldAutoScrollRef: React.MutableRefObject<boolean>;
   threadId: number | string | undefined;
 };
 
+function isReviewableChatAsset(asset: RoundMediaAsset): asset is ReviewableChatAsset {
+  return asset.assetType === 'image' || asset.assetType === 'video';
+}
+
+function canSendReviewedChatMedia(asset: RoundMediaAsset, media: Pick<MediaItem, 'moderation_status'>) {
+  return (
+    media.moderation_status === 'approved' ||
+    (asset.assetType === 'audio' && media.moderation_status === 'manual_pending')
+  );
+}
+
 export function useSendChatMessage({
   listRef,
+  onNeedsReviewDraft,
   shouldAutoScrollRef,
   threadId,
 }: UseSendChatMessageParams) {
-  const queryClient = useQueryClient();
+  const appendChatMessage = useAppendChatMessage({ listRef, shouldAutoScrollRef, threadId });
   const [mediaSending, setMediaSending] = React.useState(false);
   const [mediaProgress, setMediaProgress] = React.useState<UploadProgressState>(null);
 
@@ -32,29 +56,14 @@ export function useSendChatMessage({
     mutationFn: ({ body, mediaId }: { body: string; mediaId?: number }) =>
       ChatService.sendMessage(threadId!, body, mediaId),
     onSuccess: (res) => {
-      shouldAutoScrollRef.current = true;
-      queryClient.setQueryData(['chat-thread', String(threadId)], (current: any) => {
-        if (!current?.data) return current;
-        const exists = current.data.messages?.some(
-          (message: ChatMessage) => Number(message.id) === Number(res.data.id),
-        );
-        if (exists) return current;
-        return {
-          ...current,
-          data: {
-            ...current.data,
-            messages: [...(current.data.messages || []), res.data],
-          },
-        };
-      });
-      queryClient.invalidateQueries({ queryKey: ['chat-threads'] });
-      requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
+      appendChatMessage(res.data);
     },
   });
 
   const sendMediaAsset = React.useCallback(
     async (asset: RoundMediaAsset) => {
       let keepProgressOpen = false;
+      let uploaded: MediaItem | null = null;
       try {
         const confirmed = await confirmMediaShareWithAiScan();
         if (!confirmed) {
@@ -71,7 +80,7 @@ export function useSendChatMessage({
           title: 'Uploading media',
           message: `Uploading your ${asset.assetType === 'video' ? 'video' : asset.assetType === 'audio' ? 'voice note' : 'image'}.`,
         });
-        const uploaded = await MediaService.upload(asset.uri, uploadType, null, asset.mimeType);
+        uploaded = await MediaService.upload(asset.uri, uploadType, null, asset.mimeType);
         setMediaProgress({
           title: 'Reviewing media',
           message: `Checking your ${asset.assetType === 'video' ? 'video' : asset.assetType === 'audio' ? 'voice note' : 'image'} before it is sent.`,
@@ -79,12 +88,26 @@ export function useSendChatMessage({
         const reviewed = await MediaService.waitForModeration(uploaded, {
           returnLatestOnTimeout: asset.assetType === 'video',
         });
-        if (!MediaService.isAllowedToShare(reviewed)) {
+        if (!canSendReviewedChatMedia(asset, reviewed)) {
+          if (isReviewableChatAsset(asset)) {
+            onNeedsReviewDraft?.({
+              asset,
+              media: reviewed,
+              uploadType,
+              moderationStatus: reviewed.moderation_status ?? 'reviewing',
+            });
+            Alert.alert(
+              'Waiting for approval',
+              'This media is under review. If an admin approves it, Send now will appear in this chat.',
+            );
+            return;
+          }
+
           keepProgressOpen = true;
           setMediaProgress({
-            title: 'Still reviewing',
-            message: moderationFailureMessage('reviewing'),
-            status: 'reviewing',
+            title: 'Media not sent',
+            message: moderationFailureMessage(String(reviewed.moderation_status ?? 'failed')),
+            status: 'error',
             dismissLabel: 'OK',
             onDismiss: () => setMediaProgress(null),
           });
@@ -96,7 +119,24 @@ export function useSendChatMessage({
         });
         await sendMutation.mutateAsync({ body: '', mediaId: reviewed.id });
       } catch (e: any) {
-        if (e instanceof MediaModerationError || ['flagged', 'failed', 'timeout'].includes(String(e?.status ?? ''))) {
+        const moderationStatus = String(e?.status ?? '');
+        const isModerationIssue =
+          e instanceof MediaModerationError || ['flagged', 'failed', 'timeout'].includes(moderationStatus);
+
+        if (isModerationIssue && uploaded && isReviewableChatAsset(asset)) {
+          const uploadedMedia = uploaded;
+          const latest = await MediaService.fetchById(uploadedMedia.id).catch(() => uploadedMedia);
+          onNeedsReviewDraft?.({
+            asset,
+            media: latest,
+            uploadType: uploadedMedia.type ?? (asset.assetType === 'video' ? 'chat_video' : 'chat_image'),
+            moderationStatus: latest.moderation_status ?? moderationStatus,
+          });
+          Alert.alert(
+            'Waiting for approval',
+            'This media is under review. If an admin approves it, Send now will appear in this chat.',
+          );
+        } else if (isModerationIssue) {
           keepProgressOpen = true;
           setMediaProgress({
             title: 'Media not sent',
@@ -115,7 +155,7 @@ export function useSendChatMessage({
         setMediaSending(false);
       }
     },
-    [sendMutation],
+    [onNeedsReviewDraft, sendMutation],
   );
 
   const pickChatMedia = React.useCallback(

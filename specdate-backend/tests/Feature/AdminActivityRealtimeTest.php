@@ -7,6 +7,7 @@ use App\Models\AdminActivityEvent;
 use App\Models\User;
 use App\Services\AdminActivityService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Event;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -76,5 +77,32 @@ class AdminActivityRealtimeTest extends TestCase
                     ],
                 ],
             ]);
+    }
+
+    public function test_admin_dashboard_broadcast_channel_uses_sanctum_auth(): void
+    {
+        config([
+            'broadcasting.default' => 'pusher',
+            'broadcasting.connections.pusher.key' => 'testing-key',
+            'broadcasting.connections.pusher.secret' => 'testing-secret',
+            'broadcasting.connections.pusher.app_id' => 'testing-app',
+        ]);
+        Broadcast::purge('pusher');
+        require base_path('routes/channels.php');
+
+        $this->postJson('/broadcasting/auth', [
+            'channel_name' => 'private-admin.dashboard',
+            'socket_id' => '123.456',
+        ])->assertUnauthorized();
+
+        $adminToken = User::factory()
+            ->create(['role' => 'admin'])
+            ->createToken('test-admin')
+            ->plainTextToken;
+
+        $this->withToken($adminToken)->postJson('/broadcasting/auth', [
+            'channel_name' => 'private-admin.dashboard',
+            'socket_id' => '123.456',
+        ])->assertOk();
     }
 }

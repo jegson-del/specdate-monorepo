@@ -101,6 +101,69 @@ class ProviderChatTest extends TestCase
             ->assertJsonPath('message', 'This file could not be sent. Please choose a different file.');
     }
 
+    public function test_chat_rejects_manual_pending_image_media(): void
+    {
+        $customer = User::factory()->create();
+        $provider = User::factory()->create(['role' => 'provider']);
+        $thread = ChatThread::create([
+            'type' => 'provider',
+            'owner_id' => $customer->id,
+            'winner_user_id' => $provider->id,
+            'customer_id' => $customer->id,
+            'provider_id' => $provider->id,
+        ]);
+        $media = Media::create([
+            'user_id' => $customer->id,
+            'file_path' => 'uploads/chat/manual-review.jpg',
+            'url' => 'https://example.com/manual-review.jpg',
+            'type' => 'chat_image',
+            'mime_type' => 'image/jpeg',
+            'size' => 1234,
+            'moderation_status' => 'manual_pending',
+        ]);
+
+        Sanctum::actingAs($customer);
+
+        $this->postJson("/api/chats/{$thread->id}/messages", [
+            'media_id' => $media->id,
+        ])->assertStatus(422)
+            ->assertJsonPath('message', 'This file could not be sent. Please choose a different file.');
+    }
+
+    public function test_chat_allows_admin_approved_image_media(): void
+    {
+        $customer = User::factory()->create();
+        $provider = User::factory()->create(['role' => 'provider']);
+        $thread = ChatThread::create([
+            'type' => 'provider',
+            'owner_id' => $customer->id,
+            'winner_user_id' => $provider->id,
+            'customer_id' => $customer->id,
+            'provider_id' => $provider->id,
+        ]);
+        $media = Media::create([
+            'user_id' => $customer->id,
+            'file_path' => 'uploads/chat/approved.jpg',
+            'url' => 'https://example.com/approved.jpg',
+            'type' => 'chat_image',
+            'mime_type' => 'image/jpeg',
+            'size' => 1234,
+            'moderation_status' => 'approved',
+            'moderation_labels' => [
+                'admin_override' => [
+                    'action' => 'approved',
+                ],
+            ],
+        ]);
+
+        Sanctum::actingAs($customer);
+
+        $this->postJson("/api/chats/{$thread->id}/messages", [
+            'media_id' => $media->id,
+        ])->assertCreated()
+            ->assertJsonPath('data.media.id', $media->id);
+    }
+
     public function test_chat_allows_manual_pending_audio_media(): void
     {
         $customer = User::factory()->create();

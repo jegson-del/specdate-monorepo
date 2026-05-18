@@ -11,9 +11,11 @@ import ChatMediaPickerSheet from './components/ChatMediaPickerSheet';
 import ChatSafetySheet from './components/ChatSafetySheet';
 import MessageBubble from './components/MessageBubble';
 import MessageComposer from './components/MessageComposer';
+import PendingMediaDraftCard from './components/PendingMediaDraftCard';
 import { useChatRealtime } from './hooks/useChatRealtime';
 import { useChatSafetyActions } from './hooks/useChatSafetyActions';
 import { useChatThread } from './hooks/useChatThread';
+import { usePendingChatMediaDrafts } from './hooks/usePendingChatMediaDrafts';
 import { useSendChatMessage } from './hooks/useSendChatMessage';
 
 export default function ChatThreadScreen({ route, navigation }: any) {
@@ -37,6 +39,14 @@ export default function ChatThreadScreen({ route, navigation }: any) {
   } = useChatThread({ shouldAutoScrollRef, threadId });
 
   const {
+    addPendingDraft,
+    discardPendingDraft,
+    pendingDrafts,
+    sendingDraftId,
+    sendPendingDraft,
+  } = usePendingChatMediaDrafts({ listRef, shouldAutoScrollRef, threadId });
+
+  const {
     audioRecorder,
     mediaProgress,
     mediaSending,
@@ -44,7 +54,12 @@ export default function ChatThreadScreen({ route, navigation }: any) {
     recordChatVideo,
     sendMutation,
     takeChatPhoto,
-  } = useSendChatMessage({ listRef, shouldAutoScrollRef, threadId });
+  } = useSendChatMessage({
+    listRef,
+    onNeedsReviewDraft: addPendingDraft,
+    shouldAutoScrollRef,
+    threadId,
+  });
 
   useChatRealtime({
     listRef,
@@ -134,12 +149,29 @@ export default function ChatThreadScreen({ route, navigation }: any) {
           ) : null
         }
         ListEmptyComponent={
-          !isLoading ? (
+          !isLoading && pendingDrafts.length === 0 ? (
             <View style={styles.empty}>
               <Text style={[styles.emptyTitle, { color: theme.colors.onSurface }]}>Say hello</Text>
               <Text style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
                 {isProviderChat ? 'Start the conversation about your venue or booking.' : 'This chat opens after a confirmed spec date.'}
               </Text>
+            </View>
+          ) : null
+        }
+        ListFooterComponent={
+          pendingDrafts.length > 0 ? (
+            <View style={styles.pendingDrafts}>
+              {pendingDrafts.map((draft) => (
+                <PendingMediaDraftCard
+                  key={draft.id}
+                  draft={draft}
+                  isSending={sendingDraftId === draft.id}
+                  onDiscard={discardPendingDraft}
+                  onOpenVideo={setVideoViewerUri}
+                  onSend={sendPendingDraft}
+                  theme={theme}
+                />
+              ))}
             </View>
           ) : null
         }
@@ -284,5 +316,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     textAlign: 'center',
+  },
+  pendingDrafts: {
+    marginTop: 4,
   },
 });
