@@ -1,416 +1,78 @@
 import React from 'react';
-import { Alert, FlatList, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
-import { Avatar, IconButton, Text, useTheme } from 'react-native-paper';
+import { FlatList, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
+import { Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import * as ImagePicker from 'expo-image-picker';
-import { ChatArchive, ChatMessage, ChatService } from '../../services/chat';
-import { MediaModerationError, MediaService, moderationFailureMessage, type MediaUploadType } from '../../services/media';
-import { ModerationService, type ReportTargetType } from '../../services/moderation';
+import { ChatMessage } from '../../services/chat';
 import { useUser } from '../../hooks/useUser';
 import { toImageUri } from '../../utils/imageUrl';
-import { UploadProgressModal, VideoViewerModal, type UploadProgressState } from '../../components';
-import { confirmMediaShareWithAiScan } from '../../utils/confirmMediaShareWithAiScan';
-import { useRoundAudioRecorder, type RoundMediaAsset } from '../specs/components';
+import { UploadProgressModal, VideoViewerModal } from '../../components';
+import ChatHeader from './components/ChatHeader';
 import ChatMediaPickerSheet from './components/ChatMediaPickerSheet';
 import ChatSafetySheet from './components/ChatSafetySheet';
 import MessageBubble from './components/MessageBubble';
 import MessageComposer from './components/MessageComposer';
-
-type SafetySheetState =
-  | null
-  | { mode: 'actions'; userId: number; name: string }
-  | { mode: 'message_actions'; messageId: number; mediaId?: number }
-  | { mode: 'report'; targetType: ReportTargetType; targetId: number; label: string; userId?: number; name?: string }
-  | { mode: 'block'; userId: number; name: string }
-  | { mode: 'success'; title: string; subtitle: string; afterDismiss?: () => void };
+import { useChatRealtime } from './hooks/useChatRealtime';
+import { useChatSafetyActions } from './hooks/useChatSafetyActions';
+import { useChatThread } from './hooks/useChatThread';
+import { useSendChatMessage } from './hooks/useSendChatMessage';
 
 export default function ChatThreadScreen({ route, navigation }: any) {
   const threadId = route.params?.threadId;
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const queryClient = useQueryClient();
   const { data: user } = useUser();
   const listRef = React.useRef<FlatList<ChatMessage>>(null);
   const shouldAutoScrollRef = React.useRef(true);
-  const [mediaSending, setMediaSending] = React.useState(false);
   const [mediaSheet, setMediaSheet] = React.useState<'file' | 'camera' | null>(null);
   const [videoViewerUri, setVideoViewerUri] = React.useState<string | null>(null);
-  const [safetySheet, setSafetySheet] = React.useState<SafetySheetState>(null);
-  const [safetyLoading, setSafetyLoading] = React.useState(false);
-  const [safetyError, setSafetyError] = React.useState<string | null>(null);
-  const [loadingOlder, setLoadingOlder] = React.useState(false);
-  const [archives, setArchives] = React.useState<ChatArchive[] | null>(null);
-  const [nextArchiveIndex, setNextArchiveIndex] = React.useState(0);
-  const [archiveExhausted, setArchiveExhausted] = React.useState(false);
-  const [mediaProgress, setMediaProgress] = React.useState<UploadProgressState>(null);
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['chat-thread', String(threadId)],
-    queryFn: () => ChatService.getThread(threadId, { per_page: 25 }),
-    enabled: threadId != null,
+  const {
+    canLoadHotMessages,
+    canLoadOlder,
+    isLoading,
+    loadOlderMessages,
+    loadingOlder,
+    messages,
+    thread,
+  } = useChatThread({ shouldAutoScrollRef, threadId });
+
+  const {
+    audioRecorder,
+    mediaProgress,
+    mediaSending,
+    pickChatMedia,
+    recordChatVideo,
+    sendMutation,
+    takeChatPhoto,
+  } = useSendChatMessage({ listRef, shouldAutoScrollRef, threadId });
+
+  useChatRealtime({
+    listRef,
+    shouldAutoScrollRef,
+    threadId,
+    userId: user?.id,
   });
 
-  const sendMutation = useMutation({
-    mutationFn: ({ body, mediaId }: { body: string; mediaId?: number }) => ChatService.sendMessage(threadId, body, mediaId),
-    onSuccess: (res) => {
-      shouldAutoScrollRef.current = true;
-      queryClient.setQueryData(['chat-thread', String(threadId)], (current: any) => {
-        if (!current?.data) return current;
-        const exists = current.data.messages?.some((message: ChatMessage) => Number(message.id) === Number(res.data.id));
-        if (exists) return current;
-        return {
-          ...current,
-          data: {
-            ...current.data,
-            messages: [...(current.data.messages || []), res.data],
-          },
-        };
-      });
-      queryClient.invalidateQueries({ queryKey: ['chat-threads'] });
-      requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
-    },
-  });
+  const {
+    closeSafetySheet,
+    confirmBlock,
+    openBlockSheet,
+    openMessageActions,
+    openReportSheet,
+    openUserActions,
+    safetyError,
+    safetyLoading,
+    safetySheet,
+    submitReport,
+  } = useChatSafetyActions({ onBlockedDismiss: () => navigation.goBack() });
 
-  const sendMediaAsset = React.useCallback(async (asset: RoundMediaAsset) => {
-    let keepProgressOpen = false;
-    try {
-      const confirmed = await confirmMediaShareWithAiScan();
-      if (!confirmed) {
-        return;
-      }
-      setMediaSending(true);
-      const uploadType: MediaUploadType =
-        asset.assetType === 'audio' ? 'chat_audio' : asset.assetType === 'video' ? 'chat_video' : 'chat_image';
-      setMediaProgress({
-        title: 'Uploading media',
-        message: `Uploading your ${asset.assetType === 'video' ? 'video' : asset.assetType === 'audio' ? 'voice note' : 'image'}.`,
-      });
-      const uploaded = await MediaService.upload(asset.uri, uploadType, null, asset.mimeType);
-      setMediaProgress({
-        title: 'Reviewing media',
-        message: `Checking your ${asset.assetType === 'video' ? 'video' : asset.assetType === 'audio' ? 'voice note' : 'image'} before it is sent.`,
-      });
-      const reviewed = await MediaService.waitForModeration(uploaded, {
-        returnLatestOnTimeout: asset.assetType === 'video',
-      });
-      if (!MediaService.isAllowedToShare(reviewed)) {
-        keepProgressOpen = true;
-        setMediaProgress({
-          title: 'Still reviewing',
-          message: moderationFailureMessage('reviewing'),
-          status: 'reviewing',
-          dismissLabel: 'OK',
-          onDismiss: () => setMediaProgress(null),
-        });
-        return;
-      }
-      setMediaProgress({
-        title: 'Sending media',
-        message: 'Adding it to the chat.',
-      });
-      await sendMutation.mutateAsync({ body: '', mediaId: reviewed.id });
-    } catch (e: any) {
-      if (e instanceof MediaModerationError || ['flagged', 'failed', 'timeout'].includes(String(e?.status ?? ''))) {
-        keepProgressOpen = true;
-        setMediaProgress({
-          title: 'Media not sent',
-          message: e?.message || 'This file could not be sent. Please choose another file.',
-          status: 'error',
-          dismissLabel: 'OK',
-          onDismiss: () => setMediaProgress(null),
-        });
-      } else {
-        Alert.alert('Upload failed', e?.message || 'Could not send this media.');
-      }
-    } finally {
-      if (!keepProgressOpen) {
-        setMediaProgress(null);
-      }
-      setMediaSending(false);
-    }
-  }, [sendMutation]);
-
-  const audioRecorder = useRoundAudioRecorder(sendMediaAsset);
-
-  const closeSafetySheet = React.useCallback(() => {
-    const afterDismiss = safetySheet?.mode === 'success' ? safetySheet.afterDismiss : undefined;
-    setSafetySheet(null);
-    setSafetyError(null);
-    afterDismiss?.();
-  }, [safetySheet]);
-
-  const openUserActions = React.useCallback((userId: number, displayName: string) => {
-    setSafetyError(null);
-    setSafetySheet({ mode: 'actions', userId, name: displayName });
-  }, []);
-
-  const openReportSheet = React.useCallback((input: {
-    targetType: ReportTargetType;
-    targetId: number;
-    label: string;
-    userId?: number;
-    name?: string;
-  }) => {
-    setSafetyError(null);
-    setSafetySheet({ mode: 'report', ...input });
-  }, []);
-
-  const openBlockSheet = React.useCallback((userId: number, displayName: string) => {
-    setSafetyError(null);
-    setSafetySheet({ mode: 'block', userId, name: displayName });
-  }, []);
-
-  const openMessageActions = React.useCallback((message: ChatMessage) => {
-    if (message.archived) return;
-    const mediaId = message.media?.id ? Number(message.media.id) : undefined;
-    setSafetyError(null);
-    setSafetySheet({ mode: 'message_actions', messageId: Number(message.id), mediaId });
-  }, []);
-
-  const submitReport = React.useCallback(async (reason: string) => {
-    if (safetySheet?.mode !== 'report') return;
-    setSafetyLoading(true);
-    setSafetyError(null);
-    try {
-      await ModerationService.reportContent({
-        target_type: safetySheet.targetType,
-        target_id: safetySheet.targetId,
-        reason,
-      });
-      setSafetySheet({
-        mode: 'success',
-        title: 'Report submitted',
-        subtitle: 'Thanks. Our moderation team will review this and take action where needed.',
-      });
-    } catch (e: any) {
-      setSafetyError(e?.response?.data?.message || e?.message || 'Could not submit report.');
-    } finally {
-      setSafetyLoading(false);
-    }
-  }, [safetySheet]);
-
-  const confirmBlock = React.useCallback(async () => {
-    if (safetySheet?.mode !== 'block') return;
-    setSafetyLoading(true);
-    setSafetyError(null);
-    try {
-      await ModerationService.blockUser(safetySheet.userId);
-      queryClient.invalidateQueries({ queryKey: ['chat-threads'] });
-      queryClient.invalidateQueries({ queryKey: ['user'] });
-      setSafetySheet({
-        mode: 'success',
-        title: 'Blocked',
-        subtitle: `${safetySheet.name} cannot message you or view your profile now.`,
-        afterDismiss: () => navigation.goBack(),
-      });
-    } catch (e: any) {
-      setSafetyError(e?.response?.data?.message || e?.message || 'Could not block this user.');
-    } finally {
-      setSafetyLoading(false);
-    }
-  }, [navigation, queryClient, safetySheet]);
-
-  const pickChatMedia = React.useCallback(async (assetType: 'image' | 'video') => {
-    try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Allow photo library access to share media.');
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: assetType === 'image' ? ['images'] : ['videos'],
-        quality: 0.85,
-        videoMaxDuration: 60,
-      });
-      if (result.canceled || !result.assets?.[0]) return;
-
-      const asset = result.assets[0];
-      await sendMediaAsset({
-        uri: asset.uri,
-        mimeType: asset.mimeType || (assetType === 'image' ? 'image/jpeg' : 'video/mp4'),
-        assetType,
-      });
-    } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Could not share media.');
-    }
-  }, [sendMediaAsset]);
-
-  const takeChatPhoto = React.useCallback(async () => {
-    try {
-      const cam = await ImagePicker.requestCameraPermissionsAsync();
-      if (!cam.granted) {
-        Alert.alert('Permission Required', 'Allow camera access to take a photo.');
-        return;
-      }
-
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.85,
-      });
-      if (result.canceled || !result.assets?.[0]) return;
-
-      const asset = result.assets[0];
-      await sendMediaAsset({
-        uri: asset.uri,
-        mimeType: asset.mimeType || 'image/jpeg',
-        assetType: 'image',
-      });
-    } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Could not take a photo.');
-    }
-  }, [sendMediaAsset]);
-
-  const recordChatVideo = React.useCallback(async () => {
-    try {
-      const cam = await ImagePicker.requestCameraPermissionsAsync();
-      if (!cam.granted) {
-        Alert.alert('Permission Required', 'Allow camera access to record video.');
-        return;
-      }
-
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ['videos'],
-        videoMaxDuration: 60,
-      });
-      if (result.canceled || !result.assets?.[0]) return;
-
-      const asset = result.assets[0];
-      await sendMediaAsset({
-        uri: asset.uri,
-        mimeType: asset.mimeType || 'video/mp4',
-        assetType: 'video',
-      });
-    } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Could not record a video.');
-    }
-  }, [sendMediaAsset]);
-
-  React.useEffect(() => {
-    if (!threadId) return;
-    setArchives(null);
-    setNextArchiveIndex(0);
-    setArchiveExhausted(false);
-    ChatService.markRead(threadId).finally(() => {
-      queryClient.invalidateQueries({ queryKey: ['chat-threads'] });
-      queryClient.invalidateQueries({ queryKey: ['user'] });
-    });
-  }, [threadId, queryClient]);
-
-  React.useEffect(() => {
-    if (!threadId) return;
-    const { echo } = require('../../utils/echo');
-    const channel = echo.private(`chat.${threadId}`);
-
-    channel.listen('.MessageSent', (event: any) => {
-      const incoming = event?.message as ChatMessage | undefined;
-      if (!incoming) return;
-      shouldAutoScrollRef.current = true;
-      queryClient.setQueryData(['chat-thread', String(threadId)], (current: any) => {
-        if (!current?.data) return current;
-        const exists = current.data.messages?.some((m: ChatMessage) => Number(m.id) === Number(incoming.id));
-        if (exists) return current;
-        return {
-          ...current,
-          data: {
-            ...current.data,
-            messages: [...(current.data.messages || []), incoming],
-          },
-        };
-      });
-      queryClient.invalidateQueries({ queryKey: ['chat-threads'] });
-      if (Number(incoming.sender_id) !== Number(user?.id)) {
-        ChatService.markRead(threadId).finally(() => {
-          queryClient.invalidateQueries({ queryKey: ['chat-threads'] });
-          queryClient.invalidateQueries({ queryKey: ['user'] });
-        });
-      }
-      requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
-    });
-
-    return () => {
-      channel.stopListening('.MessageSent');
-      echo.leave(`chat.${threadId}`);
-    };
-  }, [threadId, queryClient, user?.id]);
-
-  const payload = data?.data;
-  const thread = payload?.thread;
-  const messages = payload?.messages || [];
-  const pagination = payload?.pagination;
   const avatar = toImageUri(thread?.other_user?.avatar);
   const isProviderChat = thread?.type === 'provider';
   const currentUserIsProvider = isProviderChat && Number(thread?.provider_id) === Number(user?.id);
   const otherPartyLabel = isProviderChat ? (currentUserIsProvider ? 'customer' : 'provider') : 'user';
   const otherPartyTitle = otherPartyLabel.charAt(0).toUpperCase() + otherPartyLabel.slice(1);
   const name = thread?.other_user?.name || (isProviderChat ? otherPartyTitle : 'Your match');
-  const canLoadHotMessages = Boolean(pagination?.has_more && pagination.next_before_id);
-  const canLoadOlder = Boolean(payload) && (canLoadHotMessages || !archiveExhausted);
-  const loadOlderMessages = React.useCallback(async () => {
-    if (!threadId || loadingOlder) return;
-
-    try {
-      setLoadingOlder(true);
-      shouldAutoScrollRef.current = false;
-      if (canLoadHotMessages) {
-        const response = await ChatService.getThread(threadId, { before_id: pagination?.next_before_id ?? undefined, per_page: 25 });
-        queryClient.setQueryData(['chat-thread', String(threadId)], (current: any) => {
-          if (!current?.data) return response;
-          const existing = new Set((current.data.messages || []).map((message: ChatMessage) => Number(message.id)));
-          const older = (response.data.messages || []).filter((message) => !existing.has(Number(message.id)));
-          return {
-            ...current,
-            data: {
-              ...current.data,
-              messages: [...older, ...(current.data.messages || [])],
-              pagination: response.data.pagination,
-            },
-          };
-        });
-        return;
-      }
-
-      let archiveList = archives;
-      if (archiveList === null) {
-        const archiveResponse = await ChatService.getArchives(threadId);
-        archiveList = archiveResponse.data || [];
-        setArchives(archiveList);
-      }
-
-      const archive = archiveList[nextArchiveIndex];
-      if (!archive) {
-        setArchiveExhausted(true);
-        return;
-      }
-
-      const archiveResponse = await ChatService.getArchive(threadId, archive.id);
-      queryClient.setQueryData(['chat-thread', String(threadId)], (current: any) => {
-        if (!current?.data) return current;
-        const existing = new Set((current.data.messages || []).map((message: ChatMessage) => Number(message.id)));
-        const older = (archiveResponse.data.messages || []).filter((message) => !existing.has(Number(message.id)));
-        return {
-          ...current,
-          data: {
-            ...current.data,
-            messages: [...older, ...(current.data.messages || [])],
-          },
-        };
-      });
-
-      const nextIndex = nextArchiveIndex + 1;
-      setNextArchiveIndex(nextIndex);
-      if (nextIndex >= archiveList.length) {
-        setArchiveExhausted(true);
-      }
-    } catch (e: any) {
-      Alert.alert('Could not load older messages', e?.response?.data?.message || 'Please try again.');
-    } finally {
-      setLoadingOlder(false);
-    }
-  }, [archiveExhausted, archives, canLoadHotMessages, loadingOlder, nextArchiveIndex, pagination?.next_before_id, queryClient, threadId]);
+  const subtitle = `${isProviderChat ? 'Provider chat' : (thread?.spec?.title || 'Spec date')}${thread?.date_code ? ` - ${thread.date_code}` : ''}`;
 
   return (
     <KeyboardAvoidingView
@@ -418,29 +80,22 @@ export default function ChatThreadScreen({ route, navigation }: any) {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={0}
     >
-      <View style={[styles.header, { paddingTop: insets.top + 6, backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.outlineVariant }]}>
-        <IconButton icon="arrow-left" size={24} onPress={() => navigation.goBack()} />
-        {avatar ? (
-          <Avatar.Image size={42} source={{ uri: avatar }} />
-        ) : (
-          <Avatar.Text size={42} label={name.slice(0, 2).toUpperCase()} />
-        )}
-        <View style={styles.headerText}>
-          <Text style={[styles.name, { color: theme.colors.onSurface }]} numberOfLines={1}>{name}</Text>
-          <Text style={[styles.spec, { color: theme.colors.onSurfaceVariant }]} numberOfLines={1}>
-            {isProviderChat ? 'Provider chat' : (thread?.spec?.title || 'Spec date')}{thread?.date_code ? ` • ${thread.date_code}` : ''}
-          </Text>
-        </View>
-        <IconButton
-          icon="dots-vertical"
-          size={22}
-          onPress={() => {
-            const otherUserId = thread?.other_user?.id;
-            if (!otherUserId) return;
-            openUserActions(Number(otherUserId), name);
-          }}
-        />
-      </View>
+      <ChatHeader
+        avatar={avatar}
+        borderColor={theme.colors.outlineVariant}
+        name={name}
+        onBack={() => navigation.goBack()}
+        onOpenActions={() => {
+          const otherUserId = thread?.other_user?.id;
+          if (!otherUserId) return;
+          openUserActions(Number(otherUserId), name);
+        }}
+        subtitle={subtitle}
+        surfaceColor={theme.colors.surface}
+        textColor={theme.colors.onSurface}
+        topInset={insets.top}
+        variantTextColor={theme.colors.onSurfaceVariant}
+      />
 
       <FlatList
         ref={listRef}
@@ -601,27 +256,6 @@ export default function ChatThreadScreen({ route, navigation }: any) {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingRight: 14,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-  },
-  headerText: {
-    flex: 1,
-    minWidth: 0,
-    marginLeft: 10,
-  },
-  name: {
-    fontSize: 17,
-    fontWeight: '900',
-  },
-  spec: {
-    marginTop: 2,
-    fontSize: 12,
-    fontWeight: '700',
   },
   messagesContent: {
     paddingHorizontal: 14,
